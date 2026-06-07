@@ -1,0 +1,181 @@
+//lib/features/auth/presentation/controllers/auth_controller.dart
+import 'package:get/get.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/routes/navigation_service.dart';
+import '../../data/datasources/auth_local_datasource.dart';
+import '../../domain/entities/user.dart';
+import '../../domain/usecases/get_current_user_usecase.dart';
+import '../../domain/usecases/login_usecase.dart';
+import '../../domain/usecases/logout_usecase.dart';
+import '../../domain/usecases/register_usecase.dart';
+
+/// Auth Controller using GetX
+/// Manages authentication state and business logic
+class AuthController extends GetxController {
+  final LoginUseCase loginUseCase;
+  final RegisterUseCase registerUseCase;
+  final LogoutUseCase logoutUseCase;
+  final GetCurrentUserUseCase getCurrentUserUseCase;
+
+  AuthController({
+    required this.loginUseCase,
+    required this.registerUseCase,
+    required this.logoutUseCase,
+    required this.getCurrentUserUseCase,
+  });
+
+  // Observable state
+  final _isLoading = false.obs;
+  final Rx<User?> _currentUser = Rx<User?>(null);
+  final _isAuthenticated = false.obs;
+
+  // Getters
+  bool get isLoading => _isLoading.value;
+  User? get currentUser => _currentUser.value;
+
+  /// Versión reactiva — útil dentro de `Obx()` cuando la UI debe
+  /// refrescarse al cambiar el usuario (login, logout, role refresh).
+  /// Usar este getter en `Obx()` y no `currentUser` directo.
+  User? get currentUserRx => _currentUser.value;
+  bool get isAuthenticated => _isAuthenticated.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    checkAuthStatus();
+  }
+
+  /// Check if user is authenticated on app start
+  Future<void> checkAuthStatus() async {
+    _isLoading.value = true;
+
+    final result = await getCurrentUserUseCase();
+
+    result.fold(
+      (failure) {
+        _isAuthenticated.value = false;
+        _currentUser.value = null;
+      },
+      (user) {
+        _isAuthenticated.value = true;
+        _currentUser.value = user;
+      },
+    );
+
+    _isLoading.value = false;
+  }
+
+  /// Login user against the given tenant subdomain.
+  ///
+  /// Retorna `null` si el login fue exitoso (la screen ya está en
+  /// `/home`). Si falló, retorna el mensaje de error como `String`
+  /// para que la screen lo muestre con `ScaffoldMessenger` — NO se
+  /// muestra desde acá porque `Get.snackbar` depende del Overlay del
+  /// route activo y crashea cuando hay navegación en curso (cola
+  /// async fire-and-forget de GetX, fuera de cualquier try/catch).
+  Future<String?> login({
+    required String email,
+    required String password,
+    required String tenantSubdomain,
+  }) async {
+    _isLoading.value = true;
+
+    final result = await loginUseCase(
+      email: email,
+      password: password,
+      tenantSubdomain: tenantSubdomain,
+    );
+
+    return result.fold<String?>(
+      (failure) {
+        _isLoading.value = false;
+        return failure.message;
+      },
+      (authResponse) {
+        _isLoading.value = false;
+        _isAuthenticated.value = true;
+        _currentUser.value = authResponse.user;
+        // Guardamos los datos del login (subdomain + email, SIN
+        // contraseña) para precargar el formulario la próxima vez
+        // que el usuario abra la app o cierre sesión. Fire-and-
+        // forget: si falla no bloquea el flujo.
+        sl<AuthLocalDataSource>().cacheLastLogin(
+          subdomain: tenantSubdomain,
+          email: email,
+        );
+        NavigationService.toHome(clearStack: true);
+        return null;
+      },
+    );
+  }
+
+  /// Register new user inside the given tenant subdomain.
+  /// Mismo contrato que [login]: `null` = OK, `String` = mensaje de error.
+  Future<String?> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? phoneNumber,
+    required String tenantSubdomain,
+  }) async {
+    _isLoading.value = true;
+
+    final result = await registerUseCase(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      phoneNumber: phoneNumber,
+      tenantSubdomain: tenantSubdomain,
+    );
+
+    return result.fold<String?>(
+      (failure) {
+        _isLoading.value = false;
+        return failure.message;
+      },
+      (authResponse) {
+        _isLoading.value = false;
+        _isAuthenticated.value = true;
+        _currentUser.value = authResponse.user;
+        NavigationService.toHome(clearStack: true);
+        return null;
+      },
+    );
+  }
+
+  /// Logout user
+  Future<void> logout() async {
+    _isLoading.value = true;
+
+    final result = await logoutUseCase();
+
+    result.fold(
+      (failure) {
+        _isLoading.value = false;
+        // Even if logout fails on server, clear local state
+        _clearAuthState();
+        NavigationService.toLogin();
+      },
+      (_) {
+        _isLoading.value = false;
+        _clearAuthState();
+
+        // Sin snackbar post-navegación (mismo motivo que en `login`):
+        // la cola async de `Get.snackbar` puede ejecutarse cuando
+        // /home/* ya se desmontó pero /login aún no terminó de
+        // construir su Overlay → crash. La transición a /login es
+        // feedback suficiente de que cerraste sesión.
+        NavigationService.toLogin();
+      },
+    );
+  }
+
+  /// Clear authentication state
+  void _clearAuthState() {
+    _isAuthenticated.value = false;
+    _currentUser.value = null;
+  }
+
+}

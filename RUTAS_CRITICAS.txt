@@ -1,0 +1,277 @@
+================================================================================
+                    RUTAS CRÍTICAS DEL PROYECTO
+                       ARCHIVOS IMPORTANTES
+================================================================================
+
+ARCHIVOS DE ANÁLISIS GENERADOS:
+  /Users/mac/Documents/food_app/frontend/ANALISIS_RESUMEN.txt (este archivo)
+  /Users/mac/Documents/food_app/frontend/analisis_frontend.md
+  /Users/mac/Documents/food_app/frontend/checklist_implementacion.md
+
+================================================================================
+                      INYECCIÓN DE DEPENDENCIAS
+================================================================================
+
+PRINCIPAL (REGISTRAR AQUÍ TODOS LOS USE CASES):
+  /Users/mac/Documents/food_app/frontend/lib/core/di/injection_container.dart
+  - 37 use cases registrados actualmente
+  - 23 use cases FALTANTES por registrar
+
+RUTAS DEFINIDAS:
+  /Users/mac/Documents/food_app/frontend/lib/core/routes/app_routes.dart
+  - Todas las rutas definidas como constantes
+  - Algunos métodos helper para construir rutas dinámicas
+
+MAPEO DE PÁGINAS:
+  /Users/mac/Documents/food_app/frontend/lib/core/routes/app_pages.dart
+  - Configuración de todas las GetPages
+  - Middleware de autenticación (AuthGuard)
+  - NOTA: Algunos usan hard-coded routes en lugar de AppRoutes
+
+================================================================================
+                     FEATURES - ESTRUCTURA BASE
+================================================================================
+
+COMPLETADAS (100% - Usar como referencia):
+  ✅ /Users/mac/Documents/food_app/frontend/lib/features/auth
+     - Domain: entities, repositories, usecases
+     - Data: models, repositories impl, datasources
+     - Presentation: controllers, screens, bindings
+
+  ✅ /Users/mac/Documents/food_app/frontend/lib/features/categories
+     - Domain: COMPLETO
+     - Data: COMPLETO
+     - Presentation: controllers, pages, widgets, bindings
+
+PARCIALES (Necesitan use cases adicionales):
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/products
+     - FALTA: GetProductsByCategory, GetLowStock, GetBySku, UpdateStock use cases
+     - FALTA: ProductDetailPage
+     - Carpeta: /domain/usecases (agregar los 4 use cases)
+
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/orders
+     - FALTA: 9 use cases (ByNumber, ByTable, ByCustomer, PendingPayment, etc.)
+     - FALTA: UpdateOrder, AssignOrder, UpdatePaymentMethod, etc.
+     - Carpeta: /domain/usecases (agregar los 9 use cases)
+
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/tables
+     - FALTA: 4 use cases (Release, Reserve, Clean, CompleteCleaning)
+     - FALTA: 4 FloorPlan use cases (Create, Update, Delete, Duplicate)
+     - Carpeta: /domain/usecases (crear los 4 FloorPlan use cases)
+
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/payments
+     - Domain & Data completos
+     - FALTA: PaymentsPage y rutas dedicadas
+     - FALTA: 3 use cases (Create, GetById, GetPayments)
+     - Problema: Se usa solo en OrderDetail (sub-componente vs Feature?)
+
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/home
+     - Solo Presentation (Controller, Screen, Binding)
+     - FALTA: Domain y Data layers
+
+  ⚠️ /Users/mac/Documents/food_app/frontend/lib/features/splash
+     - Solo Presentation
+     - FALTA: Domain y Data layers
+
+COMPLETAMENTE PENDIENTES (0%):
+  ❌ /Users/mac/Documents/food_app/frontend/lib/features/customers
+     - NO EXISTE la carpeta
+     - Rutas definidas pero solo placeholder
+
+  ❌ /Users/mac/Documents/food_app/frontend/lib/features/employees
+     - NO EXISTE la carpeta
+     - Rutas definidas pero solo placeholder
+
+  ❌ /Users/mac/Documents/food_app/frontend/lib/features/inventory
+     - NO EXISTE la carpeta
+     - Rutas definidas pero solo placeholder
+
+  ❌ /Users/mac/Documents/food_app/frontend/lib/features/reservations
+     - NO EXISTE la carpeta
+     - Rutas definidas pero solo placeholder
+
+================================================================================
+                   ELEMENTOS PARA REFACTORIZACIÓN
+================================================================================
+
+CONTROLLERS A REFACTORIZAR (Implementar BaseController):
+  /Users/mac/Documents/food_app/frontend/lib/features/categories/presentation/controllers/categories_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/orders/presentation/controllers/orders_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/products/presentation/controllers/products_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/tables/presentation/controllers/table_status_controller.dart
+  
+  PATRÓN REPETIDO: loadData(), filterBy(), search(), clearFilters()
+  SOLUCIÓN: Crear /lib/core/base/base_paginated_controller.dart
+
+FORM CONTROLLERS A REFACTORIZAR (Implementar BaseFormController):
+  /Users/mac/Documents/food_app/frontend/lib/features/categories/presentation/controllers/category_form_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/products/presentation/controllers/product_form_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/orders/presentation/controllers/order_form_controller.dart
+  
+  PATRÓN REPETIDO: _initializeControllers(), _loadData(), saveEntity(), validation
+  SOLUCIÓN: Crear /lib/core/base/base_form_controller.dart
+
+DIALOGS A REFACTORIZAR (Implementar BaseConfirmationDialog):
+  /Users/mac/Documents/food_app/frontend/lib/features/payments/presentation/widgets/process_payment_dialog.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/tables/presentation/widgets/reserve_table_dialog.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/tables/presentation/widgets/occupy_table_dialog.dart
+
+REPOSITORIOS CON ERROR HANDLING REPETIDO:
+  /Users/mac/Documents/food_app/frontend/lib/features/tables/data/repositories/table_status_repository.dart
+  - Try-catch repetido en múltiples métodos
+  SOLUCIÓN: Crear /lib/core/base/repository_error_handler.dart
+
+================================================================================
+                        LISTA DE USE CASES
+================================================================================
+
+USE CASES IMPLEMENTADOS (37 TOTAL):
+
+AUTH (4):
+  ✅ /lib/features/auth/domain/usecases/login_usecase.dart
+  ✅ /lib/features/auth/domain/usecases/register_usecase.dart
+  ✅ /lib/features/auth/domain/usecases/logout_usecase.dart
+  ✅ /lib/features/auth/domain/usecases/get_current_user_usecase.dart
+
+PRODUCTS (9):
+  ✅ /lib/features/products/domain/usecases/get_products_usecase.dart
+  ✅ /lib/features/products/domain/usecases/get_product_by_id_usecase.dart
+  ✅ /lib/features/products/domain/usecases/get_available_products_usecase.dart
+  ✅ /lib/features/products/domain/usecases/create_product_usecase.dart
+  ✅ /lib/features/products/domain/usecases/update_product_usecase.dart
+  ✅ /lib/features/products/domain/usecases/delete_product_usecase.dart
+  ✅ /lib/features/products/domain/usecases/create_variant_usecase.dart
+  ✅ /lib/features/products/domain/usecases/update_variant_usecase.dart
+  ✅ /lib/features/products/domain/usecases/delete_variant_usecase.dart
+
+CATEGORIES (6):
+  ✅ /lib/features/categories/domain/usecases/get_categories_usecase.dart
+  ✅ /lib/features/categories/domain/usecases/get_category_tree_usecase.dart
+  ✅ /lib/features/categories/domain/usecases/get_active_categories_usecase.dart
+  ✅ /lib/features/categories/domain/usecases/get_category_by_id_usecase.dart
+  ✅ /lib/features/categories/domain/usecases/create_category_usecase.dart
+  ✅ /lib/features/categories/domain/usecases/update_category_usecase.dart
+
+ORDERS (5):
+  ✅ /lib/features/orders/domain/usecases/get_orders_usecase.dart
+  ✅ /lib/features/orders/domain/usecases/get_order_by_id_usecase.dart
+  ✅ /lib/features/orders/domain/usecases/get_active_orders_usecase.dart
+  ✅ /lib/features/orders/domain/usecases/create_order_usecase.dart
+  ✅ /lib/features/orders/domain/usecases/update_order_status_usecase.dart
+
+TABLES (8):
+  ✅ /lib/features/tables/domain/usecases/get_tables_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/get_table_by_id_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/get_available_tables_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/create_table_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/update_table_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/update_table_status_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/occupy_table_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/update_table_position_usecase.dart
+  ✅ /lib/features/tables/domain/usecases/delete_table_usecase.dart
+
+PAYMENTS (4):
+  ✅ /lib/features/payments/domain/usecases/process_order_payment_usecase.dart
+  ✅ /lib/features/payments/domain/usecases/process_split_payment_usecase.dart
+  ✅ /lib/features/payments/domain/usecases/get_payments_by_order_usecase.dart
+  ✅ /lib/features/payments/domain/usecases/refund_payment_usecase.dart
+
+USE CASES FALTANTES (23 TOTAL):
+
+CATEGORIES (3):
+  ❌ /lib/features/categories/domain/usecases/delete_category_usecase.dart (CREAR)
+  ❌ /lib/features/categories/domain/usecases/get_root_categories_usecase.dart (CREAR)
+  ❌ /lib/features/categories/domain/usecases/get_subcategories_usecase.dart (CREAR)
+
+PRODUCTS (4):
+  ❌ /lib/features/products/domain/usecases/get_products_by_category_usecase.dart (CREAR)
+  ❌ /lib/features/products/domain/usecases/get_low_stock_products_usecase.dart (CREAR)
+  ❌ /lib/features/products/domain/usecases/get_product_by_sku_usecase.dart (CREAR)
+  ❌ /lib/features/products/domain/usecases/update_stock_usecase.dart (CREAR)
+
+ORDERS (9):
+  ❌ /lib/features/orders/domain/usecases/get_order_by_number_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/get_orders_by_table_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/get_orders_by_customer_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/get_pending_payment_orders_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/update_order_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/assign_order_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/update_payment_method_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/mark_as_paid_usecase.dart (CREAR)
+  ❌ /lib/features/orders/domain/usecases/cancel_order_usecase.dart (CREAR)
+
+TABLES (8):
+  ❌ /lib/features/tables/domain/usecases/release_table_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/reserve_table_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/mark_table_for_cleaning_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/complete_table_cleaning_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/create_floor_plan_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/update_floor_plan_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/delete_floor_plan_usecase.dart (CREAR)
+  ❌ /lib/features/tables/domain/usecases/duplicate_floor_plan_usecase.dart (CREAR)
+
+PAYMENTS (3):
+  ❌ /lib/features/payments/domain/usecases/create_payment_usecase.dart (CREAR)
+  ❌ /lib/features/payments/domain/usecases/get_payment_by_id_usecase.dart (CREAR)
+  ❌ /lib/features/payments/domain/usecases/get_payments_usecase.dart (CREAR)
+
+================================================================================
+                         ARCHIVOS CRÍTICOS
+================================================================================
+
+DEBE ACTUALIZAR (registrar 23 use cases):
+  /Users/mac/Documents/food_app/frontend/lib/core/di/injection_container.dart
+  Lineas ~100-224 (secciones de Features)
+
+DEBE ACTUALIZAR (agregar páginas/rutas):
+  /Users/mac/Documents/food_app/frontend/lib/core/routes/app_routes.dart
+  /Users/mac/Documents/food_app/frontend/lib/core/routes/app_pages.dart
+
+DEBE CREAR (Refactorización DRY):
+  /Users/mac/Documents/food_app/frontend/lib/core/base/base_paginated_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/core/base/base_form_controller.dart
+  /Users/mac/Documents/food_app/frontend/lib/core/base/base_confirmation_dialog.dart
+  /Users/mac/Documents/food_app/frontend/lib/core/base/repository_error_handler.dart
+
+================================================================================
+                         ESTRUCTURAS TEMPLATES
+================================================================================
+
+Para crear nuevos use cases, usar como referencia:
+  /Users/mac/Documents/food_app/frontend/lib/features/auth/domain/usecases/login_usecase.dart
+  /Users/mac/Documents/food_app/frontend/lib/features/categories/domain/usecases/get_categories_usecase.dart
+
+Para crear nuevas features, copiar estructura de:
+  /Users/mac/Documents/food_app/frontend/lib/features/categories (COMPLETA)
+  /Users/mac/Documents/food_app/frontend/lib/features/auth (COMPLETA)
+
+Estructura recomendada para nuevas features:
+  /lib/features/[feature_name]/
+    ├── domain/
+    │   ├── entities/
+    │   ├── repositories/
+    │   └── usecases/
+    ├── data/
+    │   ├── datasources/
+    │   ├── models/
+    │   └── repositories/
+    └── presentation/
+        ├── bindings/
+        ├── controllers/
+        ├── pages/
+        └── widgets/
+
+================================================================================
+                           SIGUIENTE PASO
+================================================================================
+
+1. Revisar analisis_frontend.md para detalles técnicos
+2. Revisar checklist_implementacion.md para orden de tareas
+3. Comenzar con Priority 1 (Use Cases Críticos)
+4. Usar templates de categorías/auth como referencia
+
+Total de work items: 60+ tareas
+Estimated effort: 118-157 horas
+Recomendación: Dividir en sprints semanales
+
+================================================================================
