@@ -45,6 +45,13 @@ import '../../features/tab_sessions/presentation/pages/open_tabs_page.dart';
 import '../../features/tab_sessions/presentation/pages/tab_session_detail_page.dart';
 import '../../features/tab_sessions/presentation/pages/tab_session_pay_page.dart';
 import '../../features/orders/presentation/pages/orders_page.dart';
+import '../../features/orders/presentation/pages/pending_review_page.dart';
+import '../../features/orders/presentation/bindings/pending_review_binding.dart';
+import '../../features/qr_tokens/presentation/pages/qr_tokens_page.dart';
+import '../../features/qr_tokens/presentation/bindings/qr_tokens_binding.dart';
+import '../../features/menu_schedules/presentation/pages/menu_schedules_page.dart';
+import '../../features/menu_schedules/presentation/bindings/menu_schedules_binding.dart';
+import '../../features/settings/presentation/screens/business_info_screen.dart';
 import '../../features/products/presentation/bindings/modifier_form_binding.dart';
 import '../../features/products/presentation/bindings/modifiers_binding.dart';
 import '../../features/products/presentation/bindings/product_detail_binding.dart';
@@ -194,6 +201,39 @@ class AppPages {
       name: AppRoutes.ordersList,
       page: () => const OrdersPage(),
       binding: OrdersBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    // Bandeja self-order (pedidos por QR esperando aprobación del mesero).
+    // Debe ir ANTES de `/orders/:id` para que GetX no la trate como detalle.
+    GetPage(
+      name: AppRoutes.pendingReviewOrders,
+      page: () => const PendingReviewPage(),
+      binding: PendingReviewBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    // Admin: gestión de QRs (CRUD + impresión térmica POS).
+    GetPage(
+      name: AppRoutes.qrTokens,
+      page: () => const QrTokensPage(),
+      binding: QrTokensBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    // Admin: menú del día (qué productos ven los clientes en self-order).
+    GetPage(
+      name: AppRoutes.menuSchedules,
+      page: () => const MenuSchedulesPage(),
+      binding: MenuSchedulesBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    // Settings: información del negocio (nombre, contacto, NIT) —
+    // se imprime en cada recibo térmico.
+    GetPage(
+      name: AppRoutes.businessInfo,
+      page: () => const BusinessInfoScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

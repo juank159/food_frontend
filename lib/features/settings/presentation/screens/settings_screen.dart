@@ -56,6 +56,14 @@ class SettingsScreen extends StatelessWidget {
                   _buildSectionTitle('Negocio'),
                   const SizedBox(height: 8),
                   _SettingsTile(
+                    icon: Icons.business_center_outlined,
+                    title: 'Información del negocio',
+                    subtitle: 'Nombre, dirección, teléfono y NIT (en recibos)',
+                    accent: AppColors.primary,
+                    onTap: () => Get.toNamed(AppRoutes.businessInfo),
+                  ),
+                  const SizedBox(height: 10),
+                  _SettingsTile(
                     icon: Icons.storefront_outlined,
                     title: 'Configuración del negocio',
                     subtitle: 'Impuestos, propinas y horarios',

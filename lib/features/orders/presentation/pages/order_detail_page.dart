@@ -8,6 +8,9 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/widgets.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/utils/app_snackbar.dart';
+import '../../../thermal_print/data/thermal_print_service.dart';
 import '../../domain/entities/order.dart';
 import '../controllers/order_detail_controller.dart';
 import '../widgets/order_items_list.dart';
@@ -396,6 +399,10 @@ class _OrderHeader extends StatelessWidget {
                   icon: const Icon(Icons.edit_outlined,
                       color: Colors.white),
                 ),
+              // Menú de impresión térmica POS (recibo + comanda).
+              // Vive en el header para que sea accesible siempre,
+              // incluso en órdenes ya completadas (re-imprimir copia).
+              _PrintMenuButton(orderId: order.id),
               IconButton(
                 tooltip: 'Refrescar',
                 onPressed: onRefresh,
@@ -569,6 +576,11 @@ class _OrderHeader extends StatelessWidget {
 
   static Color _statusColor(OrderStatus status) {
     switch (status) {
+      case OrderStatus.pendingReview:
+        // Self-order esperando aprobación del mesero — color de alerta
+        // distinto al de pending normal para que se vea distinto en
+        // la timeline.
+        return Colors.deepOrange;
       case OrderStatus.pending:
         return AppColors.warning;
       case OrderStatus.confirmed:
@@ -954,5 +966,105 @@ class _SpecialInstructionsCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// =====================================================================
+// Menú de impresión térmica POS (recibo + comanda × 80mm/58mm).
+// Vive acá porque es específico de esta pantalla y depende del
+// `orderId` que viene del header.
+// =====================================================================
+class _PrintMenuButton extends StatefulWidget {
+  final String orderId;
+  const _PrintMenuButton({required this.orderId});
+
+  @override
+  State<_PrintMenuButton> createState() => _PrintMenuButtonState();
+}
+
+class _PrintMenuButtonState extends State<_PrintMenuButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Imprimir',
+      icon: _busy
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.print, color: Colors.white),
+      onSelected: (value) => _handle(value),
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'receipt:80',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.receipt_long),
+            title: Text('Recibo cliente'),
+            subtitle: Text('80 mm'),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'receipt:58',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.receipt_long_outlined),
+            title: Text('Recibo cliente'),
+            subtitle: Text('58 mm'),
+          ),
+        ),
+        PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'kitchen:80',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.restaurant_menu),
+            title: Text('Comanda cocina'),
+            subtitle: Text('80 mm · sin precios'),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'kitchen:58',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.restaurant_menu_outlined),
+            title: Text('Comanda cocina'),
+            subtitle: Text('58 mm · sin precios'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handle(String value) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final parts = value.split(':');
+      final kind = parts[0];
+      final width = parts[1] == '58'
+          ? ThermalPaperWidth.mm58
+          : ThermalPaperWidth.mm80;
+      final service = sl<ThermalPrintService>();
+
+      if (kind == 'receipt') {
+        await service.printReceipt(orderId: widget.orderId, width: width);
+      } else {
+        await service.printKitchenTicket(
+          orderId: widget.orderId,
+          width: width,
+        );
+      }
+    } catch (e) {
+      AppSnackbar.show('Error al imprimir', e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }

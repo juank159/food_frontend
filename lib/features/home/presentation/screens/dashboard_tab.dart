@@ -7,6 +7,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../controllers/home_controller.dart';
 
 /// Dashboard — pantalla de inicio.
@@ -254,6 +255,26 @@ class DashboardTab extends GetView<HomeController> {
             onTap: () => Get.toNamed(AppRoutes.shiftClock),
           ),
           const SizedBox(height: 10),
+          // Tile con badge animado del watcher global. El count es
+          // reactivo — sube/baja sin refrescar la pantalla.
+          _PendingReviewActionTile(),
+          const SizedBox(height: 10),
+          _QuickActionTile(
+            icon: FontAwesomeIcons.qrcode,
+            title: 'Códigos QR',
+            subtitle: 'Crear e imprimir QRs para mesas y zonas',
+            accent: Colors.indigo,
+            onTap: () => Get.toNamed(AppRoutes.qrTokens),
+          ),
+          const SizedBox(height: 10),
+          _QuickActionTile(
+            icon: FontAwesomeIcons.calendarCheck,
+            title: 'Menú del día',
+            subtitle: 'Programar qué productos ven los clientes en self-order',
+            accent: AppColors.accent,
+            onTap: () => Get.toNamed(AppRoutes.menuSchedules),
+          ),
+          const SizedBox(height: 10),
           _QuickActionTile(
             icon: FontAwesomeIcons.chartLine,
             title: 'Reportes',
@@ -472,5 +493,146 @@ class _QuickActionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Tile especial para "Pedidos por QR" con badge reactivo al count
+/// del watcher global. Si hay pedidos, se ve con borde naranja
+/// vibrante + pill con el número. Si no, se ve normal.
+class _PendingReviewActionTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final watcher = Get.find<PendingReviewWatcher>();
+    return Obx(() {
+      final count = watcher.count.value;
+      final hasPending = count > 0;
+      final accent = Colors.deepOrange;
+
+      return Material(
+        color: hasPending
+            ? accent.withValues(alpha: 0.08)
+            : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => Get.toNamed(AppRoutes.pendingReviewOrders),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: hasPending
+                    ? accent.withValues(alpha: 0.5)
+                    : AppColors.border,
+                width: hasPending ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        FontAwesomeIcons.bellConcierge,
+                        size: 18,
+                        color: accent,
+                      ),
+                    ),
+                    if (hasPending)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 22,
+                            minHeight: 22,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.cardBackground,
+                              width: 2,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            count > 99 ? '99+' : '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pedidos por QR',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: hasPending
+                              ? accent
+                              : AppColors.textPrimary,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        hasPending
+                            ? (count == 1
+                                ? '1 pedido esperando aprobación'
+                                : '$count pedidos esperando aprobación')
+                            : 'Pedidos por aprobar de clientes en mesa',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: hasPending
+                              ? accent.withValues(alpha: 0.85)
+                              : AppColors.textSecondary,
+                          fontWeight:
+                              hasPending ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: hasPending ? accent : AppColors.textHint,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 }

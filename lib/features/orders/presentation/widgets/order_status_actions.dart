@@ -130,6 +130,8 @@ class OrderStatusActions extends StatelessWidget {
 
   Color _getStatusColor(OrderStatus status) {
     switch (status) {
+      case OrderStatus.pendingReview:
+        return Colors.deepOrange;
       case OrderStatus.pending:
         return Colors.orange;
       case OrderStatus.confirmed:
@@ -149,6 +151,9 @@ class OrderStatusActions extends StatelessWidget {
 
   IconData _getStatusIcon(OrderStatus status) {
     switch (status) {
+      case OrderStatus.pendingReview:
+        // Campana — el mesero todavía tiene que aprobarlo.
+        return Icons.notifications_active;
       case OrderStatus.pending:
         return Icons.pending;
       case OrderStatus.confirmed:

@@ -80,6 +80,16 @@ dependencies:
   # UUID Generator
   uuid: ^4.5.1
 
+  # Impresión térmica POS (80mm / 58mm) — abre dialog nativo del SO
+  # con selector de impresora. `pdf` para futuros generadores locales
+  # de PDF (preview de comanda antes de enviar al backend, etc.).
+  printing: ^5.13.0
+  pdf: ^3.11.0
+
+  # Abrir URL externa para fallback (ej. abrir PDF en navegador si la
+  # plataforma no soporta `printing` directamente).
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

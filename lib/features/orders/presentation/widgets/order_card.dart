@@ -310,6 +310,10 @@ class OrderCard extends StatelessWidget {
 
   static Color _statusColor(OrderStatus status) {
     switch (status) {
+      case OrderStatus.pendingReview:
+        // Self-order esperando aprobación — naranja vibrante distinto
+        // del warning normal para que se vea como "necesita atención".
+        return Colors.deepOrange;
       case OrderStatus.pending:
         return AppColors.warning;
       case OrderStatus.confirmed:

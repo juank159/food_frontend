@@ -18,9 +18,19 @@ class AppRoutes {
   static const String home = '/home';
   static const String dashboard = '/dashboard';
 
+  // ==================== QR TOKENS ====================
+  static const String qrTokens = '/qr-tokens';
+
+  // ==================== MENU SCHEDULES ====================
+  static const String menuSchedules = '/menu-schedules';
+
+  // ==================== BUSINESS INFO ====================
+  static const String businessInfo = '/settings/business-info';
+
   // ==================== ORDERS ROUTES ====================
   static const String orders = '/orders';
   static const String ordersList = '/orders/list';
+  static const String pendingReviewOrders = '/orders/pending-review';
   static const String orderDetail = '/orders/:id';
   static const String createOrder = '/orders/create';
   static const String editOrder = '/orders/:id/edit';

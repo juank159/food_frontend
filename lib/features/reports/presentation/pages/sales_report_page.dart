@@ -342,6 +342,11 @@ class _OrderTile extends StatelessWidget {
 
   Color _statusColor(OrderStatus s) {
     switch (s) {
+      case OrderStatus.pendingReview:
+        // Self-order pendiente de aprobación — comparte color con
+        // pending normal en reportes para no romper agrupaciones
+        // visuales de "no completadas".
+        return AppColors.warning;
       case OrderStatus.pending:
         return AppColors.warning;
       case OrderStatus.confirmed:

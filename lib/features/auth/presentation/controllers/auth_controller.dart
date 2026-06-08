@@ -2,6 +2,7 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/get_current_user_usecase.dart';
@@ -59,10 +60,24 @@ class AuthController extends GetxController {
       (user) {
         _isAuthenticated.value = true;
         _currentUser.value = user;
+        _startPendingReviewWatcher(user);
       },
     );
 
     _isLoading.value = false;
+  }
+
+  /// Arranca el watcher global que polea pedidos por QR pendientes y
+  /// avisa al mesero con haptic + sonido + snackbar cuando llegan.
+  /// Solo se activa para roles que pueden aprobar.
+  void _startPendingReviewWatcher(User user) {
+    try {
+      Get.find<PendingReviewWatcher>().startForRole(user.roleCode);
+    } catch (_) {
+      // El servicio aún no está disponible — pasa en el primer boot
+      // si checkAuthStatus corre antes de Get.putAsync. Reintentamos
+      // perezosamente.
+    }
   }
 
   /// Login user against the given tenant subdomain.
@@ -95,6 +110,7 @@ class AuthController extends GetxController {
         _isLoading.value = false;
         _isAuthenticated.value = true;
         _currentUser.value = authResponse.user;
+        _startPendingReviewWatcher(authResponse.user);
         // Guardamos los datos del login (subdomain + email, SIN
         // contraseña) para precargar el formulario la próxima vez
         // que el usuario abra la app o cierre sesión. Fire-and-
@@ -176,6 +192,10 @@ class AuthController extends GetxController {
   void _clearAuthState() {
     _isAuthenticated.value = false;
     _currentUser.value = null;
+    // Detener el watcher global cuando el usuario cierra sesión —
+    // sin esto seguiría poleando sin auth válida y generando 401.
+    try {
+      Get.find<PendingReviewWatcher>().stop();
+    } catch (_) {}
   }
-
 }

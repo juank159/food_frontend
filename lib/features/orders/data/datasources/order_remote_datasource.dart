@@ -33,6 +33,26 @@ abstract class OrderRemoteDataSource {
   Future<OrderModel> markAsPaid(String id, PaymentMethod paymentMethod);
   Future<OrderModel> cancelOrder(String id, String? reason);
   Future<void> deleteOrder(String id);
+
+  /// Cola self-order pendientes de aprobación del mesero.
+  /// Devuelve count + items en una sola respuesta (el backend agrupa).
+  Future<PendingReviewBatch> getPendingReviewOrders();
+
+  /// Aprueba una self-order (PENDING_REVIEW → PENDING o CONFIRMED).
+  /// [toConfirmed] = true salta directo a CONFIRMED.
+  Future<OrderModel> approveSelfOrder(String id, {bool toConfirmed = false});
+
+  /// Rechaza una self-order (PENDING_REVIEW → CANCELLED) con razón.
+  Future<OrderModel> rejectSelfOrder(String id, String reason);
+}
+
+/// Tuple count + items para la cola de pending-review.
+/// El backend lo devuelve junto para evitar doble request (badge + lista).
+class PendingReviewBatch {
+  final int count;
+  final List<OrderModel> items;
+
+  const PendingReviewBatch({required this.count, required this.items});
 }
 
 /// Implementación del data source remoto de órdenes.
@@ -252,6 +272,57 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
 
       final response =
           await dio.patch(ApiConstants.orderById(id), data: requestBody);
+      return OrderModel.fromJson(ApiResponseUtils.object(response));
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<PendingReviewBatch> getPendingReviewOrders() async {
+    try {
+      final response = await dio.get(ApiConstants.pendingReviewOrders);
+      final payload = ApiResponseUtils.object(response);
+      final itemsRaw = (payload['items'] as List?) ?? const [];
+      final items = itemsRaw
+          .map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      // Si el backend no envía count (debería), lo derivamos del array.
+      final count = payload['count'] is int
+          ? payload['count'] as int
+          : items.length;
+      return PendingReviewBatch(count: count, items: items);
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> approveSelfOrder(
+    String id, {
+    bool toConfirmed = false,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.approveOrder(id),
+        queryParameters: toConfirmed ? {'to': 'confirmed'} : null,
+      );
+      return OrderModel.fromJson(ApiResponseUtils.object(response));
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> rejectSelfOrder(String id, String reason) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.rejectOrder(id),
+        data: {'reason': reason},
+      );
       return OrderModel.fromJson(ApiResponseUtils.object(response));
     } on DioException catch (e) {
       _handleDioException(e);

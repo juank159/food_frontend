@@ -95,6 +95,29 @@ class ApiConstants {
   static String orderByNumber(String orderNumber) =>
       '/orders/number/$orderNumber';
 
+  // Self-order (QR) — bandeja del mesero
+  static const String pendingReviewOrders = '/orders/pending-review';
+  static String approveOrder(String id) => '/orders/$id/approve';
+  static String rejectOrder(String id) => '/orders/$id/reject';
+
+  // Impresión térmica POS
+  static String orderReceiptPrint(String id) => '/orders/$id/print/receipt';
+  static String orderKitchenPrint(String id) => '/orders/$id/print/kitchen';
+
+  // QR Tokens (admin)
+  static const String qrTokens = '/qr-tokens';
+  static String qrTokenById(String id) => '/qr-tokens/$id';
+  static String qrTokenDeactivate(String id) => '/qr-tokens/$id/deactivate';
+  static String qrTokenReactivate(String id) => '/qr-tokens/$id/reactivate';
+  static const String qrPrintBase = '/qr-tokens/print';
+
+  // Menu schedules (programación del menú del día)
+  static const String menuSchedules = '/menu-schedules';
+  static const String menuSchedulesGrid = '/menu-schedules/grid';
+  static const String menuSchedulesToggle = '/menu-schedules/toggle';
+  static const String menuSchedulesProgramAll =
+      '/menu-schedules/program-all-today';
+
   // Payment Endpoints
   static const String payments = '/payments';
   static String paymentById(String id) => '/payments/$id';

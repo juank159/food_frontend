@@ -4,12 +4,19 @@ import 'package:get/get.dart';
 import 'core/config/theme/app_theme.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/routes/app_pages.dart';
+import 'features/orders/presentation/controllers/pending_review_watcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize dependency injection
   await di.init();
+
+  // Servicio singleton de notificación de pedidos por QR — vivo
+  // durante toda la sesión. `permanent: true` evita que GetX lo
+  // destruya al cambiar de ruta. El AuthController lo arranca
+  // (`startForRole`) según el rol del user logueado.
+  Get.put(PendingReviewWatcher(), permanent: true);
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

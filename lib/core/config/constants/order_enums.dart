@@ -44,6 +44,9 @@ enum OrderSource {
 
 /// Estado de la orden
 enum OrderStatus {
+  /// Self-order recién llegada via QR, esperando que el mesero la
+  /// apruebe (o rechace) antes de que entre al flujo normal.
+  pendingReview('pending_review', 'Pendiente de aprobación'),
   pending('pending', 'Pendiente'),
   confirmed('confirmed', 'Confirmada'),
   preparing('preparing', 'En Preparación'),
@@ -70,6 +73,7 @@ enum OrderStatus {
 
   /// Verifica si el estado es activo (orden en proceso)
   bool get isActive =>
+      this == OrderStatus.pendingReview ||
       this == OrderStatus.pending ||
       this == OrderStatus.confirmed ||
       this == OrderStatus.preparing ||

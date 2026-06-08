@@ -192,6 +192,12 @@ class OrderDetailController extends GetxController {
     final isDelivery = currentOrder!.orderType == OrderType.delivery;
 
     switch (current) {
+      case OrderStatus.pendingReview:
+        // Self-order esperando aprobación del mesero. El flujo
+        // dedicado (PendingReviewPage) maneja approve/reject — desde
+        // el detalle solo permitimos cancelar; aprobar va por el
+        // endpoint específico.
+        return [OrderStatus.cancelled];
       case OrderStatus.pending:
       case OrderStatus.confirmed:
         // `confirmed` se trata igual que `pending` para órdenes que

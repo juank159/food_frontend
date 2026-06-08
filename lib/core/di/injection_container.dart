@@ -43,6 +43,9 @@ import '../../features/employees/domain/usecases/get_employees_usecase.dart';
 import '../../features/employees/domain/usecases/suspend_employee_usecase.dart';
 import '../../features/employees/domain/usecases/update_employee_usecase.dart';
 import '../../features/orders/data/datasources/order_remote_datasource.dart';
+import '../../features/qr_tokens/data/qr_tokens_remote_datasource.dart';
+import '../../features/thermal_print/data/thermal_print_service.dart';
+import '../../features/menu_schedules/data/menu_schedules_remote_datasource.dart';
 import '../../features/orders/data/repositories/order_repository_impl.dart';
 import '../../features/orders/domain/repositories/order_repository.dart';
 import '../../features/orders/domain/usecases/create_order_usecase.dart';
@@ -331,6 +334,23 @@ Future<void> init() async {
   // Data Sources
   sl.registerLazySingleton<OrderRemoteDataSource>(
     () => OrderRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // ========================================
+  // Features - QR Tokens + Thermal Print (self-order)
+  // ========================================
+  // Las features de QR Tokens y Thermal Print no usan use-cases ni
+  // repository abstracto — son data layers contenidas con datasource
+  // directo desde el controller. Simplifica el setup y no compromete
+  // testabilidad (los datasources son mockeables).
+  sl.registerLazySingleton(
+    () => QrTokensRemoteDataSource(dio: sl()),
+  );
+  sl.registerLazySingleton(
+    () => ThermalPrintService(dio: sl()),
+  );
+  sl.registerLazySingleton(
+    () => MenuSchedulesRemoteDataSource(dio: sl()),
   );
 
   // ========================================
