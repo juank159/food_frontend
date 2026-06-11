@@ -46,6 +46,7 @@ import '../../features/orders/data/datasources/order_remote_datasource.dart';
 import '../../features/qr_tokens/data/qr_tokens_remote_datasource.dart';
 import '../../features/thermal_print/data/thermal_print_service.dart';
 import '../../features/menu_schedules/data/menu_schedules_remote_datasource.dart';
+import '../../features/printer_configs/data/printer_configs_remote_datasource.dart';
 import '../../features/orders/data/repositories/order_repository_impl.dart';
 import '../../features/orders/domain/repositories/order_repository.dart';
 import '../../features/orders/domain/usecases/create_order_usecase.dart';
@@ -351,6 +352,9 @@ Future<void> init() async {
   );
   sl.registerLazySingleton(
     () => MenuSchedulesRemoteDataSource(dio: sl()),
+  );
+  sl.registerLazySingleton(
+    () => PrinterConfigsRemoteDataSource(dio: sl()),
   );
 
   // ========================================

@@ -103,25 +103,34 @@ class _PendingOrderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         elevation: 1.5,
         shadowColor: Colors.black12,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _CardHeader(order: order),
-              const SizedBox(height: 10),
-              _CustomerRow(order: order),
-              const SizedBox(height: 10),
-              _ItemsList(order: order),
-              const Divider(height: 22),
-              _TotalRow(order: order),
-              const SizedBox(height: 14),
-              _Actions(
-                order: order,
-                isProcessing: isProcessing,
-                controller: controller,
-              ),
-            ],
+        child: InkWell(
+          // Tap en el card (excepto botones) → abrir detalle completo
+          // de la orden para ver modificadores, notas largas, etc.
+          // Coherencia con el resto de la app donde la lista lleva al
+          // detalle. Los botones internos tienen su propio onPressed
+          // que captura el tap antes (no bubble up).
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Get.toNamed('/orders/${order.id}'),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CardHeader(order: order),
+                const SizedBox(height: 10),
+                _CustomerRow(order: order),
+                const SizedBox(height: 10),
+                _ItemsList(order: order),
+                const Divider(height: 22),
+                _TotalRow(order: order),
+                const SizedBox(height: 14),
+                _Actions(
+                  order: order,
+                  isProcessing: isProcessing,
+                  controller: controller,
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -207,11 +216,14 @@ class _CardHeader extends StatelessWidget {
   }
 
   static String _destinationLabel(OrderModel order) {
-    if (order.tableName != null && order.tableName!.isNotEmpty) {
-      return 'Mesa ${order.tableName}';
+    // Preferimos siempre `table_label` (snapshot legible al crear
+    // la orden, ej. "Mesa 1 · Areas verdes"). Fallback al name legacy.
+    // No mostramos `tableElementId` (UUID) bajo ninguna circunstancia.
+    if (order.tableLabel != null && order.tableLabel!.trim().isNotEmpty) {
+      return order.tableLabel!;
     }
-    if (order.tableElementId != null && order.tableElementId!.isNotEmpty) {
-      return 'Mesa ${order.tableElementId}';
+    if (order.tableName != null && order.tableName!.trim().isNotEmpty) {
+      return 'Mesa ${order.tableName}';
     }
     return order.orderType == 'takeaway' ? 'Pickup' : 'Sin mesa asignada';
   }
@@ -392,12 +404,16 @@ class _Actions extends StatelessWidget {
                 : () => controller.approve(
                       order.id,
                       toConfirmed: true,
-                      // Auto-imprimir la comanda al aprobar — el caso
-                      // primario del mesero es "aprobar y que cocina la
-                      // reciba YA". Si no hay impresora conectada, el
-                      // dialog del SO se cancela y solo se ve un
-                      // snackbar; la aprobación queda igual.
+                      // Auto-imprimir vía PrintingOrchestrator. Si hay
+                      // impresora default con auto_print, sale sola
+                      // sin diálogo (red TCP) o pide confirmación
+                      // (sistema). Si no hay default configurada,
+                      // no-op silencioso.
                       printKitchen: true,
+                      destinationLabel: order.tableLabel ??
+                          (order.tableName != null
+                              ? 'Mesa ${order.tableName}'
+                              : null),
                     ),
             icon: isProcessing
                 ? const SizedBox(

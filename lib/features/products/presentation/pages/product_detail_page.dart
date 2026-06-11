@@ -124,7 +124,7 @@ class _Header extends StatelessWidget {
           ? 'SKU: ${product.sku}'
           : 'Detalle del producto',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

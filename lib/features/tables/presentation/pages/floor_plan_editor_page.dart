@@ -574,7 +574,7 @@ class _FloorPlanEditorPageState extends State<FloorPlanEditorPage> {
                             color: theme.colorScheme.onPrimary,
                             size: isMobile ? 20 : 24,
                           ),
-                          onPressed: () => Get.back(),
+                          onPressed: () => Navigator.of(context).pop(),
                           padding: EdgeInsets.all(isMobile ? 8 : 12),
                           constraints: const BoxConstraints(),
                         ),
@@ -603,7 +603,7 @@ class _FloorPlanEditorPageState extends State<FloorPlanEditorPage> {
                       onSubmitted: (value) {
                         if (value.trim().isNotEmpty) {
                           controller.addText(position, value);
-                          Get.back();
+                          Navigator.of(context).pop();
                         }
                       },
                     ),
@@ -621,7 +621,7 @@ class _FloorPlanEditorPageState extends State<FloorPlanEditorPage> {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
-                          onPressed: () => Get.back(),
+                          onPressed: () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.symmetric(
                               horizontal: isMobile ? 16 : 24,
@@ -641,7 +641,7 @@ class _FloorPlanEditorPageState extends State<FloorPlanEditorPage> {
                             final text = textController.text;
                             if (text.trim().isNotEmpty) {
                               controller.addText(position, text);
-                              Get.back();
+                              Navigator.of(context).pop();
                             }
                           },
                           style: ElevatedButton.styleFrom(

@@ -4,6 +4,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/widgets/app_form_section.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
+import '../../../categories/presentation/bindings/categories_binding.dart';
 import '../../../categories/presentation/controllers/categories_controller.dart';
 import '../../domain/entities/product.dart';
 import '../controllers/product_form_controller.dart';
@@ -60,7 +61,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                       const SizedBox(height: 14),
                       _buildInventorySection(),
                       const SizedBox(height: 14),
-                      _buildAdditionalSection(),
+                      _buildAdditionalSection(context),
                       const SizedBox(height: 14),
                       const VariantListWidget(),
                       // Grupos de modificadores: solo en modo edición
@@ -217,6 +218,12 @@ class ProductFormPage extends GetView<ProductFormController> {
   }
 
   Widget _buildBasicSection() {
+    // Garantizar el controller — el form se puede abrir directamente
+    // sin pasar por la pantalla de categorías, en cuyo caso GetX no
+    // lo tiene registrado aún. Llamamos el binding como fallback.
+    if (!Get.isRegistered<CategoriesController>()) {
+      CategoriesBinding().dependencies();
+    }
     final categoriesController = Get.find<CategoriesController>();
     return AppFormSection(
       title: 'Información básica',
@@ -478,7 +485,7 @@ class ProductFormPage extends GetView<ProductFormController> {
     );
   }
 
-  Widget _buildAdditionalSection() {
+  Widget _buildAdditionalSection(BuildContext context) {
     return AppFormSection(
       title: 'Información adicional',
       subtitle: 'Etiquetas y alérgenos para filtrado y avisos.',
@@ -508,7 +515,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                 ),
                 _ChipAdd(
                   label: 'Agregar etiqueta',
-                  onTap: () => _showAddTagDialog(),
+                  onTap: () => _showAddTagDialog(context),
                 ),
               ],
             )),
@@ -536,7 +543,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                 ),
                 _ChipAdd(
                   label: 'Agregar alérgeno',
-                  onTap: () => _showAddAllergenDialog(),
+                  onTap: () => _showAddAllergenDialog(context),
                 ),
               ],
             )),
@@ -544,19 +551,22 @@ class ProductFormPage extends GetView<ProductFormController> {
     );
   }
 
-  void _showAddTagDialog() => _showAddChipDialog(
+  void _showAddTagDialog(BuildContext context) => _showAddChipDialog(
+        context: context,
         title: 'Agregar etiqueta',
         hint: 'Nombre de la etiqueta',
         onAdd: controller.addTag,
       );
 
-  void _showAddAllergenDialog() => _showAddChipDialog(
+  void _showAddAllergenDialog(BuildContext context) => _showAddChipDialog(
+        context: context,
         title: 'Agregar alérgeno',
         hint: 'Nombre del alérgeno',
         onAdd: controller.addAllergen,
       );
 
   void _showAddChipDialog({
+    required BuildContext context,
     required String title,
     required String hint,
     required void Function(String) onAdd,
@@ -576,7 +586,7 @@ class ProductFormPage extends GetView<ProductFormController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancelar'),
           ),
           FilledButton(
@@ -587,7 +597,7 @@ class ProductFormPage extends GetView<ProductFormController> {
             onPressed: () {
               if (textController.text.trim().isNotEmpty) {
                 onAdd(textController.text.trim());
-                Get.back();
+                Navigator.of(context).pop();
               }
             },
             child: const Text('Agregar'),

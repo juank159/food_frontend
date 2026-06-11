@@ -110,7 +110,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       title: 'Seguridad',
       subtitle: 'Protección de tu cuenta',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

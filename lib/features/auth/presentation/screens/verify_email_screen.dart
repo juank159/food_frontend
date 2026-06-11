@@ -95,7 +95,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

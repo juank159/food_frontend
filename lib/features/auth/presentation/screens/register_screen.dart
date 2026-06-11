@@ -61,7 +61,7 @@ class RegisterScreen extends GetView<AuthController> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeroBar(),
+                        _buildHeroBar(context),
                         const SizedBox(height: 16),
                         _buildHeroContent(),
                         const SizedBox(height: 20),
@@ -85,7 +85,7 @@ class RegisterScreen extends GetView<AuthController> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _buildLoginFooter(),
+                        _buildLoginFooter(context),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -101,11 +101,11 @@ class RegisterScreen extends GetView<AuthController> {
 
   // ─────────────────────────── Hero ───────────────────────────
 
-  Widget _buildHeroBar() {
+  Widget _buildHeroBar(BuildContext context) {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,
@@ -307,7 +307,7 @@ class RegisterScreen extends GetView<AuthController> {
     );
   }
 
-  Widget _buildLoginFooter() {
+  Widget _buildLoginFooter(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -319,7 +319,7 @@ class RegisterScreen extends GetView<AuthController> {
           ),
         ),
         TextButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.of(context).pop(),
           style: TextButton.styleFrom(
             padding:
                 const EdgeInsets.symmetric(horizontal: 4, vertical: 4),

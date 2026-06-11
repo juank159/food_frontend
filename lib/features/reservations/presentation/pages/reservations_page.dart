@@ -25,7 +25,7 @@ class ReservationsPage extends GetView<ReservationsController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             _buildFilters(),
             Expanded(child: _buildBody(context)),
           ],
@@ -44,13 +44,13 @@ class ReservationsPage extends GetView<ReservationsController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Obx(() {
       return AppGradientHeader(
         title: 'Reservaciones',
         subtitle: 'Reservas y disponibilidad',
         leading: GestureDetector(
-          onTap: () => Get.back<void>(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

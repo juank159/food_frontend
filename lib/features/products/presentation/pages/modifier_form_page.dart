@@ -19,7 +19,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Form(
                 key: controller.formKey,
@@ -38,7 +38,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
             ),
             Obx(() => AppFormSubmitBar(
                   isSaving: controller.isSaving.value,
-                  onCancel: () => Get.back(),
+                  onCancel: () => Navigator.of(context).pop(),
                   onSave: controller.saveModifier,
                   saveLabel: controller.isEditMode
                       ? 'Actualizar'
@@ -50,14 +50,14 @@ class ModifierFormPage extends GetView<ModifierFormController> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: controller.isEditMode
           ? 'Editar modificador'
           : 'Nuevo modificador',
       subtitle: 'Toppings, extras, sustituciones',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

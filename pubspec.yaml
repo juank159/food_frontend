@@ -86,6 +86,13 @@ dependencies:
   printing: ^5.13.0
   pdf: ^3.11.0
 
+  # ESC/POS para impresoras térmicas POS de red.
+  # Las térmicas (Epson TM, Bixolon, Xprinter, etc.) NO entienden
+  # PDF — solo entienden ESC/POS (protocolo binario de comandos).
+  # Mandarles PDF directo hace que impriman caracteres random y
+  # desperdicien rollo de papel.
+  esc_pos_utils_plus: ^2.0.4
+
   # Abrir URL externa para fallback (ej. abrir PDF en navegador si la
   # plataforma no soporta `printing` directamente).
   url_launcher: ^6.3.0

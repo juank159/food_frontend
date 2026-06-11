@@ -27,7 +27,11 @@ enum OrderSource {
   pos('pos', 'POS'),
   mobileApp('mobile_app', 'App Móvil'),
   web('web', 'Web'),
-  phone('phone', 'Teléfono');
+  phone('phone', 'Teléfono'),
+  /// Cliente escaneó un QR físico de mesa y armó el pedido desde su
+  /// celular. Nace en estado `pending_review` esperando aprobación
+  /// del mesero antes de entrar al flujo normal de cocina.
+  qrSelfOrder('qr_self_order', 'Pedido por QR');
 
   final String value;
   final String displayName;
@@ -40,6 +44,12 @@ enum OrderSource {
       orElse: () => OrderSource.pos,
     );
   }
+
+  /// True si la orden la creó el cliente final escaneando un QR
+  /// (no un empleado interno). Útil para mostrar badges visuales
+  /// y diferenciar acciones disponibles (ej. mostrar botones de
+  /// aprobar/rechazar en self-orders pending_review).
+  bool get isCustomerSelfOrder => this == OrderSource.qrSelfOrder;
 }
 
 /// Estado de la orden

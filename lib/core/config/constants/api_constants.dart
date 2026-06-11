@@ -1,21 +1,28 @@
 /// API Constants for the Food Platform.
 ///
 /// **URL del backend:** se inyecta en build-time con
-/// `--dart-define=API_URL=...`. Si no se pasa, default a localhost
-/// (útil en desarrollo). Producción debe pasarla siempre.
+/// `--dart-define=API_URL=...`. Si no se pasa, default al backend
+/// de PRODUCCIÓN en Dokploy — así `flutter run` simple ya funciona
+/// contra producción sin pasar flags.
 ///
-/// Ejemplos:
-///   flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1  (Android emu)
-///   flutter run --dart-define=API_URL=http://localhost:3000/api/v1 (iOS sim)
-///   flutter build apk --dart-define=API_URL=https://api.tudominio.com/api/v1
-///   flutter build web --dart-define=API_URL=https://api.tudominio.com/api/v1
+/// **Para desarrollo local** (backend corriendo en tu máquina):
+///   flutter run --dart-define=API_URL=http://localhost:3000/api/v1  (iOS sim/macOS/web)
+///   flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1   (Android emu)
+///
+/// **Para producción** (default — no necesitás pasar nada):
+///   flutter run
+///   flutter build apk
+///   flutter build ios
+///   flutter build web
+///
+/// Si cambiás el dominio de producción, actualizá `defaultValue`
+/// abajo y recompilá.
 class ApiConstants {
-  // Base URL — inyectada en build-time. NO hardcodear acá: cambiar
-  // este string obliga a recompilar la app, mientras que --dart-define
-  // permite tener APKs diferentes (dev/staging/prod) sin tocar código.
+  // Base URL — inyectada en build-time. Default: backend de producción
+  // en Dokploy. Cambiar con `--dart-define=API_URL=...` para dev local.
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://localhost:3000/api/v1',
+    defaultValue: 'https://food.plat.baudity.com/api/v1',
   );
 
   // Auth Endpoints
@@ -110,6 +117,8 @@ class ApiConstants {
   static String qrTokenDeactivate(String id) => '/qr-tokens/$id/deactivate';
   static String qrTokenReactivate(String id) => '/qr-tokens/$id/reactivate';
   static const String qrPrintBase = '/qr-tokens/print';
+  static const String qrAvailableTables = '/qr-tokens/available-tables';
+  static const String qrBulkFromTables = '/qr-tokens/bulk-from-tables';
 
   // Menu schedules (programación del menú del día)
   static const String menuSchedules = '/menu-schedules';

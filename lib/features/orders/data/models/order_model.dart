@@ -24,6 +24,13 @@ class OrderModel {
   final String? tableElementId;
   @JsonKey(name: 'table_name')
   final String? tableName;
+  /// Label legible snapshot al crear la orden ("Mesa 1 · Areas verdes").
+  /// **Siempre preferir este campo** para mostrar al usuario — el
+  /// `tableElementId` es un UUID interno ilegible. Si por algún motivo
+  /// está vacío (ordenes viejas pre-migración), caer a `tableName`,
+  /// y solo como último recurso a `tableElementId`.
+  @JsonKey(name: 'table_label')
+  final String? tableLabel;
   @JsonKey(name: 'tab_session_id')
   final String? tabSessionId;
   @JsonKey(name: 'customer_id')
@@ -93,6 +100,7 @@ class OrderModel {
     this.tableId,
     this.tableElementId,
     this.tableName,
+    this.tableLabel,
     this.tabSessionId,
     this.customerId,
     this.customerName,
@@ -135,6 +143,7 @@ class OrderModel {
       tableId: tableId,
       tableElementId: tableElementId,
       tableName: tableName,
+      tableLabel: tableLabel,
       tabSessionId: tabSessionId,
       customerId: customerId,
       customerName: customerName,
@@ -184,6 +193,7 @@ class OrderModel {
       tableId: order.tableId,
       tableElementId: order.tableElementId,
       tableName: order.tableName,
+      tableLabel: order.tableLabel,
       tabSessionId: order.tabSessionId,
       customerId: order.customerId,
       customerName: order.customerName,
@@ -266,6 +276,7 @@ class OrderModel {
       tableId: json['table_id'] as String?,
       tableElementId: json['table_element_id'] as String?,
       tableName: (json['table_name'] as String?) ?? table?['name'] as String?,
+      tableLabel: json['table_label'] as String?,
       tabSessionId: json['tab_session_id'] as String?,
       customerId: json['customer_id'] as String?,
       customerName: json['customer_name'] as String?,

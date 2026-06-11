@@ -16,6 +16,7 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'table_id': instance.tableId,
       'table_element_id': instance.tableElementId,
       'table_name': instance.tableName,
+      'table_label': instance.tableLabel,
       'tab_session_id': instance.tabSessionId,
       'customer_id': instance.customerId,
       'customer_name': instance.customerName,

@@ -58,7 +58,7 @@ class _Header extends StatelessWidget {
         subtitle: controller.rangeLabel,
         leading: IconButton(
           tooltip: 'Volver',
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
         trailing: IconButton(

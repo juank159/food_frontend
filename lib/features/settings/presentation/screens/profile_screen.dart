@@ -133,7 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             AppFormSubmitBar(
               isSaving: false,
-              onCancel: () => Get.back(),
+              onCancel: () => Navigator.of(context).pop(),
               onSave: _handleSave,
               saveLabel: 'Guardar',
             ),
@@ -152,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: 'Mi perfil',
       subtitle: role.isEmpty ? 'Tu información personal' : role,
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

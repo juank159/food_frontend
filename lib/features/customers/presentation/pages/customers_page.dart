@@ -26,7 +26,7 @@ class CustomersPage extends GetView<CustomersController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(child: _buildBody(context)),
           ],
         ),
@@ -44,13 +44,13 @@ class CustomersPage extends GetView<CustomersController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Obx(() {
       return AppGradientHeader(
         title: 'Clientes',
         subtitle: 'Tu base de clientes y delivery',
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

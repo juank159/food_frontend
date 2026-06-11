@@ -21,7 +21,7 @@ class CategoryFormPage extends GetView<CategoryFormController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Form(
                 key: controller.formKey,
@@ -40,7 +40,7 @@ class CategoryFormPage extends GetView<CategoryFormController> {
             ),
             Obx(() => AppFormSubmitBar(
                   isSaving: controller.isSaving.value,
-                  onCancel: () => Get.back(),
+                  onCancel: () => Navigator.of(context).pop(),
                   onSave: controller.saveCategory,
                   saveLabel: controller.isEditMode
                       ? 'Actualizar'
@@ -52,12 +52,12 @@ class CategoryFormPage extends GetView<CategoryFormController> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: controller.isEditMode ? 'Editar categoría' : 'Nueva categoría',
       subtitle: 'Organizá tu menú por agrupaciones',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

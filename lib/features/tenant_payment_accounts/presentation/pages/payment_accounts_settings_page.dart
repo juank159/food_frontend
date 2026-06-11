@@ -35,7 +35,7 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
               title: 'Cuentas de pago',
               subtitle: 'Nequi, Daviplata, Bancolombia, cajas, etc.',
               leading: GestureDetector(
-                onTap: () => Get.back(),
+                onTap: () => Navigator.of(context).pop(),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -65,7 +65,7 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
                   onRefresh: controller.loadAccounts,
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                    children: _buildCategorySections(controller),
+                    children: _buildCategorySections(context, controller),
                   ),
                 );
               }),
@@ -77,6 +77,7 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
   }
 
   List<Widget> _buildCategorySections(
+    BuildContext context,
     TenantPaymentAccountController controller,
   ) {
     final grouped = controller.accountsByCategory;
@@ -101,7 +102,7 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
             account: account,
             onToggleActive: () => controller.toggleActive(account),
             onEdit: () => _showFormDialog(controller, account: account),
-            onDelete: () => _confirmDelete(controller, account),
+            onDelete: () => _confirmDelete(context, controller, account),
           ),
         );
         sections.add(const SizedBox(height: 8));
@@ -123,11 +124,13 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(
+    BuildContext context,
     TenantPaymentAccountController controller,
     TenantPaymentAccount account,
   ) async {
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
         title: const Text('Eliminar cuenta'),
         content: Text(
@@ -135,11 +138,11 @@ class PaymentAccountsSettingsPage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(result: false),
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () => Get.back(result: true),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Eliminar'),
           ),

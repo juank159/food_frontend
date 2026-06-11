@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../thermal_print/data/thermal_print_service.dart';
+import '../../data/models/available_table.dart';
 import '../../data/models/qr_token_model.dart';
 import '../../data/qr_tokens_remote_datasource.dart';
 
@@ -20,6 +21,11 @@ class QrTokensController extends GetxController {
   final RxBool loading = false.obs;
   final RxnString error = RxnString();
   final RxSet<String> printingIds = <String>{}.obs;
+
+  /// Mesas reales del tenant — cargadas on-demand cuando el admin
+  /// abre el dialog de crear QR tipo TABLE o bulk-from-tables.
+  final RxList<AvailableTable> availableTables = <AvailableTable>[].obs;
+  final RxBool loadingTables = false.obs;
 
   /// Filtro UI — solo afecta lo que se muestra, no se trae del server.
   final RxBool showInactive = false.obs;
@@ -45,6 +51,53 @@ class QrTokensController extends GetxController {
       error.value = e.toString();
     } finally {
       loading.value = false;
+    }
+  }
+
+  /// Carga las mesas reales del tenant (lazy — solo se llama cuando
+  /// el admin abre un dialog que necesita la lista).
+  Future<void> loadAvailableTables() async {
+    loadingTables.value = true;
+    try {
+      final result = await _ds.listAvailableTables();
+      availableTables.assignAll(result);
+    } catch (e) {
+      AppSnackbar.show('Error al cargar mesas', e.toString());
+    } finally {
+      loadingTables.value = false;
+    }
+  }
+
+  /// Crea QRs para varias mesas reales seleccionadas. Reporta cuántas
+  /// se crearon, cuántas ya tenían QR, cuántas no se encontraron.
+  Future<void> bulkCreateFromTables({
+    required List<String> tableElementIds,
+  }) async {
+    if (tableElementIds.isEmpty) return;
+    try {
+      final result = await _ds.bulkCreateFromTables(
+        tableElementIds: tableElementIds,
+      );
+      tokens.insertAll(0, result.created);
+
+      // Refrescar la grilla de mesas para que los toggles reflejen
+      // que ahora las mesas tienen QR.
+      await loadAvailableTables();
+
+      final parts = <String>[];
+      if (result.created.isNotEmpty) {
+        parts.add('${result.created.length} creados');
+      }
+      if (result.skippedAlreadyQr.isNotEmpty) {
+        parts.add('${result.skippedAlreadyQr.length} ya tenían QR');
+      }
+      if (result.skippedNotFound.isNotEmpty) {
+        parts.add('${result.skippedNotFound.length} no encontradas');
+      }
+      AppSnackbar.show('Bulk completado', parts.join(' · '));
+    } catch (e) {
+      AppSnackbar.show('Error al crear bulk', e.toString());
+      rethrow;
     }
   }
 

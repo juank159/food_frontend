@@ -22,7 +22,7 @@ class SettingsScreen extends StatelessWidget {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -58,7 +58,9 @@ class SettingsScreen extends StatelessWidget {
                   _SettingsTile(
                     icon: Icons.business_center_outlined,
                     title: 'Información del negocio',
-                    subtitle: 'Nombre, dirección, teléfono y NIT (en recibos)',
+                    subtitle:
+                        'Nombre, dirección, teléfono y NIT — aparecen en CADA '
+                        'recibo y comanda. Configúralos antes de imprimir.',
                     accent: AppColors.primary,
                     onTap: () => Get.toNamed(AppRoutes.businessInfo),
                   ),
@@ -124,12 +126,12 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: 'Configuración',
       subtitle: 'Ajustes generales de la app',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

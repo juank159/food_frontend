@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../controllers/payment_controller.dart';
@@ -354,6 +355,10 @@ class ProcessPaymentDialog extends StatelessWidget {
     // el payment como resultado. El caller (`order_detail_page
     // ._showPaymentDialog`) lo usa para refrescar la lista de pagos.
     if (payment != null && context.mounted) {
+      // Pulso háptico medio — confirma físicamente al operario que el
+      // cobro se procesó. En POS de bar/restaurante el aviso visual
+      // del snackbar puede pasar inadvertido por el ruido del local.
+      HapticFeedback.mediumImpact();
       Navigator.pop(context, payment);
     }
   }

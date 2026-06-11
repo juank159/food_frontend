@@ -22,9 +22,9 @@ class TabSessionDetailController extends GetxController {
 
   String? _sessionId;
 
-  void init(String sessionId) {
+  Future<void> init(String sessionId) async {
     _sessionId = sessionId;
-    load();
+    await load();
   }
 
   Future<void> load() async {

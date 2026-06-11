@@ -197,12 +197,11 @@ class OrderCard extends StatelessWidget {
   ///   - delivery → "Domicilio"
   _InfoChip? _originChip() {
     if (order.hasTable) {
-      final label = order.tableName ?? '';
+      // `displayTableLabel` prioriza el snapshot legible
+      // (ej "Mesa 1 · Areas verdes" para self-orders por QR).
       return _InfoChip(
         icon: Icons.table_restaurant_outlined,
-        // El label en el floor plan es solo el número ("7"). Prefijamos
-        // "Mesa" para que el contexto sea claro de un vistazo.
-        label: label.isEmpty ? 'Mesa' : 'Mesa $label',
+        label: order.displayTableLabel,
       );
     }
     switch (order.orderType) {

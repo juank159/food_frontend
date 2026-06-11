@@ -8,42 +8,138 @@ import '../../../../core/routes/navigation_service.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
 import '../../../products/presentation/pages/products_page.dart';
+import '../../../tables/presentation/pages/floor_plans_list_page.dart';
 import '../controllers/home_controller.dart';
 import 'dashboard_tab.dart';
+import 'delivery_dashboard.dart';
+import 'kitchen_dashboard.dart';
 import '../../../../core/utils/app_dialog.dart';
 
-/// Home Screen - Pantalla principal con navegación inferior
+/// Home Screen - Pantalla principal con navegación inferior.
+///
+/// El bottomNavigationBar y los tabs **se filtran por rol**:
+///   - admin/manager: Inicio, Órdenes, Productos, Más  (gestión completa).
+///   - waiter/cashier/otros: Inicio, Órdenes, Mesas, Más (sin Productos —
+///     gestión de catálogo no aplica a sus turnos).
+///
+/// Esto evita que un mesero vea una pestaña "Productos" que no le sirve
+/// para tomar pedidos y libera el slot para algo más útil (Mesas).
 class HomeScreen extends GetView<HomeController> {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final authController = Get.find<AuthController>();
     return Obx(() {
+      final user = authController.currentUserRx;
+      final roleCode = user?.roleCode;
+      final tabs = _buildTabsForRole(context: context, roleCode: roleCode);
+      // Si por alguna razón el index actual quedó fuera de rango
+      // (cambio de rol después de login), lo corregimos al primero.
+      final safeIndex =
+          controller.currentIndex.clamp(0, tabs.length - 1);
       return Scaffold(
         body: IndexedStack(
-          index: controller.currentIndex,
-          children: [
-            // Tab 0: Dashboard
-            const DashboardTab(),
-
-            // Tab 1: Órdenes — montamos la OrdersPage real (sin pantalla
-            // intermedia con botón "Ver detalles", que era confusa). El
-            // OrdersController vive en HomeBinding para que esto funcione.
-            const OrdersPage(),
-
-            // Tab 2: Productos - Vista real del listado
-            const ProductsPage(),
-
-            // Tab 3: Más opciones
-            _buildMoreTab(),
-          ],
+          index: safeIndex,
+          children: tabs.map((t) => t.body).toList(),
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
+        bottomNavigationBar:
+            _buildBottomNavigationBar(safeIndex: safeIndex, tabs: tabs),
       );
     });
   }
 
-  Widget _buildBottomNavigationBar() {
+  /// Cada rol ve un set de tabs distinto. La idea es que ningún
+  /// operario pierda tiempo navegando por tabs que no le sirven.
+  ///
+  ///   - `kitchen` / `bartender`: pantalla KDS full-screen (tickets
+  ///     en preparación). Solo Inicio + Más (mínimo).
+  ///   - `delivery`: lista de repartos con dirección/teléfono/mapa.
+  ///     Solo Inicio + Más.
+  ///   - `waiter` / `cashier`: Inicio + Órdenes + Mesas + Más.
+  ///   - `admin` / `manager` (o sin rol detectado): tab completo con
+  ///     gestión (Inicio + Órdenes + Productos + Más).
+  List<_HomeTab> _buildTabsForRole({
+    required BuildContext context,
+    required String? roleCode,
+  }) {
+    final isKitchen = roleCode == 'kitchen' || roleCode == 'bartender';
+    final isDelivery = roleCode == 'delivery';
+    final isAdminOrManager =
+        roleCode == 'admin' || roleCode == 'manager' || roleCode == null;
+
+    // Cocina y barra: solo KDS + Más. La pantalla principal es el KDS,
+    // que ya es full-featured (tickets, marcar listo, etc.).
+    if (isKitchen) {
+      return [
+        const _HomeTab(
+          icon: FontAwesomeIcons.kitchenSet,
+          label: 'Cocina',
+          body: KitchenDashboard(),
+        ),
+        _HomeTab(
+          icon: FontAwesomeIcons.ellipsis,
+          label: 'Más',
+          body: _buildMoreTab(context),
+        ),
+      ];
+    }
+
+    // Repartidor: solo lista de repartos + Más.
+    if (isDelivery) {
+      return [
+        const _HomeTab(
+          icon: FontAwesomeIcons.motorcycle,
+          label: 'Repartos',
+          body: DeliveryDashboard(),
+        ),
+        _HomeTab(
+          icon: FontAwesomeIcons.ellipsis,
+          label: 'Más',
+          body: _buildMoreTab(context),
+        ),
+      ];
+    }
+
+    // Resto (admin/manager/waiter/cashier).
+    return [
+      const _HomeTab(
+        icon: FontAwesomeIcons.house,
+        label: 'Inicio',
+        body: DashboardTab(),
+      ),
+      const _HomeTab(
+        icon: FontAwesomeIcons.fileInvoice,
+        label: 'Órdenes',
+        body: OrdersPage(),
+      ),
+      if (isAdminOrManager)
+        const _HomeTab(
+          icon: FontAwesomeIcons.bowlFood,
+          label: 'Productos',
+          body: ProductsPage(),
+        )
+      else
+        const _HomeTab(
+          icon: FontAwesomeIcons.chair,
+          label: 'Mesas',
+          // Muestra la lista de planos. Al tap entra a `TableStatusPage`
+          // del plano. La binding del controller se registra en el
+          // HomeBinding (lazy) la primera vez que se renderice.
+          body: FloorPlansListPage(),
+        ),
+      _HomeTab(
+        icon: FontAwesomeIcons.ellipsis,
+        label: 'Más',
+        body: _buildMoreTab(context),
+      ),
+    ];
+  }
+
+  Widget _buildBottomNavigationBar({
+    required int safeIndex,
+    required List<_HomeTab> tabs,
+  }) {
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
@@ -55,7 +151,7 @@ class HomeScreen extends GetView<HomeController> {
         ],
       ),
       child: BottomNavigationBar(
-        currentIndex: controller.currentIndex,
+        currentIndex: safeIndex,
         onTap: controller.changeIndex,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
@@ -64,33 +160,19 @@ class HomeScreen extends GetView<HomeController> {
         selectedFontSize: 12,
         unselectedFontSize: 12,
         elevation: 0,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(FontAwesomeIcons.house, size: 20),
-            activeIcon: Icon(FontAwesomeIcons.house, size: 22),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FontAwesomeIcons.fileInvoice, size: 20),
-            activeIcon: Icon(FontAwesomeIcons.fileInvoice, size: 22),
-            label: 'Órdenes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FontAwesomeIcons.bowlFood, size: 20),
-            activeIcon: Icon(FontAwesomeIcons.bowlFood, size: 22),
-            label: 'Productos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FontAwesomeIcons.ellipsis, size: 20),
-            activeIcon: Icon(FontAwesomeIcons.ellipsis, size: 22),
-            label: 'Más',
-          ),
+        items: [
+          for (final t in tabs)
+            BottomNavigationBarItem(
+              icon: Icon(t.icon, size: 20),
+              activeIcon: Icon(t.icon, size: 22),
+              label: t.label,
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildMoreTab() {
+  Widget _buildMoreTab(BuildContext context) {
     final authController = Get.find<AuthController>();
 
     return Scaffold(
@@ -214,7 +296,7 @@ class HomeScreen extends GetView<HomeController> {
               ),
               const SizedBox(height: 24),
             ],
-            _buildLogoutButton(authController),
+            _buildLogoutButton(context, authController),
             const SizedBox(height: 24),
           ],
         );
@@ -308,7 +390,7 @@ class HomeScreen extends GetView<HomeController> {
     );
   }
 
-  Widget _buildLogoutButton(AuthController authController) {
+  Widget _buildLogoutButton(BuildContext context, AuthController authController) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -329,12 +411,12 @@ class HomeScreen extends GetView<HomeController> {
               content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
               actions: [
                 TextButton(
-                  onPressed: () => Get.back(),
+                  onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    Get.back();
+                    Navigator.of(context).pop();
                     authController.logout();
                   },
                   style: ElevatedButton.styleFrom(
@@ -381,4 +463,20 @@ class HomeScreen extends GetView<HomeController> {
       ),
     );
   }
+}
+
+/// Descriptor de una pestaña del home — combina el icono visible en el
+/// bottom nav, el label corto y el body que se renderiza en el
+/// IndexedStack. Permite armar la lista de tabs declarativamente sin
+/// duplicar lógica de "qué muestra cada pestaña".
+class _HomeTab {
+  final IconData icon;
+  final String label;
+  final Widget body;
+
+  const _HomeTab({
+    required this.icon,
+    required this.label,
+    required this.body,
+  });
 }

@@ -177,9 +177,41 @@ class CartWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final responsive = ResponsiveConfig(context);
 
-    return ModernCard(
-      child: Padding(
-        padding: EdgeInsets.all(responsive.isMobile ? 8 : 12),
+    // Swipe-to-delete: deslizar de derecha a izquierda elimina el item.
+    // En mobile es la forma más natural de quitar líneas sin tener que
+    // apuntar al ícono chico de tacho. Usamos una `key` estable por item
+    // (combinación de id + index) para que Flutter no se confunda con el
+    // reorder cuando hay dos líneas del mismo producto con notas distintas.
+    return Dismissible(
+      key: ValueKey('cart-${item.product.id}-$index-${item.specialInstructions ?? ''}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: EdgeInsets.only(bottom: responsive.isMobile ? 0 : 0),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.error,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerRight,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white, size: 24),
+            SizedBox(width: 6),
+            Text(
+              'Quitar',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+      onDismissed: (_) => controller.removeFromCart(index),
+      child: ModernCard(
+        child: Padding(
+          padding: EdgeInsets.all(responsive.isMobile ? 8 : 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -362,6 +394,7 @@ class CartWidget extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -595,30 +628,36 @@ class CartWidget extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Submit Button
-            Obx(() => FilledButton.icon(
-                  onPressed: controller.canSubmit
-                      ? () => controller.submitOrder()
-                      : null,
-                  icon: controller.isLoading.value
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check),
-                  label: Text(
-                    controller.isLoading.value
-                        ? 'Procesando...'
-                        : 'Crear Orden',
-                  ),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
-                )),
+            // Submit Button. El label es dinámico: cuando el botón está
+            // disabled mostramos el motivo concreto ("Agregá productos",
+            // "Seleccioná una mesa", "Falta teléfono") en lugar de
+            // "Crear Orden" gris sin explicación. Mucho menos
+            // frustrante para el operario en mobile.
+            Obx(() {
+              final blocker = controller.submitBlockerReason;
+              final canTap = blocker == null && !controller.isLoading.value;
+              return FilledButton.icon(
+                onPressed: canTap ? () => controller.submitOrder() : null,
+                icon: controller.isLoading.value
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(blocker == null ? Icons.check : Icons.info_outline),
+                label: Text(
+                  controller.isLoading.value
+                      ? 'Procesando...'
+                      : (blocker ?? 'Crear Orden'),
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              );
+            }),
           ],
         ),
       ),

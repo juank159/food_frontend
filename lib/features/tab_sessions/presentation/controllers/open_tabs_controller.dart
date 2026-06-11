@@ -15,6 +15,7 @@ class OpenTabsController extends GetxController {
 
   final RxList<TabSession> sessions = <TabSession>[].obs;
   final RxBool isLoading = false.obs;
+  final RxBool isOpening = false.obs;
   final RxString errorMessage = ''.obs;
 
   @override
@@ -35,6 +36,40 @@ class OpenTabsController extends GetxController {
       (list) => sessions.assignAll(list),
     );
     isLoading.value = false;
+  }
+
+  /// Abre una cuenta "libre" — sin mesa del floor plan. Útil para
+  /// clientes que se sentaron en sillas no registradas (zona verde,
+  /// césped, terraza informal). La etiqueta queda en `notes` y se
+  /// muestra como título de la card.
+  ///
+  /// Retorna el ID de la sesión creada, o null si falló.
+  Future<String?> openFreeAccount({
+    required String label,
+    int? partySize,
+  }) async {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) {
+      AppSnackbar.show('Etiqueta requerida',
+          'Poné algo como "Césped #3" para identificar la cuenta.');
+      return null;
+    }
+    isOpening.value = true;
+    final result = await useCases.open(
+      notes: trimmed,
+      partySize: partySize,
+    );
+    isOpening.value = false;
+    return result.fold(
+      (failure) {
+        AppSnackbar.show('No se pudo abrir', failure.message);
+        return null;
+      },
+      (session) {
+        sessions.insert(0, session);
+        return session.id;
+      },
+    );
   }
 
   /// Suma de saldos pendientes de todas las cuentas — muestra en el

@@ -435,7 +435,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: _saving ? null : () => Get.back(),
+                        onPressed: _saving ? null : () => Navigator.of(context).pop(),
                         child: const Text('Cancelar'),
                       ),
                       const SizedBox(width: 8),

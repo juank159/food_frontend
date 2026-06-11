@@ -6,8 +6,10 @@ import '../../../../core/error/failures.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/domain/entities/product_variant.dart';
+import '../../domain/entities/order.dart';
 import '../../domain/entities/selected_modifier.dart';
 import '../../domain/usecases/create_order_usecase.dart';
+import '../models/sell_mode.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
 /// Cart Item Model
@@ -134,6 +136,26 @@ class OrderFormController extends GetxController {
   ///
   /// Se setea desde la pantalla "Agregar ticket" en una cuenta abierta.
   final Rx<String?> activeTabSessionId = Rx<String?>(null);
+
+  /// Modo "Venta Express" — venta de mostrador para clientes que no
+  /// se sientan (gaseosa, cigarrillos, snack). Cuando true:
+  ///   - `orderType` se fuerza a `takeaway`.
+  ///   - El nombre del cliente NO es obligatorio (default: "Mostrador").
+  ///   - La UI muestra solo catálogo + carrito + botón "Cobrar".
+  ///   - Al confirmar, se navega DIRECTO al cobro (no a OrderDetail).
+  final RxBool isQuickSale = false.obs;
+
+  /// Última orden creada exitosamente — la `QuickSalePage` la usa para
+  /// abrir el dialog de cobro sin tener que esperar el `Get.back(result)`
+  /// (en venta express no popeamos la pantalla, queremos quedarnos).
+  final Rx<Order?> lastCreatedOrder = Rx<Order?>(null);
+
+  /// Destino actual de la venta (mostrador / mesa / takeaway / delivery
+  /// / cuenta abierta). Se cambia desde el pill superior de `SellPage`
+  /// sin navegar a otra pantalla. Cualquier cambio sincroniza
+  /// `orderType`, `tableElementId`, `tabSessionId`, etc. vía
+  /// `applyMode`. Default = mostrador (venta más rápida).
+  final Rx<SellMode> currentMode = (const SellMode.counter()).obs;
 
   // Delivery address — relevante solo cuando `orderType == delivery`. Se
   // empaqueta como `Map` en el JSON de la orden (`delivery_address`). Si
@@ -332,8 +354,11 @@ class OrderFormController extends GetxController {
     }
 
     // takeaway: nombre obligatorio SOLO cuando es ticket suelto. En
-    // una cuenta abierta no se exige (la mesa identifica al grupo).
-    if (orderType.value == OrderType.takeaway && !inTab) {
+    // una cuenta abierta o en Venta Express, no se exige (la mesa /
+    // mostrador identifica al cliente).
+    if (orderType.value == OrderType.takeaway &&
+        !inTab &&
+        !isQuickSale.value) {
       final name = customerName.value?.trim() ?? '';
       if (name.isEmpty) return false;
     }
@@ -352,6 +377,38 @@ class OrderFormController extends GetxController {
     }
 
     return true;
+  }
+
+  /// Mensaje human-friendly que explica POR QUÉ `canSubmit` es false.
+  /// La UI lo usa como label del botón cuando está disabled — mucho más
+  /// claro que un botón gris sin explicación.
+  ///
+  /// Devuelve `null` si todo está OK (el botón puede usarse).
+  String? get submitBlockerReason {
+    if (!hasItems) return 'Agregá productos';
+    final inTab = activeTabSessionId.value != null;
+    if (orderType.value == OrderType.dineIn &&
+        !inTab &&
+        selectedTableElementId.value == null) {
+      return 'Seleccioná una mesa';
+    }
+    if (orderType.value == OrderType.takeaway &&
+        !inTab &&
+        !isQuickSale.value) {
+      final name = customerName.value?.trim() ?? '';
+      if (name.isEmpty) return 'Falta nombre del cliente';
+    }
+    if (orderType.value == OrderType.delivery) {
+      final phone = customerPhone.value?.trim() ?? '';
+      final street = deliveryStreet.value?.trim() ?? '';
+      if (phone.isEmpty) return 'Falta teléfono';
+      if (street.isEmpty) return 'Falta dirección';
+      if (!inTab) {
+        final name = customerName.value?.trim() ?? '';
+        if (name.isEmpty) return 'Falta nombre del cliente';
+      }
+    }
+    return null;
   }
 
   /// Cuenta cuántas unidades del producto (opcionalmente filtrando por
@@ -422,6 +479,7 @@ class OrderFormController extends GetxController {
     int quantity = 1,
     ProductVariant? variant,
     List<SelectedModifier>? modifiers,
+    String? specialInstructions,
   }) {
     // Validación de stock — si el producto trackea inventario, no podemos
     // dejar que el carrito supere `currentStock` porque al confirmar la orden
@@ -438,23 +496,31 @@ class OrderFormController extends GetxController {
       return;
     }
 
-    // Si el producto tiene variantes o modificadores, siempre agregar como item nuevo
-    // porque cada combinación es única
+    final notes = specialInstructions?.trim();
+    final hasNotes = notes != null && notes.isNotEmpty;
+
+    // Si el producto tiene variantes, modificadores o nota explícita,
+    // siempre se agrega como item nuevo — cada combinación es única y
+    // dos clientes pueden pedir "sin cebolla" en pedidos distintos.
     if ((variant != null) ||
-        (modifiers != null && modifiers.isNotEmpty)) {
+        (modifiers != null && modifiers.isNotEmpty) ||
+        hasNotes) {
       cartItems.add(CartItem(
         product: product,
         quantity: quantity,
         selectedVariant: variant,
         selectedModifiers: modifiers ?? [],
+        specialInstructions: hasNotes ? notes : null,
       ));
     } else {
-      // Check if product already exists (sin variante ni modificadores)
+      // Check if product already exists (sin variante ni modificadores ni nota)
       final existingIndex = cartItems.indexWhere(
         (item) =>
             item.product.id == product.id &&
             item.selectedVariant == null &&
-            item.selectedModifiers.isEmpty,
+            item.selectedModifiers.isEmpty &&
+            (item.specialInstructions == null ||
+                item.specialInstructions!.isEmpty),
       );
 
       if (existingIndex != -1) {
@@ -742,13 +808,21 @@ class OrderFormController extends GetxController {
     try {
       final items = cartItems.map((item) => item.toJson()).toList();
 
+      // En Venta Express, si el operario no puso nombre, asignamos uno
+      // genérico para que el backend tenga algo en `customer_name`
+      // (algunos reportes y prints lo esperan no-vacío).
+      final effectiveCustomerName = isQuickSale.value &&
+              (customerName.value?.trim().isEmpty ?? true)
+          ? 'Mostrador'
+          : customerName.value;
+
       final result = await createOrderUseCase(
         orderType: orderType.value,
         tableId: selectedTableId.value,
         tableElementId: selectedTableElementId.value,
         tabSessionId: activeTabSessionId.value,
         customerId: customerId.value,
-        customerName: customerName.value,
+        customerName: effectiveCustomerName,
         customerPhone: customerPhone.value,
         customerEmail: customerEmail.value,
         deliveryAddress: _composedDeliveryAddress,
@@ -784,7 +858,15 @@ class OrderFormController extends GetxController {
           );
         },
         (order) {
-          // Success
+          // En Venta Express NO mostramos snackbar de "Orden creada" ni
+          // popeamos la pantalla — el caller se encarga del flujo (abrir
+          // dialog de cobro, mostrar feedback final). Solo exponemos la
+          // orden creada para que la pueda usar.
+          if (isQuickSale.value) {
+            lastCreatedOrder.value = order;
+            return;
+          }
+
           AppSnackbar.show(
             'Orden creada',
             'Orden #${order.orderNumber} creada exitosamente',
@@ -813,10 +895,45 @@ class OrderFormController extends GetxController {
     }
   }
 
+  /// Cambia el destino de la venta. Sincroniza todos los flags
+  /// derivados (`orderType`, `tableElementId`, `tabSessionId`,
+  /// `isQuickSale`, etc.) en una sola llamada para que el `submitOrder`
+  /// envíe los datos correctos sin que el caller tenga que setear cada
+  /// campo individualmente.
+  void applyMode(SellMode mode) {
+    currentMode.value = mode;
+    orderType.value = mode.orderType;
+    selectedTableElementId.value = mode.tableElementId;
+    selectedTableId.value = mode.tableId;
+    selectedTableName.value = mode.tableName;
+    activeTabSessionId.value = mode.tabSessionId;
+    // El modo "Mostrador" relaja la validación de cliente: equivalente
+    // al antiguo `isQuickSale`. Para los otros modos, exigimos los
+    // datos correspondientes (ver `submitBlockerReason`).
+    isQuickSale.value = mode.isCounter;
+
+    // Al pasar a un modo nuevo limpiamos datos del modo anterior que ya
+    // no aplican — evita arrastrar dirección de delivery cuando ahora
+    // estamos en una mesa, por ejemplo.
+    if (mode.orderType != OrderType.delivery) {
+      deliveryStreet.value = null;
+      deliveryCity.value = null;
+      deliveryNotes.value = null;
+      deliveryFee.value = 0.0;
+    }
+    // El nombre/teléfono del cliente NO los limpiamos: el operario
+    // puede haber llenado los datos antes de cambiar de modo y
+    // perderlos sería frustrante.
+  }
+
   /// Reset form
   void resetForm() {
     clearCart();
-    orderType.value = OrderType.dineIn;
+    // En Venta Express mantenemos `takeaway` para que el operario siga
+    // vendiendo sin re-configurar la pantalla. En el flujo normal,
+    // dine-in es el default que el usuario espera al abrir "Nueva orden".
+    orderType.value =
+        isQuickSale.value ? OrderType.takeaway : OrderType.dineIn;
     selectedTableId.value = null;
     selectedTableElementId.value = null;
     selectedTableName.value = null;
@@ -835,6 +952,7 @@ class OrderFormController extends GetxController {
     tipAmount.value = 0.0;
     paymentMethod.value = null;
     errorMessage.value = null;
+    lastCreatedOrder.value = null;
 
     // Si el tenant tiene la propina como obligatoria y aplica al tipo
     // por defecto (dineIn), re-aplicamos el porcentaje default para que

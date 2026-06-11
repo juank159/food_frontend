@@ -20,6 +20,7 @@ class AppRoutes {
 
   // ==================== QR TOKENS ====================
   static const String qrTokens = '/qr-tokens';
+  static const String qrPreview = '/qr-tokens/preview';
 
   // ==================== MENU SCHEDULES ====================
   static const String menuSchedules = '/menu-schedules';
@@ -32,7 +33,15 @@ class AppRoutes {
   static const String ordersList = '/orders/list';
   static const String pendingReviewOrders = '/orders/pending-review';
   static const String orderDetail = '/orders/:id';
+  /// **Pantalla única de venta**. Reemplaza a `createOrder` y
+  /// `quickSale` (las dos siguen registradas como alias redirigidos
+  /// para no romper deep-links existentes). El destinatario de la
+  /// orden (mostrador / mesa / cuenta / takeaway / delivery) se elige
+  /// dentro de la pantalla con un pill superior, sin cambiar de ruta.
+  static const String sell = '/sell';
+  /// Alias legacy — redirigen a `sell` con el modo correcto.
   static const String createOrder = '/orders/create';
+  static const String quickSale = '/orders/quick-sale';
   static const String editOrder = '/orders/:id/edit';
 
   // Cuentas abiertas (TabSessions) — agrupan N tickets por mesa o grupo.

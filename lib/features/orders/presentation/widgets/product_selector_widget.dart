@@ -5,6 +5,7 @@ import '../../../../core/config/responsive_config.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/domain/entities/product_variant.dart';
+import '../../../products/presentation/bindings/products_binding.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
 import '../../domain/entities/selected_modifier.dart';
 import '../controllers/order_form_controller.dart';
@@ -25,6 +26,12 @@ class ProductSelectorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final responsive = ResponsiveConfig(context);
+    // Auto-binding defensivo: el selector se abre desde el form de
+    // orden; si el usuario nunca entró a Productos en esta sesión, el
+    // controller no está en memoria y `Get.find` truena.
+    if (!Get.isRegistered<ProductsController>()) {
+      ProductsBinding().dependencies();
+    }
     final productsController = Get.find<ProductsController>();
 
     return Column(
@@ -674,12 +681,13 @@ class ProductSelectorWidget extends StatelessWidget {
       isScrollControlled: true,
       builder: (context) => _ProductDetailsSheet(
         product: product,
-        onAddToCart: (quantity, variant, modifiers) {
+        onAddToCart: (quantity, variant, modifiers, notes) {
           orderController.addToCart(
             product,
             quantity: quantity,
             variant: variant,
             modifiers: modifiers,
+            specialInstructions: notes,
           );
           Navigator.pop(context);
         },
@@ -727,7 +735,12 @@ class ProductSelectorWidget extends StatelessWidget {
 /// Bottom sheet con detalles del producto y selector de cantidad
 class _ProductDetailsSheet extends StatefulWidget {
   final Product product;
-  final Function(int quantity, ProductVariant? variant, List<SelectedModifier>? modifiers) onAddToCart;
+  final void Function(
+    int quantity,
+    ProductVariant? variant,
+    List<SelectedModifier>? modifiers,
+    String? notes,
+  ) onAddToCart;
 
   const _ProductDetailsSheet({
     required this.product,
@@ -742,8 +755,15 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   int quantity = 1;
   final GlobalKey<VariantSelectorWidgetState> _variantKey = GlobalKey();
   final GlobalKey<ModifierSelectorWidgetState> _modifierKey = GlobalKey();
+  final TextEditingController _notesCtrl = TextEditingController();
   ProductVariant? _selectedVariant;
   List<SelectedModifier> _selectedModifiers = [];
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -880,6 +900,48 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                       const SizedBox(height: 24),
                     ],
 
+                    // Notas para el cocinero — campo único para
+                    // pedidos como "sin cebolla", "bien hecho", etc.
+                    // Se agrega ANTES de que el producto entre al
+                    // carrito para evitar el doble paso de tener que
+                    // editar el ítem después de agregarlo.
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.sticky_note_2_outlined,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Notas para el cocinero',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _notesCtrl,
+                      maxLines: 2,
+                      maxLength: 200,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'Ej. sin cebolla, bien hecho, sin sal…',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        counterText: '',
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
                     // Quantity Selector
                     _buildQuantitySelector(theme),
 
@@ -987,8 +1049,13 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     // Get selected modifiers
     final modifiers = _modifierKey.currentState?.getSelectedModifiers();
 
-    // Call the callback con variante
-    widget.onAddToCart(quantity, _selectedVariant, modifiers);
+    final notes = _notesCtrl.text.trim();
+    widget.onAddToCart(
+      quantity,
+      _selectedVariant,
+      modifiers,
+      notes.isEmpty ? null : notes,
+    );
   }
 
   Widget _buildQuantitySelector(ThemeData theme) {

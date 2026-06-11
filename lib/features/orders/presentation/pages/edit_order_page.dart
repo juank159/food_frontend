@@ -49,7 +49,7 @@ class EditOrderPage extends GetView<EditOrderController> {
                 title: 'Editar orden',
                 subtitle: 'Orden ${order.orderNumber}',
                 leading: GestureDetector(
-                  onTap: () => Get.back(),
+                  onTap: () => Navigator.of(context).pop(),
                   child: Container(
                     width: 40,
                     height: 40,
@@ -136,7 +136,7 @@ class EditOrderPage extends GetView<EditOrderController> {
               ),
               Obx(() => AppFormSubmitBar(
                     isSaving: controller.isSaving.value,
-                    onCancel: () => Get.back(),
+                    onCancel: () => Navigator.of(context).pop(),
                     onSave: controller.save,
                     saveLabel: 'Guardar cambios',
                   )),

@@ -147,7 +147,7 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
           'Cobro exitoso',
           'Se distribuyó en ${payments.length} ${payments.length == 1 ? "ticket" : "tickets"}',
         );
-        Get.back(result: true);
+        if (mounted) Navigator.of(context).pop(true);
       },
     );
   }
@@ -273,7 +273,7 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
       title: 'Cobrar cuenta',
       subtitle: session.displayLabel(),
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

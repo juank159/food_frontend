@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
-import '../../../thermal_print/data/thermal_print_service.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../data/datasources/order_remote_datasource.dart';
 import '../../data/models/order_model.dart';
 
@@ -31,14 +31,11 @@ import '../../data/models/order_model.dart';
 class PendingReviewController extends GetxController {
   PendingReviewController({
     OrderRemoteDataSource? remoteDataSource,
-    ThermalPrintService? printService,
     Duration pollInterval = const Duration(seconds: 12),
   })  : _remote = remoteDataSource ?? sl<OrderRemoteDataSource>(),
-        _print = printService ?? sl<ThermalPrintService>(),
         _pollInterval = pollInterval;
 
   final OrderRemoteDataSource _remote;
-  final ThermalPrintService _print;
   final Duration _pollInterval;
   Timer? _pollTimer;
 
@@ -128,14 +125,14 @@ class PendingReviewController extends GetxController {
 
   /// Aprueba la orden y la saca de la cola.
   /// Optimistic: la remueve antes del response. Si falla, se recarga.
-  /// Si [printKitchen] es true, dispara impresión automática de la
-  /// comanda en cuanto el approve responde OK (no bloquea — fire-and-
-  /// forget; si falla la impresión, snackbar pero la aprobación queda).
+  /// Si [printKitchen] es true, **dispara auto-impresión de comanda**
+  /// vía `PrintingOrchestrator`: lee la impresora default de cocina
+  /// del tenant y manda directo si está configurada con `auto_print`.
   Future<void> approve(
     String orderId, {
     bool toConfirmed = false,
     bool printKitchen = false,
-    ThermalPaperWidth kitchenWidth = ThermalPaperWidth.mm80,
+    String? destinationLabel, // ej. "Mesa 1 · Areas verdes"
   }) async {
     if (processingIds.contains(orderId)) return;
     processingIds.add(orderId);
@@ -152,19 +149,14 @@ class PendingReviewController extends GetxController {
       _knownIds.remove(orderId);
 
       if (printKitchen) {
-        // No usamos await — el approve ya está OK y queremos que el
-        // mesero pueda seguir con el siguiente pedido aunque el
-        // diálogo de impresión esté abierto.
+        // Fire-and-forget: el orchestrator maneja errores y muestra
+        // snackbars elegantes. El mesero puede seguir aprobando los
+        // siguientes sin esperar la impresión.
         unawaited(
-          _print
-              .printKitchenTicket(orderId: orderId, width: kitchenWidth)
-              .catchError((e) {
-            AppSnackbar.show(
-              'Aprobada pero no imprimió comanda',
-              e.toString(),
-            );
-            return false;
-          }),
+          PrintingOrchestrator.autoPrintKitchen(
+            orderId: orderId,
+            subtitle: destinationLabel,
+          ),
         );
       }
 

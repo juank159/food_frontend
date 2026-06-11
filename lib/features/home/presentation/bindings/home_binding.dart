@@ -18,6 +18,7 @@ import '../../../orders/domain/usecases/update_order_status_usecase.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../products/presentation/controllers/modifiers_controller.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
+import '../../../tables/presentation/bindings/floor_plans_list_binding.dart';
 import '../controllers/home_controller.dart';
 
 /// Home Binding
@@ -70,5 +71,11 @@ class HomeBinding extends Bindings {
         updateOrderStatusUseCase: sl<UpdateOrderStatusUseCase>(),
       ),
     );
+
+    // Floor plans list — para los roles waiter/cashier el tab "Mesas"
+    // muestra `FloorPlansListPage` en lugar del tab "Productos". El
+    // binding registra el controller y sus dependencias (datasource +
+    // repository) de forma idempotente.
+    FloorPlansListBinding().dependencies();
   }
 }

@@ -26,7 +26,7 @@ class SubscriptionPage extends GetView<SubscriptionController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(child: _buildBody(responsive)),
           ],
         ),
@@ -36,7 +36,7 @@ class SubscriptionPage extends GetView<SubscriptionController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Obx(() {
       final planName = controller.currentPlanName;
       final isTrial = controller.isOnTrial;
@@ -53,7 +53,7 @@ class SubscriptionPage extends GetView<SubscriptionController> {
         title: 'Mi suscripción',
         subtitle: statusLabel,
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

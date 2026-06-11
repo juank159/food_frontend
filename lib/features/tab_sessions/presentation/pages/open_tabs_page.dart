@@ -1,3 +1,4 @@
+// lib/features/tab_sessions/presentation/pages/open_tabs_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -25,19 +26,43 @@ class OpenTabsPage extends GetView<OpenTabsController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      // Botón "Abrir cuenta libre" siempre visible. Se usa para
+      // clientes en sillas/zonas no registradas en el floor plan
+      // (césped, terraza, zona verde).
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: FilledButton.icon(
+            onPressed: () => _showOpenFreeAccountDialog(context),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text(
+              'Abrir cuenta libre',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Obx(() {
-                if (controller.isLoading.value &&
-                    controller.sessions.isEmpty) {
+                if (controller.isLoading.value && controller.sessions.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (controller.sessions.isEmpty) {
-                  return _buildEmptyState();
+                  return _buildEmptyState(context);
                 }
                 return RefreshIndicator(
                   onRefresh: controller.load,
@@ -52,8 +77,10 @@ class OpenTabsPage extends GetView<OpenTabsController> {
                           child: _TabCard(
                             session: s,
                             onTap: () => Get.toNamed(
-                              AppRoutes.tabSessionDetail
-                                  .replaceAll(':id', s.id),
+                              AppRoutes.tabSessionDetail.replaceAll(
+                                ':id',
+                                s.id,
+                              ),
                             )?.then((_) => controller.load()),
                           ),
                         ),
@@ -69,12 +96,106 @@ class OpenTabsPage extends GetView<OpenTabsController> {
     );
   }
 
-  Widget _buildHeader() {
+  /// Dialog mínimo: una etiqueta libre + cantidad de personas opcional.
+  /// Diseño orientado a 1 sola mano: el field arranca con autofocus,
+  /// el botón "Abrir" es prominente, y al confirmar navegamos directo
+  /// al detalle de la cuenta para agregar el primer ticket.
+  Future<void> _showOpenFreeAccountDialog(BuildContext context) async {
+    final labelCtrl = TextEditingController();
+    final partySizeCtrl = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Abrir cuenta libre'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Para clientes en zonas no registradas (césped, sillas zona verde, terraza).',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: labelCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Etiqueta',
+                hintText: 'Ej. Césped #3, Silla árbol',
+                prefixIcon: const Icon(Icons.label_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: (_) => Navigator.of(dialogCtx).pop(true),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: partySizeCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Personas (opcional)',
+                prefixIcon: const Icon(Icons.group_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          Obx(() => FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                ),
+                onPressed: controller.isOpening.value
+                    ? null
+                    : () => Navigator.of(dialogCtx).pop(true),
+                child: controller.isOpening.value
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Abrir cuenta'),
+              )),
+        ],
+      ),
+    );
+    if (result != true) return;
+
+    final sessionId = await controller.openFreeAccount(
+      label: labelCtrl.text,
+      partySize: int.tryParse(partySizeCtrl.text.trim()),
+    );
+    if (sessionId == null) return;
+
+    // UX: arrancar inmediatamente con el flujo de agregar el primer
+    // ticket — el operario abrió la cuenta porque tiene clientes
+    // esperando. Pasamos `autoAddTicket=true` para que `TabSessionDetail`
+    // empuje directo al catálogo cuando termine de cargar. Cuando el
+    // operario hace back desde CreateOrder vuelve a la cuenta con el
+    // ticket recién agregado, y al hacer otro back regresa a esta lista.
+    final route = AppRoutes.tabSessionDetail.replaceAll(':id', sessionId);
+    await Get.toNamed<dynamic>(route, arguments: {'autoAddTicket': true});
+    await controller.load();
+  }
+
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: 'Cuentas abiertas',
       subtitle: 'Mesas y deliveries activos en este momento',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,
@@ -141,7 +262,7 @@ class OpenTabsPage extends GetView<OpenTabsController> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -172,7 +293,7 @@ class OpenTabsPage extends GetView<OpenTabsController> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Las mesas y pedidos activos aparecerán acá\nen tiempo real.',
+              'Cuando ocupes una mesa o abras una\ncuenta libre aparecerán acá.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
@@ -233,6 +354,18 @@ class _TabCard extends StatelessWidget {
 
   const _TabCard({required this.session, required this.onTap});
 
+  /// Icono según el tipo de cuenta — el operario reconoce de un
+  /// vistazo qué tipo de venta es sin leer el texto.
+  IconData _iconFor(TabSession s) {
+    if (s.hasTable) return Icons.table_restaurant_outlined;
+    // Sin mesa pero con notas → es cuenta libre (etiqueta manual).
+    if (s.notes != null && s.notes!.trim().isNotEmpty) {
+      return Icons.chair_outlined;
+    }
+    // Sin mesa ni etiqueta → delivery o venta sin mesa formal.
+    return Icons.delivery_dining_outlined;
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasBalance = session.hasPendingBalance;
@@ -266,10 +399,7 @@ class _TabCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  session.tableElementId != null ||
-                          session.tableId != null
-                      ? Icons.table_restaurant_outlined
-                      : Icons.delivery_dining_outlined,
+                  _iconFor(session),
                   size: 22,
                   color: accent,
                 ),
@@ -293,8 +423,7 @@ class _TabCard extends StatelessWidget {
                     Text(
                       [
                         '${session.totalOrders} ${session.totalOrders == 1 ? "ticket" : "tickets"}',
-                        if (session.partySize != null &&
-                            session.partySize! > 0)
+                        if (session.partySize != null && session.partySize! > 0)
                           '${session.partySize} pers.',
                         'desde ${DateFormat('HH:mm').format(session.openedAt)}',
                       ].join(' · '),
@@ -330,9 +459,7 @@ class _TabCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: hasBalance
-                          ? AppColors.error
-                          : AppColors.success,
+                      color: hasBalance ? AppColors.error : AppColors.success,
                     ),
                   ),
                 ],

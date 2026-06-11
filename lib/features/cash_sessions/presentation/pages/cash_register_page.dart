@@ -30,7 +30,7 @@ class CashRegisterPage extends GetView<CashSessionController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Obx(() {
                 if (controller.isLoading.value &&
@@ -66,12 +66,12 @@ class CashRegisterPage extends GetView<CashSessionController> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: 'Caja',
       subtitle: 'Apertura, cierre y conciliación',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

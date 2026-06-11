@@ -10,7 +10,7 @@ import '../../../tables/presentation/controllers/table_status_controller.dart';
 
 /// Table Selector Widget
 ///
-/// Se abre desde `CreateOrderPage` para elegir una mesa a la que asignar la
+/// Se abre desde `SellPage` para elegir una mesa a la que asignar la
 /// orden. Antes fallaba con "no hay mesas disponibles" porque nadie cargaba
 /// los estados: el widget asumía que el `TableStatusController` ya tenía data.
 /// Ahora este widget:

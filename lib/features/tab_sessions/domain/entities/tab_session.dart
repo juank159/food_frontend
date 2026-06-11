@@ -101,12 +101,27 @@ class TabSession extends Equatable {
   /// Cuenta lista para cerrarse: open, balance pagado.
   bool get canClose => isOpen && !hasPendingBalance;
 
-  /// Label visible para el listado: "Mesa 7", "Domicilio", "Pickup".
+  /// Label visible para el listado: "Mesa 7", "Domicilio", "Pickup", o
+  /// la etiqueta libre que el cajero puso al abrir la cuenta sin mesa
+  /// (ej. "Césped #3", "Silla zona verde").
   String displayLabel({String fallback = 'Sin mesa'}) {
     if (tableName != null && tableName!.isNotEmpty) return 'Mesa $tableName';
     if (customerName != null && customerName!.isNotEmpty) return customerName!;
+    // Cuenta libre: sin mesa ni cliente vinculado → usamos la primera
+    // línea de `notes` como etiqueta (es donde se guarda al abrir desde
+    // "Abrir cuenta libre"). Si el operario después agregó notas más
+    // largas, mostramos solo la primera línea para no romper la card.
+    if (!hasTable && notes != null && notes!.trim().isNotEmpty) {
+      final firstLine = notes!.split('\n').first.trim();
+      if (firstLine.isNotEmpty) return firstLine;
+    }
     return fallback;
   }
+
+  /// True cuando la cuenta está atada a una mesa del floor plan (o legacy).
+  bool get hasTable =>
+      (tableElementId != null && tableElementId!.isNotEmpty) ||
+      (tableId != null && tableId!.isNotEmpty);
 
   @override
   List<Object?> get props => [

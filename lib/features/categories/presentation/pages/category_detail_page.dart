@@ -74,7 +74,7 @@ class CategoryDetailPage extends GetView<CategoryDetailController> {
       child: ListView(
         padding: const EdgeInsets.only(bottom: 96),
         children: [
-          _buildHeader(category),
+          _buildHeader(context, category),
           const SizedBox(height: 16),
           _buildProductsSection(context),
           if (controller.hasChildren) ...[
@@ -89,14 +89,14 @@ class CategoryDetailPage extends GetView<CategoryDetailController> {
 
   // ─────────────────────────── Header ──────────────────────────
 
-  Widget _buildHeader(Category category) {
+  Widget _buildHeader(BuildContext context, Category category) {
     return AppGradientHeader(
       title: category.name,
       subtitle: category.description.trim().isNotEmpty
           ? category.description
           : 'Detalle de la categoría',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

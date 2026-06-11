@@ -225,27 +225,46 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
     );
   }
 
+  bool get _isIncomplete {
+    return _businessNameCtrl.text.trim().isEmpty ||
+        _phoneCtrl.text.trim().isEmpty ||
+        _addressCtrl.text.trim().isEmpty;
+  }
+
   Widget _infoBanner() {
+    final incomplete = _isIncomplete;
+    final color = incomplete ? Colors.amber.shade800 : AppColors.info;
+    final bg = incomplete
+        ? Colors.amber.withValues(alpha: 0.12)
+        : AppColors.info.withValues(alpha: 0.08);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.08),
+        color: bg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.info.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.lightbulb_outline, color: AppColors.info, size: 18),
+          Icon(
+            incomplete ? Icons.warning_amber : Icons.lightbulb_outline,
+            color: color,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Esta información aparece en el encabezado de cada recibo '
-              'térmico que se imprime al cliente.',
+              incomplete
+                  ? 'Falta completar la info de tu negocio. Esto aparece en '
+                      'CADA recibo y comanda — sin esto los tickets salen '
+                      'con datos vacíos o genéricos.'
+                  : 'Esta información aparece en el encabezado de cada '
+                      'recibo y comanda que se imprime.',
               style: TextStyle(
-                color: AppColors.info,
+                color: color,
                 fontSize: 12,
+                fontWeight: incomplete ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),
@@ -281,6 +300,9 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      // Rebuild para que el banner amarillo/azul reaccione mientras
+      // el usuario llena los campos.
+      onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

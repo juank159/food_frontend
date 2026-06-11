@@ -63,6 +63,8 @@ class FloorPlansListPage extends GetView<FloorPlansListController> {
       return AppGradientHeader(
         title: 'Planos de mesas',
         subtitle: 'Organizá el layout de tu restaurante',
+        // El back button lo inyecta `AppGradientHeader` automáticamente
+        // (auto-detecta que esta pantalla no es root del Home).
         trailing: IconButton(
           tooltip: 'Refrescar',
           onPressed: controller.loadFloorPlans,

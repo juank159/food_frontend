@@ -26,13 +26,13 @@ import '../../features/employees/presentation/pages/employee_form_page.dart';
 import '../../features/employees/presentation/pages/employees_page.dart';
 import '../../features/home/presentation/bindings/home_binding.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
-import '../../features/orders/presentation/bindings/create_order_binding.dart';
 import '../../features/orders/presentation/bindings/edit_order_binding.dart';
 import '../../features/orders/presentation/bindings/order_detail_binding.dart';
 import '../../features/orders/presentation/bindings/orders_binding.dart';
-import '../../features/orders/presentation/pages/create_order_page.dart';
+import '../../features/orders/presentation/bindings/sell_binding.dart';
 import '../../features/orders/presentation/pages/edit_order_page.dart';
 import '../../features/orders/presentation/pages/order_detail_page.dart';
+import '../../features/orders/presentation/pages/sell_page.dart';
 import '../../features/cash_sessions/presentation/bindings/cash_session_binding.dart';
 import '../../features/cash_sessions/presentation/pages/cash_register_page.dart';
 import '../../features/roles/presentation/bindings/role_binding.dart';
@@ -48,6 +48,7 @@ import '../../features/orders/presentation/pages/orders_page.dart';
 import '../../features/orders/presentation/pages/pending_review_page.dart';
 import '../../features/orders/presentation/bindings/pending_review_binding.dart';
 import '../../features/qr_tokens/presentation/pages/qr_tokens_page.dart';
+import '../../features/qr_tokens/presentation/pages/qr_preview_page.dart';
 import '../../features/qr_tokens/presentation/bindings/qr_tokens_binding.dart';
 import '../../features/menu_schedules/presentation/pages/menu_schedules_page.dart';
 import '../../features/menu_schedules/presentation/bindings/menu_schedules_binding.dart';
@@ -221,6 +222,13 @@ class AppPages {
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),
+    // Vista previa del QR antes de imprimir (PDF zoomable).
+    GetPage(
+      name: AppRoutes.qrPreview,
+      page: () => const QrPreviewPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
     // Admin: menú del día (qué productos ven los clientes en self-order).
     GetPage(
       name: AppRoutes.menuSchedules,
@@ -239,13 +247,35 @@ class AppPages {
     ),
     // IMPORTANTE: rutas específicas ANTES que las parametrizadas.
     // /orders/create debe estar antes de /orders/:id.
+    // Pantalla unificada de venta. Mostrador / mesa / takeaway /
+    // delivery / cuenta abierta se eligen dentro de la pantalla con
+    // un pill superior — sin cambiar de ruta.
     GetPage(
-      name: AppRoutes.createOrder,
-      page: () => const CreateOrderPage(),
-      binding: CreateOrderBinding(),
+      name: AppRoutes.sell,
+      page: () => const SellPage(),
+      binding: SellBinding(),
       middlewares: [AuthGuard()],
       transition: Transition.rightToLeft,
-      transitionDuration: const Duration(milliseconds: 300),
+      transitionDuration: const Duration(milliseconds: 250),
+    ),
+    // Aliases legacy → redirigen a `/sell`. Mantenemos la ruta para
+    // que deep-links viejos (notificaciones, atajos guardados, otros
+    // módulos) sigan funcionando sin cambios.
+    GetPage(
+      name: AppRoutes.createOrder,
+      page: () => const SellPage(),
+      binding: SellBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 250),
+    ),
+    GetPage(
+      name: AppRoutes.quickSale,
+      page: () => const SellPage(),
+      binding: SellBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 250),
     ),
     GetPage(
       name: AppRoutes.orderDetail,

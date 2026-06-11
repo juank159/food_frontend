@@ -34,6 +34,7 @@ class OrdersPage extends GetView<OrdersController> {
         child: Column(
           children: [
             _Header(controller: controller),
+            _SearchBar(controller: controller),
             _StatusFilterBar(controller: controller),
             const SizedBox(height: 8),
             Expanded(child: _OrdersList(controller: controller)),
@@ -299,6 +300,87 @@ class _StatChip extends StatelessWidget {
   }
 }
 
+// ─────────────────────────── Search bar ───────────────────────────
+
+/// Búsqueda local sobre las órdenes ya cargadas. Filtra por número,
+/// cliente, teléfono o mesa. No hace request al backend — el debounce
+/// no es necesario porque trabajamos con la lista en memoria.
+class _SearchBar extends StatefulWidget {
+  final OrdersController controller;
+  const _SearchBar({required this.controller});
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.controller.searchQuery.value);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: TextField(
+        controller: _ctrl,
+        onChanged: widget.controller.setSearchQuery,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Buscar # de orden, mesa, cliente, teléfono…',
+          hintStyle: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textHint,
+          ),
+          prefixIcon: const Icon(Icons.search, size: 20),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 38, minHeight: 38),
+          suffixIcon: Obx(() {
+            if (widget.controller.searchQuery.value.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: () {
+                _ctrl.clear();
+                widget.controller.setSearchQuery('');
+              },
+            );
+          }),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                const BorderSide(color: AppColors.primary, width: 1.4),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─────────────────────────── Status filter bar ───────────────────────────
 
 /// Segmented inline para filtrar por estado. Mucho más rápido que un dialog.
@@ -386,15 +468,23 @@ class _OrdersList extends StatelessWidget {
         return const _EmptyState();
       }
 
+      final visible = controller.filteredOrders;
+      if (visible.isEmpty && controller.searchQuery.value.isNotEmpty) {
+        return _NoSearchResults(
+          query: controller.searchQuery.value,
+          onClear: () => controller.setSearchQuery(''),
+        );
+      }
+
       return RefreshIndicator(
         color: AppColors.primary,
         onRefresh: controller.refreshOrders,
         child: ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          itemCount: controller.orders.length,
+          itemCount: visible.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            final order = controller.orders[index];
+            final order = visible[index];
             return OrderCard(
               order: order,
               onTap: () => NavigationService.toOrderDetail(order.id),
@@ -424,6 +514,65 @@ class _OrdersList extends StatelessWidget {
 }
 
 // ─────────────────────────── States ───────────────────────────
+
+/// Estado vacío cuando el query filtró todas las órdenes. El operario
+/// suele tipear mal — le damos un botón para volver a ver todas sin
+/// tener que vaciar el campo manualmente.
+class _NoSearchResults extends StatelessWidget {
+  final String query;
+  final VoidCallback onClear;
+
+  const _NoSearchResults({required this.query, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.textHint.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.search_off,
+                size: 32,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Nada coincide con "$query"',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Probá con otro número, mesa o teléfono.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Limpiar búsqueda'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();

@@ -105,7 +105,21 @@ class ThermalPrintService {
   }
 
   /// Pide el PDF A4 con varios QRs en grilla y lo imprime.
+  /// perPage=1 → un QR enorme por hoja (ideal sticker individual).
   Future<bool> printQrSheet({
+    required List<String> codes,
+    int perPage = 4,
+  }) async {
+    final pdfBytes = await getQrSheetBytes(codes: codes, perPage: perPage);
+    return Printing.layoutPdf(
+      onLayout: (_) async => pdfBytes,
+      name: 'QRs (${codes.length} en hoja A4)',
+    );
+  }
+
+  /// Descarga los bytes del PDF sheet sin imprimir — para mostrar
+  /// vista previa en pantalla con `PdfPreview`.
+  Future<Uint8List> getQrSheetBytes({
     required List<String> codes,
     int perPage = 4,
   }) async {
@@ -121,11 +135,7 @@ class ThermalPrintService {
     if (data == null || data.isEmpty) {
       throw Exception('PDF vacío recibido del servidor');
     }
-    final pdfBytes = Uint8List.fromList(data);
-    return Printing.layoutPdf(
-      onLayout: (_) async => pdfBytes,
-      name: 'QRs (${codes.length} en hoja A4)',
-    );
+    return Uint8List.fromList(data);
   }
 
   // -------------------------------------------------------------------

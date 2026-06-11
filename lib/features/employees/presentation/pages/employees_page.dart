@@ -26,7 +26,7 @@ class EmployeesPage extends GetView<EmployeesController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(child: _buildBody(context)),
           ],
         ),
@@ -41,13 +41,13 @@ class EmployeesPage extends GetView<EmployeesController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Obx(() {
       return AppGradientHeader(
         title: 'Empleados',
         subtitle: 'Tu equipo y sus permisos',
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

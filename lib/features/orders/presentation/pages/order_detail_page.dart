@@ -8,9 +8,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/widgets.dart';
-import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/app_snackbar.dart';
-import '../../../thermal_print/data/thermal_print_service.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/order.dart';
 import '../controllers/order_detail_controller.dart';
 import '../widgets/order_items_list.dart';
@@ -120,11 +118,24 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Banner self-order: solo aparece si la orden
+                      // nació por QR Y está en pending_review. Permite
+                      // aprobar/rechazar desde el detalle (coherente
+                      // con la bandeja de pendientes — mismo botón,
+                      // mismo efecto).
+                      if (controller.isPendingReviewSelfOrder) ...[
+                        _PendingReviewBanner(controller: controller),
+                        const SizedBox(height: 16),
+                      ],
                       OrderItemsList(order: order),
                       const SizedBox(height: 16),
                       _buildPaymentSection(context, order),
                       const SizedBox(height: 16),
-                      OrderStatusActions(controller: controller),
+                      // El card genérico de "Cambiar Estado" NO se muestra
+                      // para self-orders pending_review — usan el banner
+                      // dedicado de arriba.
+                      if (!controller.isPendingReviewSelfOrder)
+                        OrderStatusActions(controller: controller),
                       if (order.hasSpecialInstructions) ...[
                         const SizedBox(height: 16),
                         _SpecialInstructionsCard(
@@ -365,7 +376,7 @@ class _OrderHeader extends StatelessWidget {
           Row(
             children: [
               GestureDetector(
-                onTap: () => Get.back(),
+                onTap: () => Navigator.of(context).pop(),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -604,10 +615,12 @@ class _OrderHeader extends StatelessWidget {
   /// es lo más importante en este flujo.
   Widget _buildOriginChip(Order order) {
     if (order.hasTable) {
-      final label = order.tableName ?? '';
+      // Usamos `displayTableLabel` que prioriza el snapshot legible
+      // (`tableLabel`) sobre `tableName` o `tableElementId`. Para
+      // self-orders por QR llega como "Mesa 1 · Areas verdes".
       return _ContextChip(
         icon: Icons.table_restaurant,
-        label: label.isEmpty ? 'Mesa' : 'Mesa $label',
+        label: order.displayTableLabel,
       );
     }
     switch (order.orderType) {
@@ -988,7 +1001,7 @@ class _PrintMenuButtonState extends State<_PrintMenuButton> {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
-      tooltip: 'Imprimir',
+      tooltip: 'Re-imprimir',
       icon: _busy
           ? const SizedBox(
               width: 18,
@@ -1002,40 +1015,21 @@ class _PrintMenuButtonState extends State<_PrintMenuButton> {
       onSelected: (value) => _handle(value),
       itemBuilder: (_) => const [
         PopupMenuItem(
-          value: 'receipt:80',
+          value: 'receipt',
           child: ListTile(
             dense: true,
             leading: Icon(Icons.receipt_long),
             title: Text('Recibo cliente'),
-            subtitle: Text('80 mm'),
+            subtitle: Text('Usa impresora configurada en Caja'),
           ),
         ),
         PopupMenuItem(
-          value: 'receipt:58',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.receipt_long_outlined),
-            title: Text('Recibo cliente'),
-            subtitle: Text('58 mm'),
-          ),
-        ),
-        PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'kitchen:80',
+          value: 'kitchen',
           child: ListTile(
             dense: true,
             leading: Icon(Icons.restaurant_menu),
             title: Text('Comanda cocina'),
-            subtitle: Text('80 mm · sin precios'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'kitchen:58',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.restaurant_menu_outlined),
-            title: Text('Comanda cocina'),
-            subtitle: Text('58 mm · sin precios'),
+            subtitle: Text('Usa impresora configurada en Cocina'),
           ),
         ),
       ],
@@ -1046,25 +1040,202 @@ class _PrintMenuButtonState extends State<_PrintMenuButton> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final parts = value.split(':');
-      final kind = parts[0];
-      final width = parts[1] == '58'
-          ? ThermalPaperWidth.mm58
-          : ThermalPaperWidth.mm80;
-      final service = sl<ThermalPrintService>();
-
-      if (kind == 'receipt') {
-        await service.printReceipt(orderId: widget.orderId, width: width);
-      } else {
-        await service.printKitchenTicket(
+      // Usamos el orchestrator manual (con snackbar de "configurar" si
+      // no hay impresora default). Resuelve la impresora del tenant
+      // automáticamente — no hardcodeamos 80mm/58mm.
+      if (value == 'receipt') {
+        await PrintingOrchestrator.printReceiptManual(
           orderId: widget.orderId,
-          width: width,
+        );
+      } else {
+        await PrintingOrchestrator.printKitchenManual(
+          orderId: widget.orderId,
         );
       }
-    } catch (e) {
-      AppSnackbar.show('Error al imprimir', e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+// =====================================================================
+// Banner self-order pendiente de aprobación.
+// Aparece solo si el detalle abierto es de una orden creada por QR
+// (source = qr_self_order) Y aún está en pending_review. Reemplaza
+// al card genérico "Cambiar Estado" con botones más explícitos:
+// Aprobar (→ envía a cocina) / Rechazar (con razón obligatoria).
+// =====================================================================
+class _PendingReviewBanner extends StatelessWidget {
+  final OrderDetailController controller;
+  const _PendingReviewBanner({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final isUpdating = controller.isUpdatingStatus.value;
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.deepOrange.withValues(alpha: 0.10),
+              Colors.deepOrange.withValues(alpha: 0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.deepOrange.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.deepOrange,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.qr_code,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Pedido por QR · Esperando tu aprobación',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: Colors.deepOrange,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'El cliente lo envió desde su celular. '
+                        'Confirmá para que entre a cocina.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: isUpdating
+                        ? null
+                        : () => _confirmReject(context),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Rechazar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(
+                        color: AppColors.error.withValues(alpha: 0.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: isUpdating
+                        ? null
+                        : () => controller.approveSelfOrder(toConfirmed: true),
+                    icon: isUpdating
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check, size: 18),
+                    label: const Text('Aprobar y enviar a cocina'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Future<void> _confirmReject(BuildContext context) async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rechazar pedido'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Indicá brevemente por qué rechazás el pedido. '
+              'Esta nota queda en el historial y el cliente verá el '
+              'cambio en su pantalla de tracking.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              autofocus: true,
+              maxLength: 200,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Ej: mesa vacía, cliente se fue, pedido erróneo',
+                border: OutlineInputBorder(),
+                counterText: '',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(reasonCtrl.text.trim()),
+            child: const Text('Rechazar pedido'),
+          ),
+        ],
+      ),
+    );
+    if (reason != null && reason.isNotEmpty) {
+      await controller.rejectSelfOrder(reason);
     }
   }
 }

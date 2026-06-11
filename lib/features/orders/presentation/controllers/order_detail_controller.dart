@@ -1,11 +1,17 @@
+import 'dart:async';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/utils/safe_get.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
+import '../../data/datasources/order_remote_datasource.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import 'orders_controller.dart';
+import 'pending_review_watcher.dart';
 
 /// Order Detail Controller
 /// Controller para gestionar el detalle de una orden individual
@@ -161,6 +167,89 @@ class OrderDetailController extends GetxController {
   Future<void> refresh() async {
     if (hasOrder) {
       await loadOrder(currentOrder!.id);
+    }
+  }
+
+  /// True si la orden actual es una self-order por QR que está
+  /// esperando aprobación. La UI usa esto para mostrar el banner
+  /// + botones "Aprobar/Rechazar" en lugar del card genérico de
+  /// "Cambiar Estado".
+  bool get isPendingReviewSelfOrder {
+    if (!hasOrder) return false;
+    return currentOrder!.status == OrderStatus.pendingReview &&
+        currentOrder!.orderSource.isCustomerSelfOrder;
+  }
+
+  /// Aprueba la self-order (pending_review → confirmed) directamente
+  /// desde el detalle. Reusa el endpoint dedicado `/approve` que ya
+  /// usa la bandeja, refresca el watcher global y **auto-imprime la
+  /// comanda** si hay impresora default de cocina configurada con
+  /// `auto_print=true`.
+  Future<void> approveSelfOrder({bool toConfirmed = true}) async {
+    if (!hasOrder) return;
+    final orderId = currentOrder!.id;
+    final label = currentOrder!.displayTableLabel;
+    isUpdatingStatus.value = true;
+    try {
+      await sl<OrderRemoteDataSource>().approveSelfOrder(
+        orderId,
+        toConfirmed: toConfirmed,
+      );
+      // Refrescar el badge global de pendientes (puede no estar
+      // registrado si por algún motivo el watcher fue parado).
+      SafeGet.run<PendingReviewWatcher>((w) => w.refreshNow());
+
+      // Fire-and-forget: la comanda se manda a la impresora de cocina
+      // si está configurada. Errores los maneja el orchestrator con
+      // snackbars elegantes.
+      unawaited(
+        PrintingOrchestrator.autoPrintKitchen(
+          orderId: orderId,
+          subtitle: label,
+        ),
+      );
+
+      await refresh();
+      AppSnackbar.show(
+        'Pedido aprobado',
+        toConfirmed
+            ? 'Enviado a cocina'
+            : 'Listo para confirmar en el flujo normal',
+      );
+    } catch (e) {
+      AppSnackbar.show('No se pudo aprobar', e.toString());
+    } finally {
+      isUpdatingStatus.value = false;
+    }
+  }
+
+  /// Rechaza la self-order con razón obligatoria
+  /// (pending_review → cancelled).
+  Future<void> rejectSelfOrder(String reason) async {
+    if (!hasOrder) return;
+    if (reason.trim().length < 3) {
+      AppSnackbar.show(
+        'Motivo requerido',
+        'Escribí brevemente por qué rechazás el pedido.',
+      );
+      return;
+    }
+    isUpdatingStatus.value = true;
+    try {
+      await sl<OrderRemoteDataSource>().rejectSelfOrder(
+        currentOrder!.id,
+        reason.trim(),
+      );
+      SafeGet.run<PendingReviewWatcher>((w) => w.refreshNow());
+      await refresh();
+      AppSnackbar.show(
+        'Pedido rechazado',
+        'El cliente verá el cambio en su pantalla de tracking.',
+      );
+    } catch (e) {
+      AppSnackbar.show('No se pudo rechazar', e.toString());
+    } finally {
+      isUpdatingStatus.value = false;
     }
   }
 

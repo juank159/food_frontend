@@ -4,8 +4,10 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_dialog.dart';
 import '../../../thermal_print/data/thermal_print_service.dart';
+import '../../data/models/available_table.dart';
 import '../../data/models/qr_token_model.dart';
 import '../controllers/qr_tokens_controller.dart';
+import 'qr_preview_page.dart';
 
 /// Pantalla admin para gestionar los QRs físicos del restaurante.
 ///
@@ -39,21 +41,31 @@ class QrTokensPage extends GetView<QrTokensController> {
             onSelected: (v) => _handleAction(context, v),
             itemBuilder: (_) => const [
               PopupMenuItem(
+                value: 'from-tables',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.table_restaurant),
+                  title: Text('Generar QRs desde planos'),
+                  subtitle: Text('Selecciona mesas reales del tenant'),
+                ),
+              ),
+              PopupMenuItem(
                 value: 'bulk',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.dynamic_feed),
-                  title: Text('Crear varios QRs'),
-                  subtitle: Text('Onboarding rápido'),
+                  title: Text('Crear QRs por rango'),
+                  subtitle: Text('Ej: "Mesa 1 a 30" (sin asociar a plano)'),
                 ),
               ),
+              PopupMenuDivider(),
               PopupMenuItem(
                 value: 'sheet-4',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.grid_view),
-                  title: Text('Imprimir todos en A4'),
-                  subtitle: Text('4 QRs por hoja'),
+                  title: Text('Imprimir todos los QRs'),
+                  subtitle: Text('Hoja A4 · 4 por hoja (medianos)'),
                 ),
               ),
               PopupMenuItem(
@@ -61,8 +73,8 @@ class QrTokensPage extends GetView<QrTokensController> {
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.grid_on),
-                  title: Text('Imprimir todos en A4'),
-                  subtitle: Text('8 QRs por hoja (compactos)'),
+                  title: Text('Imprimir todos los QRs'),
+                  subtitle: Text('Hoja A4 · 8 por hoja (compactos)'),
                 ),
               ),
               PopupMenuDivider(),
@@ -121,6 +133,12 @@ class QrTokensPage extends GetView<QrTokensController> {
 
   Future<void> _handleAction(BuildContext context, String value) async {
     switch (value) {
+      case 'from-tables':
+        await AppDialog.show(
+          context: context,
+          const _BulkFromTablesDialog(),
+        );
+        break;
       case 'bulk':
         await AppDialog.show(
           context: context,
@@ -135,7 +153,17 @@ class QrTokensPage extends GetView<QrTokensController> {
             .map((t) => t.code)
             .toList();
         if (codes.isEmpty) return;
-        await controller.printSheet(codes: codes, perPage: perPage);
+        // Abrimos preview en vez de imprimir directo — el usuario
+        // confirma desde la pantalla de vista previa.
+        await Get.toNamed(
+          '/qr-tokens/preview',
+          arguments: QrPreviewArgs(
+            codes: codes,
+            title: 'Imprimir ${codes.length} QRs',
+            subtitle: '$perPage por hoja A4',
+            initialPerPage: perPage,
+          ),
+        );
         break;
       case 'refresh':
         await controller.fetch();
@@ -236,58 +264,92 @@ class _QrCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 12),
-              // Botones de acción.
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (token.isActive) ...[
-                    _ActionButton(
-                      icon: Icons.print,
-                      label: '80mm',
-                      onPressed: isPrinting
-                          ? null
-                          : () => controller.printThermal(
-                                token,
-                                width: ThermalPaperWidth.mm80,
-                              ),
-                    ),
-                    _ActionButton(
-                      icon: Icons.print_outlined,
-                      label: '58mm',
-                      onPressed: isPrinting
-                          ? null
-                          : () => controller.printThermal(
-                                token,
-                                width: ThermalPaperWidth.mm58,
-                              ),
-                    ),
-                    _ActionButton(
-                      icon: Icons.edit,
-                      label: 'Editar',
-                      onPressed: () => _openEdit(context, token),
-                    ),
-                    _ActionButton(
-                      icon: Icons.power_settings_new,
-                      label: 'Desactivar',
-                      color: AppColors.error,
+              // Acciones del card — alineadas a la izquierda con tamaño
+              // proporcional (no se estiran a todo el ancho del card,
+              // que en desktop quedaba enorme).
+              if (token.isActive)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    // Botón primario: vista previa + impresión en hoja
+                    // normal (A4). Este es el flujo principal.
+                    FilledButton.icon(
                       onPressed: () =>
+                          _openPreview(context, [token.code], token),
+                      icon: const Icon(Icons.print, size: 16),
+                      label: const Text('Imprimir QR'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        minimumSize: const Size(0, 36),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    // Menú secundario: editar / desactivar / térmica POS.
+                    _QrCardMenu(
+                      token: token,
+                      isPrinting: isPrinting,
+                      onEdit: () => _openEdit(context, token),
+                      onDeactivate: () =>
                           _confirmDeactivate(context, token, controller),
+                      onPrintThermal80: () => controller.printThermal(
+                        token,
+                        width: ThermalPaperWidth.mm80,
+                      ),
+                      onPrintThermal58: () => controller.printThermal(
+                        token,
+                        width: ThermalPaperWidth.mm58,
+                      ),
                     ),
-                  ] else
-                    _ActionButton(
-                      icon: Icons.refresh,
-                      label: 'Reactivar',
-                      color: AppColors.accent,
-                      onPressed: () => controller.reactivate(token),
+                  ],
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => controller.reactivate(token),
+                  icon: Icon(Icons.refresh,
+                      size: 16, color: AppColors.accent),
+                  label: Text('Reactivar',
+                      style: TextStyle(color: AppColors.accent)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: AppColors.accent.withValues(alpha: 0.4),
                     ),
-                ],
-              ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
             ],
           ),
         ),
       );
     });
+  }
+
+  Future<void> _openPreview(
+    BuildContext context,
+    List<String> codes,
+    QrTokenModel token,
+  ) async {
+    await Get.toNamed(
+      '/qr-tokens/preview',
+      arguments: QrPreviewArgs(
+        codes: codes,
+        title: 'Vista previa',
+        subtitle: token.displayLabel,
+        initialPerPage: 1,
+      ),
+    );
   }
 
   Future<void> _openEdit(BuildContext context, QrTokenModel token) async {
@@ -380,32 +442,120 @@ class _TypeChip extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final Color? color;
+/// Menú secundario en el card del QR: editar, desactivar, imprimir
+/// en térmica POS (caso especial). El flujo primario "Imprimir QR"
+/// (hoja normal con preview) es un botón separado fuera de este menú.
+class _QrCardMenu extends StatelessWidget {
+  final QrTokenModel token;
+  final bool isPrinting;
+  final VoidCallback onEdit;
+  final VoidCallback onDeactivate;
+  final VoidCallback onPrintThermal80;
+  final VoidCallback onPrintThermal58;
 
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.color,
+  const _QrCardMenu({
+    required this.token,
+    required this.isPrinting,
+    required this.onEdit,
+    required this.onDeactivate,
+    required this.onPrintThermal80,
+    required this.onPrintThermal58,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppColors.primary;
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16, color: c),
-      label: Text(label, style: TextStyle(color: c, fontSize: 12)),
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(color: c.withValues(alpha: 0.4)),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        visualDensity: VisualDensity.compact,
+    return SizedBox(
+      height: 36,
+      width: 36,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.3),
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: PopupMenuButton<String>(
+          tooltip: 'Más opciones',
+          padding: EdgeInsets.zero,
+          iconSize: 18,
+          icon: isPrinting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(Icons.more_vert, color: AppColors.primary),
+        onSelected: (v) {
+          switch (v) {
+            case 'edit':
+              onEdit();
+              break;
+            case 'deactivate':
+              onDeactivate();
+              break;
+            case 'thermal-80':
+              onPrintThermal80();
+              break;
+            case 'thermal-58':
+              onPrintThermal58();
+              break;
+          }
+        },
+        itemBuilder: (_) => [
+          const PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.edit),
+              title: Text('Editar'),
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            enabled: false,
+            child: Text(
+              'IMPRESORA POS TÉRMICA',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'thermal-80',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.receipt_long),
+              title: Text('Imprimir en 80mm'),
+              subtitle: Text('Solo si tenés POS térmica'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'thermal-58',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.receipt),
+              title: Text('Imprimir en 58mm'),
+              subtitle: Text('Solo si tenés POS térmica'),
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'deactivate',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.power_settings_new,
+                  color: AppColors.error),
+              title: Text(
+                'Desactivar',
+                style: TextStyle(color: AppColors.error),
+              ),
+            ),
+          ),
+        ],
+        ),
       ),
     );
   }
@@ -495,16 +645,22 @@ class _CreateOrEditQrDialogState extends State<_CreateOrEditQrDialog> {
             ),
             const SizedBox(height: 12),
             if (_type == QrTokenType.table) ...[
-              const Text('ID de mesa (del floor plan)',
+              const Text('Mesa del floor plan',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
-              TextField(
-                controller: _tableIdCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'table_element_id de la mesa física',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
+              _TablePickerField(
+                selectedId: _tableIdCtrl.text.isEmpty
+                    ? null
+                    : _tableIdCtrl.text,
+                onChanged: (table) {
+                  setState(() {
+                    _tableIdCtrl.text = table?.tableElementId ?? '';
+                    // Auto-completar el label si está vacío.
+                    if (table != null && _labelCtrl.text.trim().isEmpty) {
+                      _labelCtrl.text = table.displayLabel;
+                    }
+                  });
+                },
               ),
             ],
             if (_type == QrTokenType.zone) ...[
@@ -830,7 +986,7 @@ class _BulkCreateQrDialogState extends State<_BulkCreateQrDialog> {
 
     final count = to - from + 1;
     if (count > 200) {
-      Get.find<QrTokensController>(); // ignore unused
+      // Validación: el backend tira 400 si excede, pero cortamos antes.
       return;
     }
 
@@ -847,6 +1003,371 @@ class _BulkCreateQrDialogState extends State<_BulkCreateQrDialog> {
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       // snackbar viene del controller
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+// =====================================================================
+// Picker de mesa real (dropdown con lista del backend)
+// =====================================================================
+class _TablePickerField extends StatefulWidget {
+  final String? selectedId;
+  final void Function(AvailableTable? table) onChanged;
+  const _TablePickerField({
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  @override
+  State<_TablePickerField> createState() => _TablePickerFieldState();
+}
+
+class _TablePickerFieldState extends State<_TablePickerField> {
+  @override
+  void initState() {
+    super.initState();
+    // Si el controller aún no cargó mesas, dispararlas en background.
+    final ctl = Get.find<QrTokensController>();
+    if (ctl.availableTables.isEmpty && !ctl.loadingTables.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ctl.loadAvailableTables();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctl = Get.find<QrTokensController>();
+
+    return Obx(() {
+      if (ctl.loadingTables.value && ctl.availableTables.isEmpty) {
+        return const SizedBox(
+          height: 56,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      }
+
+      if (ctl.availableTables.isEmpty) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            border: Border.all(color: Colors.amber.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber, size: 18, color: Colors.amber.shade800),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'No hay mesas en los planos. Andá a "Mesas" → editar plano '
+                  '→ sincronizar mesas, y volvé acá.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Resolver la mesa seleccionada (si no matchea, dropdown vacío).
+      AvailableTable? selected;
+      for (final t in ctl.availableTables) {
+        if (t.tableElementId == widget.selectedId) {
+          selected = t;
+          break;
+        }
+      }
+
+      return DropdownButtonFormField<AvailableTable>(
+        initialValue: selected,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+          hintText: 'Seleccioná una mesa',
+        ),
+        items: ctl.availableTables.map((t) {
+          return DropdownMenuItem(
+            value: t,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.displayLabel,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (t.hasQr && t.qrIsActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Con QR',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: (v) => widget.onChanged(v),
+      );
+    });
+  }
+}
+
+// =====================================================================
+// Dialog: bulk-create desde mesas reales (selección con checkboxes)
+// =====================================================================
+class _BulkFromTablesDialog extends StatefulWidget {
+  const _BulkFromTablesDialog();
+
+  @override
+  State<_BulkFromTablesDialog> createState() =>
+      _BulkFromTablesDialogState();
+}
+
+class _BulkFromTablesDialogState extends State<_BulkFromTablesDialog> {
+  final Set<String> _selected = {};
+  bool _saving = false;
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Get.find<QrTokensController>().loadAvailableTables();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<QrTokensController>();
+    final media = MediaQuery.of(context);
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 520,
+          maxHeight: media.size.height * 0.85,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Generar QRs desde planos',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Mesas extraídas de tus floor plans. Las que ya tienen QR '
+                'activo aparecen marcadas y no se duplican.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  hintText: 'Buscar por mesa o plano',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => setState(() => _search = v.toLowerCase()),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Obx(() {
+                  if (controller.loadingTables.value &&
+                      controller.availableTables.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final filtered = controller.availableTables.where((t) {
+                    if (_search.isEmpty) return true;
+                    return t.tableLabel.toLowerCase().contains(_search) ||
+                        t.floorPlanName.toLowerCase().contains(_search);
+                  }).toList();
+
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          controller.availableTables.isEmpty
+                              ? 'No hay mesas en los planos. Andá a "Mesas" '
+                                  '→ tu plano → sincronizar mesas.'
+                              : 'Sin resultados',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Selectores rápidos.
+                  final selectableIds = filtered
+                      .where((t) => !(t.hasQr && t.qrIsActive))
+                      .map((t) => t.tableElementId)
+                      .toList();
+                  final allSelected = selectableIds.isNotEmpty &&
+                      selectableIds.every((id) => _selected.contains(id));
+
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                if (allSelected) {
+                                  _selected.removeAll(selectableIds);
+                                } else {
+                                  _selected.addAll(selectableIds);
+                                }
+                              });
+                            },
+                            icon: Icon(
+                              allSelected
+                                  ? Icons.deselect
+                                  : Icons.select_all,
+                              size: 18,
+                            ),
+                            label: Text(
+                              allSelected
+                                  ? 'Deseleccionar todo'
+                                  : 'Seleccionar todo (${selectableIds.length})',
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${_selected.length} seleccionadas',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) {
+                            final t = filtered[i];
+                            final hasActiveQr = t.hasQr && t.qrIsActive;
+                            return CheckboxListTile(
+                              dense: true,
+                              value: _selected.contains(t.tableElementId),
+                              onChanged: hasActiveQr
+                                  ? null
+                                  : (v) {
+                                      setState(() {
+                                        if (v == true) {
+                                          _selected.add(t.tableElementId);
+                                        } else {
+                                          _selected.remove(t.tableElementId);
+                                        }
+                                      });
+                                    },
+                              title: Text(
+                                t.tableLabel,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: hasActiveQr
+                                      ? Colors.grey.shade500
+                                      : null,
+                                ),
+                              ),
+                              subtitle: Text(
+                                hasActiveQr
+                                    ? '${t.floorPlanName} · Ya tiene QR activo (${t.qrCode})'
+                                    : t.floorPlanName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: hasActiveQr
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade700,
+                                ),
+                              ),
+                              secondary: hasActiveQr
+                                  ? Icon(Icons.qr_code,
+                                      color: Colors.grey.shade400, size: 20)
+                                  : null,
+                              controlAffinity:
+                                  ListTileControlAffinity.leading,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed:
+                      _saving || _selected.isEmpty ? null : _submit,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.qr_code_2),
+                  label: Text(
+                    _saving
+                        ? 'Generando…'
+                        : 'Generar ${_selected.length} QR${_selected.length == 1 ? '' : 's'}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_selected.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await Get.find<QrTokensController>().bulkCreateFromTables(
+        tableElementIds: _selected.toList(),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      // snackbar lo lanzó el controller
     } finally {
       if (mounted) setState(() => _saving = false);
     }

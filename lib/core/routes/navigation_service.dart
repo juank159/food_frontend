@@ -62,9 +62,11 @@ class NavigationService {
     return Get.toNamed<T>(AppRoutes.buildOrderDetail(orderId));
   }
 
-  /// Navega a crear nueva orden
+  /// Navega a la pantalla unificada de venta (el destinatario se
+  /// elige adentro con el pill superior). Reemplazó las antiguas
+  /// rutas `createOrder` y `quickSale`.
   static Future<T?>? toCreateOrder<T>() {
-    return Get.toNamed<T>(AppRoutes.createOrder);
+    return Get.toNamed<T>(AppRoutes.sell);
   }
 
   /// Navega a editar orden

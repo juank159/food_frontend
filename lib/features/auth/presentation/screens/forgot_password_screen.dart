@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -90,7 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,
@@ -320,7 +319,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         ),
         TextButton(
-          onPressed: () => Get.back(),
+          onPressed: () => Navigator.of(context).pop(),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,

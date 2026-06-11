@@ -1,7 +1,9 @@
 // lib/features/payments/presentation/controllers/payment_controller.dart
+import 'dart:async';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../orders/presentation/controllers/order_detail_controller.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/payment.dart';
 import '../../domain/usecases/create_payment_usecase.dart';
 import '../../domain/usecases/get_payments_by_order_usecase.dart';
@@ -128,7 +130,7 @@ class PaymentController extends GetxController {
 
           // Agregar a la lista de pagos
           payments.add(payment);
-          _notifyOrderChanged(orderId);
+          _notifyOrderChanged(orderId, tryPrintReceipt: true);
 
           // Resetear formulario
           resetPaymentForm();
@@ -198,7 +200,7 @@ class PaymentController extends GetxController {
           // Propagar el cambio al detalle de la orden y, en cascada,
           // a la lista de órdenes — así la card se actualiza sin
           // pull-to-refresh manual al volver al listado.
-          _notifyOrderChanged(orderId);
+          _notifyOrderChanged(orderId, tryPrintReceipt: true);
           AppSnackbar.show(
             'Pago registrado',
             '${paymentMethod.displayName} · ${payment.amount.toStringAsFixed(0)}',
@@ -284,7 +286,7 @@ class PaymentController extends GetxController {
 
           // Agregar a la lista de pagos
           payments.addAll(paymentsList);
-          _notifyOrderChanged(orderId);
+          _notifyOrderChanged(orderId, tryPrintReceipt: true);
 
           // Limpiar pagos divididos
           splitPayments.clear();
@@ -362,13 +364,37 @@ class PaymentController extends GetxController {
   /// Si el detalle no está montado (caso edge: cobro desde otra
   /// pantalla), no hay nada que hacer — al volver a entrar al detalle
   /// se recargará igual.
-  void _notifyOrderChanged(String orderId) {
+  ///
+  /// **Auto-print del recibo:** si después del refresh la orden quedó
+  /// totalmente pagada Y no la imprimimos antes en esta sesión,
+  /// disparamos `PrintingOrchestrator.autoPrintReceipt` fire-and-forget.
+  /// El set `_printedReceiptIds` evita re-imprimir si el usuario hace
+  /// varios cobros parciales que terminan completando.
+  void _notifyOrderChanged(String orderId, {bool tryPrintReceipt = false}) {
     if (!Get.isRegistered<OrderDetailController>()) return;
     final detail = Get.find<OrderDetailController>();
     if (detail.currentOrder?.id == orderId) {
-      detail.refresh();
+      detail.refresh().then((_) {
+        if (!tryPrintReceipt) return;
+        final order = detail.currentOrder;
+        if (order == null) return;
+        if (!order.isPaymentCompleted) return;
+        if (_printedReceiptIds.contains(order.id)) return;
+        _printedReceiptIds.add(order.id);
+        unawaited(
+          PrintingOrchestrator.autoPrintReceipt(
+            orderId: order.id,
+            subtitle: order.displayTableLabel,
+          ),
+        );
+      });
     }
   }
+
+  /// IDs de órdenes para las cuales ya disparamos auto-print del
+  /// recibo en esta sesión. Evita re-imprimir si llegan varios
+  /// `_notifyOrderChanged` después del cobro final.
+  final Set<String> _printedReceiptIds = <String>{};
 
   /// Agrega un pago a la lista de pagos divididos
   void addSplitPayment(SplitPaymentItem item) {

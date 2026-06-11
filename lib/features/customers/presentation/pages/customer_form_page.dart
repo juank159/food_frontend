@@ -23,7 +23,7 @@ class CustomerFormPage extends GetView<CustomerFormController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Form(
                 key: controller.formKey,
@@ -44,7 +44,7 @@ class CustomerFormPage extends GetView<CustomerFormController> {
             ),
             Obx(() => AppFormSubmitBar(
                   isSaving: controller.isSaving.value,
-                  onCancel: () => Get.back<void>(),
+                  onCancel: () => Navigator.of(context).pop(),
                   onSave: controller.saveCustomer,
                   saveLabel: controller.isEditMode
                       ? 'Actualizar'
@@ -56,14 +56,14 @@ class CustomerFormPage extends GetView<CustomerFormController> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: controller.isEditMode ? 'Editar cliente' : 'Nuevo cliente',
       subtitle: controller.isEditMode
           ? 'Actualizá la información de contacto'
           : 'Sumá un cliente a tu base',
       leading: GestureDetector(
-        onTap: () => Get.back<void>(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
 import '../../domain/entities/modifier.dart';
+import '../bindings/modifiers_binding.dart';
 import '../controllers/modifiers_controller.dart';
 import '../widgets/modifier_card.dart';
 
@@ -16,17 +17,35 @@ import '../widgets/modifier_card.dart';
 /// Cuando se monta como tab dentro de `ProductsPage`, pasamos `embedded: true`
 /// para omitir el header propio. En modo standalone usamos `AppGradientHeader`
 /// con KPIs (total, disponibles, sin stock).
-class ModifiersPage extends StatelessWidget {
+///
+/// **Auto-binding defensivo:** garantiza que `ModifiersController`
+/// esté registrado antes del build, sin depender del callsite. Sin
+/// esto, embebido en ProductsPage o tras un SmartManagement-cleanup
+/// crashea con *"ModifiersController not found"*.
+class ModifiersPage extends StatefulWidget {
   final bool embedded;
 
   const ModifiersPage({super.key, this.embedded = false});
 
-  // Getter lazy del controller — el binding del padre lo provee.
-  ModifiersController get controller => Get.find<ModifiersController>();
+  @override
+  State<ModifiersPage> createState() => _ModifiersPageState();
+}
+
+class _ModifiersPageState extends State<ModifiersPage> {
+  late final ModifiersController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Get.isRegistered<ModifiersController>()) {
+      ModifiersBinding().dependencies();
+    }
+    controller = Get.find<ModifiersController>();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (embedded) {
+    if (widget.embedded) {
       return _buildBody(context);
     }
     return Scaffold(
@@ -61,7 +80,7 @@ class ModifiersPage extends StatelessWidget {
         title: 'Modificadores',
         subtitle: 'Toppings, extras y sustituciones',
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

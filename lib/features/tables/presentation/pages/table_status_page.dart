@@ -5,6 +5,8 @@ import 'package:get/get.dart';
 import '../../domain/entities/table_status.dart';
 import '../../domain/entities/floor_plan.dart';
 import '../../domain/repositories/floor_plan_repository.dart';
+import '../bindings/table_status_binding.dart';
+import '../bindings/floor_plans_list_binding.dart';
 import '../controllers/table_status_controller.dart';
 import '../widgets/table_status_card.dart';
 import '../widgets/occupy_table_dialog.dart';
@@ -13,6 +15,7 @@ import '../widgets/service_floor_plan_canvas.dart';
 import '../../../../core/config/constants/table_enums.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
@@ -41,8 +44,8 @@ class TableStatusPage extends StatefulWidget {
 enum ServiceViewMode { list, map }
 
 class _TableStatusPageState extends State<TableStatusPage> {
-  final tableStatusController = Get.find<TableStatusController>();
-  final floorPlanRepository = Get.find<FloorPlanRepository>();
+  late final TableStatusController tableStatusController;
+  late final FloorPlanRepository floorPlanRepository;
 
   ServiceViewMode _viewMode = ServiceViewMode.list;
   FloorPlan? _floorPlan;
@@ -51,6 +54,21 @@ class _TableStatusPageState extends State<TableStatusPage> {
   @override
   void initState() {
     super.initState();
+    // Auto-binding defensivo — la página puede abrirse desde el
+    // dashboard sin pasar por el flujo "Planos" (donde se aplica el
+    // binding). Si los controllers no están, los registramos en el
+    // acto con los mismos bindings que usaría la route.
+    if (!Get.isRegistered<TableStatusController>()) {
+      TableStatusBinding().dependencies();
+    }
+    if (!Get.isRegistered<FloorPlanRepository>()) {
+      // FloorPlanRepository se registra en FloorPlansListBinding (más
+      // completo que el editor binding y no requiere parámetros).
+      FloorPlansListBinding().dependencies();
+    }
+    tableStatusController = Get.find<TableStatusController>();
+    floorPlanRepository = Get.find<FloorPlanRepository>();
+
     // Diferimos al próximo frame — `_loadData` empieza con
     // `setState(...)` síncrono, lo que crashea si Flutter aún está
     // construyendo el árbol.
@@ -124,7 +142,7 @@ class _TableStatusPageState extends State<TableStatusPage> {
         title: title,
         subtitle: 'Estado en vivo de tus mesas',
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,
@@ -414,18 +432,18 @@ class _TableStatusPageState extends State<TableStatusPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _TableActionsSheet(
+      builder: (sheetContext) => _TableActionsSheet(
         tableStatus: tableStatus,
         onOccupy: () {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           _showOccupyDialog(tableStatus);
         },
         onReserve: () {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           _showReserveDialog(tableStatus);
         },
         onTakeOrder: () {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           _navigateToCreateOrder(
             tableStatus: tableStatus,
             partySize: tableStatus.partySize ?? 2,
@@ -433,17 +451,17 @@ class _TableStatusPageState extends State<TableStatusPage> {
           );
         },
         onViewOrder: () {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           _navigateToOrderDetail(tableStatus);
         },
         onRelease: () async {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           await tableStatusController.releaseTable(
             tableStatus.tableElementId,
           );
         },
         onMarkAvailable: () async {
-          Get.back();
+          Navigator.of(sheetContext).pop();
           await tableStatusController.markAsAvailable(
             tableStatus.tableElementId,
           );
@@ -479,7 +497,7 @@ class _TableStatusPageState extends State<TableStatusPage> {
   void _showReserveDialog(TableStatusEntity tableStatus) {
     showDialog(
       context: context,
-      builder: (context) => ReserveTableDialog(
+      builder: (dialogContext) => ReserveTableDialog(
         tableStatus: tableStatus,
         onReserve: (partySize, reservationId, reservedFor, notes) async {
           final success = await tableStatusController.reserveTable(
@@ -489,8 +507,8 @@ class _TableStatusPageState extends State<TableStatusPage> {
             reservedFor: reservedFor,
             notes: notes,
           );
-          if (success && context.mounted) {
-            Get.back();
+          if (success && dialogContext.mounted) {
+            Navigator.of(dialogContext).pop();
           }
         },
       ),
@@ -502,14 +520,18 @@ class _TableStatusPageState extends State<TableStatusPage> {
     required int partySize,
     String? notes,
   }) {
+    // Navegamos a la pantalla unificada con un `SellMode.dineIn`
+    // pre-aplicado — el pill mostrará la mesa elegida y el operario
+    // empieza a tocar productos al instante.
     Get.toNamed(
-      AppRoutes.createOrder,
+      AppRoutes.sell,
       arguments: {
-        'fromTableService': true,
-        'tableElementId': tableStatus.tableElementId,
-        'tableId': tableStatus.id,
-        'tableName':
-            tableStatus.tableLabel ?? 'Mesa ${tableStatus.tableElementId}',
+        'mode': SellMode.dineIn(
+          tableElementId: tableStatus.tableElementId,
+          tableId: tableStatus.id,
+          tableName:
+              tableStatus.tableLabel ?? 'Mesa ${tableStatus.tableElementId}',
+        ),
         'partySize': partySize,
         'notes': notes,
       },
@@ -695,11 +717,15 @@ class _TableActionsSheet extends StatelessWidget {
   List<Widget> _buildActionsForStatus() {
     if (tableStatus.isAvailableToOccupy) {
       return [
+        // La acción más común al tocar una mesa libre es "venderle a
+        // estos clientes". Esa es la primaria. El `onOccupy` ya
+        // encadena: dialog de personas → ocupar → navegar a create_order
+        // — un flujo de 2 taps en lugar de 4.
         _ActionTile(
-          icon: Icons.people,
+          icon: Icons.restaurant_menu,
           accent: AppColors.primary,
-          title: 'Ocupar mesa',
-          subtitle: 'Asignar comensales y abrir cuenta',
+          title: 'Tomar orden',
+          subtitle: 'Ocupar la mesa y abrir el catálogo',
           onTap: onOccupy,
         ),
         const SizedBox(height: 8),

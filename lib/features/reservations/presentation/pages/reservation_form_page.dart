@@ -24,7 +24,7 @@ class ReservationFormPage extends GetView<ReservationFormController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Form(
                 key: controller.formKey,
@@ -45,7 +45,7 @@ class ReservationFormPage extends GetView<ReservationFormController> {
             ),
             Obx(() => AppFormSubmitBar(
                   isSaving: controller.isSaving.value,
-                  onCancel: () => Get.back<void>(),
+                  onCancel: () => Navigator.of(context).pop(),
                   onSave: controller.save,
                   saveLabel: controller.isEditMode
                       ? 'Actualizar reserva'
@@ -59,14 +59,14 @@ class ReservationFormPage extends GetView<ReservationFormController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: controller.isEditMode ? 'Editar reserva' : 'Nueva reserva',
       subtitle: controller.isEditMode
           ? 'Actualizá los detalles de la reserva'
           : 'Agendá una mesa para tu cliente',
       leading: GestureDetector(
-        onTap: () => Get.back<void>(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

@@ -146,7 +146,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
             AppFormSubmitBar(
               isSaving: false,
-              onCancel: () => Get.back(),
+              onCancel: () => Navigator.of(context).pop(),
               onSave: _handleChange,
               saveLabel: 'Cambiar contraseña',
             ),
@@ -161,7 +161,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       title: 'Cambiar contraseña',
       subtitle: 'Mantené tu cuenta segura',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

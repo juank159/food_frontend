@@ -13,6 +13,10 @@ class Order extends Equatable {
   final String? tableId;
   final String? tableElementId; // Floor Plan Table Element ID
   final String? tableName;
+  /// Snapshot legible del nombre de la mesa al crear la orden.
+  /// Siempre preferir este sobre tableElementId / tableName para
+  /// mostrar al usuario.
+  final String? tableLabel;
   /// ID de la cuenta abierta (TabSession) si esta orden pertenece a una.
   /// Si está seteado, el cobro NO se hace por orden sino consolidado
   /// desde la cuenta. La UI usa esto para mostrar el botón "Ver cuenta"
@@ -59,6 +63,7 @@ class Order extends Equatable {
     this.tableId,
     this.tableElementId,
     this.tableName,
+    this.tableLabel,
     this.tabSessionId,
     this.customerId,
     this.customerName,
@@ -169,6 +174,27 @@ class Order extends Equatable {
   bool get hasCustomer => customerId != null || customerName != null;
 
   /// Verifica si tiene mesa asignada. Cubre los dos sistemas:
+  /// Label legible para mostrar al usuario, con fallback en cascada:
+  /// 1. `tableLabel` — snapshot al crear, formato "Mesa 1 · Areas verdes"
+  /// 2. `tableName` — nombre desde join legacy (sistema viejo)
+  /// 3. `tableElementId` — UUID interno (último recurso, NO ideal pero
+  ///    mejor que vacío)
+  /// 4. "Sin mesa" si todo es null
+  String get displayTableLabel {
+    if (tableLabel != null && tableLabel!.trim().isNotEmpty) {
+      return tableLabel!;
+    }
+    if (tableName != null && tableName!.trim().isNotEmpty) {
+      return tableName!;
+    }
+    if (tableElementId != null && tableElementId!.trim().isNotEmpty) {
+      // No deberíamos llegar acá si table_label se popula bien, pero
+      // si pasa al menos mostramos algo no totalmente cripto.
+      return 'Mesa (sin nombre)';
+    }
+    return 'Sin mesa';
+  }
+
   /// `tableId` (legacy, casi nunca seteado) y `tableElementId` (floor
   /// plan actual). `tableName` viene resuelto desde el backend a
   /// partir del label de la mesa en el floor plan.

@@ -321,4 +321,25 @@ class OrdersController extends GetxController {
       searchQuery.value.isNotEmpty ||
       startDate.value != null ||
       endDate.value != null;
+
+  /// Aplica el `searchQuery` localmente sobre la lista ya cargada.
+  /// Buscamos en número de orden, nombre del cliente, mesa y teléfono.
+  /// Búsqueda case-insensitive — el operario escribe rápido y sin
+  /// formato.
+  List<order_entity.Order> get filteredOrders {
+    final q = searchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return orders;
+    return orders.where((o) {
+      return o.orderNumber.toLowerCase().contains(q) ||
+          (o.customerName?.toLowerCase().contains(q) ?? false) ||
+          (o.customerPhone?.toLowerCase().contains(q) ?? false) ||
+          (o.displayTableLabel.toLowerCase().contains(q));
+    }).toList();
+  }
+
+  /// Setter del query — al ser RxString reactivo, cualquier widget que
+  /// lo lea con `Obx` se rebuiltea solo.
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+  }
 }

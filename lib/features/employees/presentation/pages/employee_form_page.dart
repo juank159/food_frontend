@@ -21,7 +21,7 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: Obx(() {
                 if (controller.isLoading.value) {
@@ -45,7 +45,7 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
             ),
             Obx(() => AppFormSubmitBar(
                   isSaving: controller.isSaving.value,
-                  onCancel: () => Get.back(),
+                  onCancel: () => Navigator.of(context).pop(),
                   onSave: controller.saveEmployee,
                   saveLabel: controller.isEditMode
                       ? 'Actualizar'
@@ -59,12 +59,12 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: controller.isEditMode ? 'Editar empleado' : 'Nuevo empleado',
       subtitle: 'Datos personales, rol y permisos de acceso',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

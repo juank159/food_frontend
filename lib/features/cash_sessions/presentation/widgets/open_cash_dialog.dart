@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/safe_get.dart';
+import '../bindings/cash_session_binding.dart';
 import '../controllers/cash_session_controller.dart';
 
 /// Dialog para abrir caja con el fondo inicial.
@@ -32,6 +34,10 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    // Auto-binding: el dialog se puede abrir desde varios lugares.
+    if (!Get.isRegistered<CashSessionController>()) {
+      CashSessionBinding().dependencies();
+    }
     final controller = Get.find<CashSessionController>();
     final ok = await controller.open(
       openingAmount: _openingAmount,
@@ -150,8 +156,10 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
                 ),
                 const SizedBox(height: 20),
                 Obx(() {
+                  // Lectura opcional para el spinner del botón.
                   final loading =
-                      Get.find<CashSessionController>().isMutating.value;
+                      SafeGet.find<CashSessionController>()?.isMutating.value ??
+                          false;
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [

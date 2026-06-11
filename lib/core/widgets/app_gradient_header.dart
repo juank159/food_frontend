@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import '../config/theme/app_colors.dart';
+import '../routes/app_routes.dart';
 
 /// Header con gradient redondeado que estandariza la "cabeza" de las
 /// pantallas principales (Dashboard, Órdenes, Productos, Planos…).
@@ -36,6 +38,15 @@ class AppGradientHeader extends StatelessWidget {
   /// de las pantallas.
   final double horizontalPadding;
 
+  /// Controla si se muestra el botón de back auto-generado cuando NO se
+  /// pasa `leading`:
+  /// - `null` (default): auto. Muestra back si la pantalla NO es root
+  ///   del Home (`/home`, `/home/*`) y hay una ruta previa en la pila.
+  /// - `true`: siempre muestra back (override manual).
+  /// - `false`: nunca muestra back (útil para tabs internas del Home
+  ///   donde el bottom nav ya cubre la navegación).
+  final bool? showBackButton;
+
   const AppGradientHeader({
     super.key,
     required this.title,
@@ -45,7 +56,35 @@ class AppGradientHeader extends StatelessWidget {
     this.hero,
     this.chips,
     this.horizontalPadding = 20,
+    this.showBackButton,
   });
+
+  /// Decide si renderizar el back button automático. Lógica:
+  /// 1. Si el caller pasó `leading` → respeta su decisión (no overrideamos).
+  /// 2. Si `showBackButton` es bool explícito → respeta ese valor.
+  /// 3. Si `showBackButton == null` (auto) → muestra back cuando:
+  ///    - La ruta actual NO es `/home` ni un sub-tab del Home (`/home/...`)
+  ///    - Hay una ruta anterior en la pila de navegación.
+  bool _shouldAutoBackButton() {
+    if (leading != null) return false;
+    if (showBackButton == true) return true;
+    if (showBackButton == false) return false;
+    // Auto-detección.
+    final current = Get.currentRoute;
+    final isHomeTab =
+        current == AppRoutes.home || current.startsWith('${AppRoutes.home}/');
+    if (isHomeTab) return false;
+    return Get.previousRoute.isNotEmpty;
+  }
+
+  void _handleBack() {
+    if (Get.previousRoute.isNotEmpty) {
+      Get.back();
+    } else {
+      // Fallback: usuario llegó por deep link y no hay back stack.
+      Get.offAllNamed(AppRoutes.home);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +110,9 @@ class AppGradientHeader extends StatelessWidget {
             children: [
               if (leading != null) ...[
                 leading!,
+                const SizedBox(width: 12),
+              ] else if (_shouldAutoBackButton()) ...[
+                _AutoBackButton(onTap: _handleBack),
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -119,6 +161,35 @@ class AppGradientHeader extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Botón de back con el mismo estilo translúcido que usan otras pantallas
+/// (`OrderDetailPage`, `QrTokensPage`, etc.). Se inyecta automáticamente
+/// en `AppGradientHeader` cuando no hay `leading` custom y la pantalla
+/// no es root del Home.
+class _AutoBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AutoBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.arrow_back,
+          color: Colors.white,
+          size: 20,
+        ),
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 
@@ -93,7 +92,7 @@ class _NotificationSettingsScreenState
       title: 'Notificaciones',
       subtitle: 'Configurá cuándo querés que te avisemos',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

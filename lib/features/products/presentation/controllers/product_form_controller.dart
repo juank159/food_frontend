@@ -582,7 +582,7 @@ class ProductFormController extends GetxController {
         // Invalidar la caché global del `ProductsController` (si está
         // vivo). Esto cubre el caso "edito un producto desde detalle,
         // voy a crear una orden, y necesito ver el precio/nombre nuevo".
-        // Sin esto el ProductSelectorWidget en `CreateOrderPage`
+        // Sin esto el ProductSelectorWidget en `SellPage`
         // mostraba datos viejos hasta que el operario volvía a la
         // lista y refrescaba a mano.
         _refreshGlobalProductsCache();

@@ -38,7 +38,7 @@ class InventoryAdjustmentPage extends GetView<InventoryController> {
                   title: 'Ajuste de stock',
                   subtitle: 'Sin producto seleccionado',
                   leading: IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                 ),
@@ -109,7 +109,7 @@ class _AdjustmentFormState extends State<_AdjustmentForm> {
     );
     if (!mounted) return;
     if (ok) {
-      Get.back();
+      Navigator.of(context).pop();
       AppSnackbar.show(
         'Stock actualizado',
         'El inventario de "${widget.item.name}" se ajustó a $stock unidades.',
@@ -144,7 +144,7 @@ class _AdjustmentFormState extends State<_AdjustmentForm> {
           subtitle: item.name,
           leading: IconButton(
             tooltip: 'Volver',
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.arrow_back, color: Colors.white),
           ),
           hero: AppKpiHero(
@@ -256,7 +256,7 @@ class _AdjustmentFormState extends State<_AdjustmentForm> {
           ),
         ),
         Obx(() => AppFormSubmitBar(
-              onCancel: () => Get.back(),
+              onCancel: () => Navigator.of(context).pop(),
               onSave: _submit,
               isSaving: widget.controller.isSaving.value,
               saveLabel: 'Guardar ajuste',

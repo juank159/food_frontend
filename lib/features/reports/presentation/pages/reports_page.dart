@@ -47,7 +47,7 @@ class ReportsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -92,12 +92,12 @@ class ReportsPage extends StatelessWidget {
 
   // ──────────────────────────── Header ────────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
       title: 'Reportes',
       subtitle: 'Análisis del negocio en un vistazo',
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,

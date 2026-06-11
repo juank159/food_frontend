@@ -9,6 +9,7 @@ import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
 import '../../domain/entities/category.dart';
+import '../bindings/categories_binding.dart';
 import '../controllers/categories_controller.dart';
 import '../widgets/category_card.dart';
 
@@ -18,14 +19,40 @@ import '../widgets/category_card.dart';
 /// para omitir el header propio (el padre provee el gradient con TabBar).
 /// En modo standalone usamos el `AppGradientHeader` con KPIs (total, raíz,
 /// hijas) y los toggles de vista de árbol / solo activos.
-class CategoriesPage extends GetView<CategoriesController> {
+///
+/// **Auto-binding defensivo:** la página garantiza que `CategoriesController`
+/// esté registrado en GetX antes del build, sin depender de quién la haya
+/// montado. Esto evita el clásico crash *"CategoriesController not found"*
+/// cuando GetX libera el controller por SmartManagement o cuando la
+/// página se usa como widget anidado (ej. tab dentro de ProductsPage)
+/// sin pasar por una `Route` con `binding`.
+class CategoriesPage extends StatefulWidget {
   final bool embedded;
 
   const CategoriesPage({super.key, this.embedded = false});
 
   @override
+  State<CategoriesPage> createState() => _CategoriesPageState();
+}
+
+class _CategoriesPageState extends State<CategoriesPage> {
+  late final CategoriesController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Garantizar que el controller exista. Si ya está registrado
+    // (por HomeBinding o CategoriesBinding al entrar por route),
+    // lo reutilizamos. Si no, lo creamos con el mismo CategoriesBinding.
+    if (!Get.isRegistered<CategoriesController>()) {
+      CategoriesBinding().dependencies();
+    }
+    controller = Get.find<CategoriesController>();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (embedded) {
+    if (widget.embedded) {
       // Adentro de ProductsPage: solo el body, sin header propio.
       return _buildBody(context);
     }
@@ -62,7 +89,7 @@ class CategoriesPage extends GetView<CategoriesController> {
         title: 'Categorías',
         subtitle: 'Organizá tu menú por agrupaciones',
         leading: GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             width: 40,
             height: 40,

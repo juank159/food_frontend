@@ -578,7 +578,9 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
     );
     if (confirmed == true) {
       final ok = await controller.delete();
-      if (ok) Get.back<dynamic>(result: 'deleted');
+      if (ok && context.mounted) {
+        Navigator.of(context).pop('deleted');
+      }
     }
   }
 
@@ -611,7 +613,7 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Get.back<void>(),
+      onTap: () => Navigator.of(context).pop(),
       child: Container(
         width: 40,
         height: 40,

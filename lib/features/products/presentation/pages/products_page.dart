@@ -1,3 +1,4 @@
+// lib/features/products/presentation/pages/products_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -9,6 +10,7 @@ import '../../domain/entities/product.dart';
 import '../controllers/modifiers_controller.dart';
 import '../controllers/products_controller.dart';
 import '../widgets/product_card.dart';
+import '../../../../core/utils/safe_get.dart';
 import '../../../categories/presentation/controllers/categories_controller.dart';
 import '../../../categories/presentation/pages/categories_page.dart';
 import 'modifiers_page.dart';
@@ -104,29 +106,37 @@ class _ProductsHeader extends StatelessWidget {
                   // hacemos insert optimista en el controller del tab
                   // correspondiente para que la lista refleje el item
                   // nuevo sin esperar el GET completo.
+                  // Usamos `SafeGet.run` para no crashear si el controller
+                  // del tab fue liberado por SmartManagement mientras el
+                  // usuario estaba en el form. Si está, refresca; si no,
+                  // no-op (el tab se cargará la próxima vez que se monte).
                   switch (value) {
                     case 'products':
-                      final result =
-                          await NavigationService.toCreateProduct();
+                      final result = await NavigationService.toCreateProduct();
                       if (result is Product) {
-                        Get.find<ProductsController>()
-                            .addOrReplaceProduct(result);
+                        SafeGet.run<ProductsController>(
+                          (c) => c.addOrReplaceProduct(result),
+                        );
                       } else if (result != null) {
-                        Get.find<ProductsController>().refreshProducts();
+                        SafeGet.run<ProductsController>(
+                          (c) => c.refreshProducts(),
+                        );
                       }
                       break;
                     case 'categories':
-                      final result =
-                          await NavigationService.toCreateCategory();
+                      final result = await NavigationService.toCreateCategory();
                       if (result != null) {
-                        Get.find<CategoriesController>().refreshCategories();
+                        SafeGet.run<CategoriesController>(
+                          (c) => c.refreshCategories(),
+                        );
                       }
                       break;
                     case 'modifiers':
-                      final result =
-                          await NavigationService.toCreateModifier();
+                      final result = await NavigationService.toCreateModifier();
                       if (result != null) {
-                        Get.find<ModifiersController>().refreshModifiers();
+                        SafeGet.run<ModifiersController>(
+                          (c) => c.refreshModifiers(),
+                        );
                       }
                       break;
                   }
@@ -134,27 +144,33 @@ class _ProductsHeader extends StatelessWidget {
                 itemBuilder: (_) => const [
                   PopupMenuItem(
                     value: 'products',
-                    child: Row(children: [
-                      Icon(FontAwesomeIcons.bowlFood, size: 16),
-                      SizedBox(width: 12),
-                      Text('Nuevo producto'),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(FontAwesomeIcons.bowlFood, size: 16),
+                        SizedBox(width: 12),
+                        Text('Nuevo producto'),
+                      ],
+                    ),
                   ),
                   PopupMenuItem(
                     value: 'categories',
-                    child: Row(children: [
-                      Icon(FontAwesomeIcons.layerGroup, size: 16),
-                      SizedBox(width: 12),
-                      Text('Nueva categoría'),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(FontAwesomeIcons.layerGroup, size: 16),
+                        SizedBox(width: 12),
+                        Text('Nueva categoría'),
+                      ],
+                    ),
                   ),
                   PopupMenuItem(
                     value: 'modifiers',
-                    child: Row(children: [
-                      Icon(FontAwesomeIcons.circlePlus, size: 16),
-                      SizedBox(width: 12),
-                      Text('Nuevo modificador'),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(FontAwesomeIcons.circlePlus, size: 16),
+                        SizedBox(width: 12),
+                        Text('Nuevo modificador'),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -257,12 +273,11 @@ class _ProductsTab extends GetView<ProductsController> {
                   final cross = width > 1200
                       ? 4
                       : width > 800
-                          ? 3
-                          : width > 600
-                              ? 2
-                              : 1;
-                  final cardWidth =
-                      (width - 16 * 2 - 16 * (cross - 1)) / cross;
+                      ? 3
+                      : width > 600
+                      ? 2
+                      : 1;
+                  final cardWidth = (width - 16 * 2 - 16 * (cross - 1)) / cross;
                   // El card tiene imagen 16:10 + bloque de info. Forzamos
                   // un aspect entre 0.65 (más alto que ancho, mobile) y
                   // 0.95 (cuasi-cuadrado, desktop denso) para que el
@@ -346,33 +361,41 @@ class _ProductsSearchBar extends GetView<ProductsController> {
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: AppColors.border, width: 1),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: AppColors.border, width: 1),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(
-                          color: AppColors.primary, width: 1.5),
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               // Toggle "solo disponibles" — lo más común al gestionar el menú.
-              Obx(() => _ToggleIconButton(
-                    active: controller.showOnlyAvailable.value,
-                    onTap: controller.toggleAvailableFilter,
-                    activeIcon: Icons.visibility,
-                    inactiveIcon: Icons.visibility_outlined,
-                    tooltip: controller.showOnlyAvailable.value
-                        ? 'Mostrando solo disponibles'
-                        : 'Mostrar todos',
-                  )),
+              Obx(
+                () => _ToggleIconButton(
+                  active: controller.showOnlyAvailable.value,
+                  onTap: controller.toggleAvailableFilter,
+                  activeIcon: Icons.visibility,
+                  inactiveIcon: Icons.visibility_outlined,
+                  tooltip: controller.showOnlyAvailable.value
+                      ? 'Mostrando solo disponibles'
+                      : 'Mostrar todos',
+                ),
+              ),
             ],
           ),
           // Chips de filtros activos (búsqueda, categoría) — fila inline,
@@ -398,11 +421,7 @@ class _ProductsSearchBar extends GetView<ProductsController> {
             if (activeFilters.isEmpty) return const SizedBox.shrink();
             return Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: activeFilters,
-              ),
+              child: Wrap(spacing: 6, runSpacing: 6, children: activeFilters),
             );
           }),
         ],

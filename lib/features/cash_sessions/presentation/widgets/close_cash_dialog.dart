@@ -4,7 +4,9 @@ import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/safe_get.dart';
 import '../../domain/entities/cash_session.dart';
+import '../bindings/cash_session_binding.dart';
 import '../controllers/cash_session_controller.dart';
 
 /// Dialog para cerrar caja con conteo de efectivo.
@@ -45,6 +47,11 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    // Auto-binding: el dialog puede abrirse desde múltiples rutas
+    // y si SmartManagement liberó el controller, queremos recrearlo.
+    if (!Get.isRegistered<CashSessionController>()) {
+      CashSessionBinding().dependencies();
+    }
     final controller = Get.find<CashSessionController>();
 
     // Primer intento sin force. Si el backend rechaza por diferencia
@@ -164,8 +171,11 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
                 ),
                 const SizedBox(height: 20),
                 Obx(() {
+                  // Lectura opcional: si el controller no está, no
+                  // mostramos el spinner (fallback no-loading).
                   final loading =
-                      Get.find<CashSessionController>().isMutating.value;
+                      SafeGet.find<CashSessionController>()?.isMutating.value ??
+                          false;
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [

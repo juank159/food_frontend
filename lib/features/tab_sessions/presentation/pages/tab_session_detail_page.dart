@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/tab_session.dart';
 import '../controllers/tab_session_detail_controller.dart';
@@ -31,9 +32,20 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     controller = Get.find<TabSessionDetailController>();
     // Diferir al próximo frame para que `setState` no ocurra durante
     // build (memoria feedback_initstate_async).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final id = Get.parameters['id'] ?? Get.arguments?['id'] as String?;
-      if (id != null) controller.init(id);
+      if (id == null) return;
+      await controller.init(id);
+      // Atajo "abrir y agregar el primer ticket de una": cuando llegamos
+      // desde "Abrir cuenta libre" en OpenTabsPage, el operario espera
+      // que la app ya esté lista para cobrar — no que tenga que tocar
+      // "Agregar ticket" como paso extra. Si el caller pasó
+      // `autoAddTicket=true`, saltamos directo al catálogo.
+      final auto = Get.arguments?['autoAddTicket'] == true;
+      if (!auto) return;
+      final session = controller.session.value;
+      if (session == null || !mounted) return;
+      _onAddTicket(session);
     });
   }
 
@@ -83,7 +95,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
       title: s.displayLabel(),
       subtitle: _headerSubtitle(s),
       leading: GestureDetector(
-        onTap: () => Get.back(),
+        onTap: () => Navigator.of(context).pop(),
         child: Container(
           width: 40,
           height: 40,
@@ -124,6 +136,18 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   // ─────────────────────────── Body ────────────────────────────
 
   Widget _buildBody(TabSession s) {
+    // Para cuentas libres (sin mesa) la primera línea de `notes` es la
+    // etiqueta de la cuenta — ya se muestra en el header, no tiene
+    // sentido repetirla como bloque "Notas". Si hay líneas adicionales
+    // las mostramos como notas reales.
+    final showNotesCard = s.notes != null &&
+        s.notes!.trim().isNotEmpty &&
+        // Si tiene mesa, las notas son notas de verdad.
+        (s.hasTable ||
+            // Si NO tiene mesa, mostramos solo si hay más que una sola
+            // línea (la 1ra es el label).
+            s.notes!.contains('\n'));
+
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView(
@@ -136,7 +160,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
             const SizedBox(height: 16),
           ],
           _buildTicketsSection(s),
-          if (s.notes != null && s.notes!.isNotEmpty) ...[
+          if (showNotesCard) ...[
             const SizedBox(height: 16),
             _buildNotesCard(s),
           ],
@@ -297,16 +321,69 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
         const SizedBox(height: 10),
         if (s.orders.isEmpty)
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
+              color: AppColors.accent.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.25),
+                width: 1.2,
+              ),
             ),
-            alignment: Alignment.center,
-            child: const Text(
-              'No hay tickets en esta cuenta',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_menu,
+                    color: AppColors.accent,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Lista para vender',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Aún no hay productos cargados.\nAgregá el primero para empezar.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: controller.isMutating.value
+                      ? null
+                      : () => _onAddTicket(s),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 22, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text(
+                    'Agregar primer producto',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ),
           )
         else
@@ -359,7 +436,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: OutlinedButton.icon(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.arrow_back),
             label: const Text('Volver'),
             style: OutlinedButton.styleFrom(
@@ -441,22 +518,20 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   // ─────────────────────────── Acciones ───────────────────────────
 
   void _onAddTicket(TabSession s) {
-    // Pre-selecciona la mesa de la sesión para que el create_order
-    // page la mantenga seleccionada y la nueva orden caiga en la
-    // misma cuenta automáticamente (vía ensureSessionForOrder en backend).
-    //
-    // OJO: el create_order_page recibe `fromTabSession` (no
-    // `fromTableService`) — esa rama del handler permite pre-seleccionar
-    // la mesa solo con `tableElementId` (el `tableId` legacy puede ser
-    // null) y deja al operario cambiar el tipo de orden si quiere
-    // agregar un takeaway/delivery a la cuenta.
+    // Pasamos un `SellMode.tabSession` a la pantalla unificada — el
+    // ticket nuevo se atará automáticamente a esta cuenta (mesa o
+    // libre) y el pill mostrará "Cuenta: X" para que el operario
+    // entienda dónde está parado.
     Get.toNamed(
-      AppRoutes.createOrder,
+      AppRoutes.sell,
       arguments: {
-        'fromTabSession': s.id,
-        if (s.tableElementId != null) 'tableElementId': s.tableElementId,
-        if (s.tableName != null) 'tableName': s.tableName,
-        if (s.tableId != null) 'tableId': s.tableId,
+        'mode': SellMode.tabSession(
+          sessionId: s.id,
+          sessionLabel: s.displayLabel(),
+          tableElementId: s.tableElementId,
+          tableId: s.tableId,
+          tableName: s.tableName,
+        ),
       },
     )?.then((_) {
       // Volver a la cuenta: refrescamos para ver el ticket nuevo.
@@ -472,8 +547,9 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   }
 
   Future<void> _confirmClose() async {
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Cerrar cuenta'),
         content: const Text(
           'La cuenta quedará marcada como cerrada y no se podrán '
@@ -481,11 +557,11 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(result: false),
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Get.back(result: true),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
             child: const Text('Cerrar cuenta'),
           ),
         ],
@@ -493,7 +569,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     );
     if (confirmed == true) {
       final ok = await controller.close();
-      if (ok) Get.back();
+      if (ok && mounted) Navigator.of(context).pop();
     }
   }
 }
