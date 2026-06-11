@@ -32,24 +32,28 @@ class DashboardTab extends GetView<HomeController> {
           color: AppColors.primary,
           onRefresh: controller.refreshStats,
           child: Obx(() {
-            // Decidimos qué muestra el dashboard según el rol del usuario.
-            // El mesero/cajero ve un home centrado en VENDER (Venta express,
-            // Cuentas abiertas, Mesas), sin métricas de gestión que no le
-            // sirven al turno. Admin/manager ven todo + KPIs financieros.
+            // Decidimos qué muestra el dashboard según el rol del
+            // usuario. Cada rol ve SOLO las acciones que le corresponden
+            // según la lógica del negocio:
+            //   - mesero: vender, cuentas, mesas, su turno, QR.
+            //   - cajero: igual + caja (es quien maneja efectivo).
+            //   - admin/manager: TODO + gestión.
+            // El backend valida con RolesGuard (HTTP 403), pero acá
+            // filtramos para no MOSTRARLE acciones que no puede usar.
             final user = authController.currentUserRx;
-            final isAdminOrManager = user?.isAdminOrManager == true;
+            final roleCode = user?.roleCode;
+            final access = _RoleAccess.from(roleCode);
             return ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _buildHeader(authController, isAdminOrManager: isAdminOrManager),
+                _buildHeader(authController,
+                    isAdminOrManager: access.isAdminOrManager),
                 const SizedBox(height: 18),
-                // Los 2 botones que más se usan, ARRIBA del todo — el
-                // operario los toca sin scroll ni decisiones.
                 _buildPrimaryActions(),
                 const SizedBox(height: 22),
                 _buildSectionTitle('Más acciones'),
                 const SizedBox(height: 8),
-                _buildSecondaryActions(isAdminOrManager: isAdminOrManager),
+                _buildSecondaryActions(access),
               ],
             );
           }),
@@ -211,22 +215,32 @@ class DashboardTab extends GetView<HomeController> {
   /// Acciones secundarias — todo lo demás, filtrado por rol. Mesero y
   /// cashier solo ven lo que necesitan para el turno; admin/manager ven
   /// herramientas de gestión también.
-  Widget _buildSecondaryActions({required bool isAdminOrManager}) {
+  Widget _buildSecondaryActions(_RoleAccess access) {
     final tiles = <Widget>[
-      _QuickActionTile(
-        icon: FontAwesomeIcons.tableCells,
-        title: 'Estado de mesas',
-        subtitle: 'Ver ocupación y servicio en vivo',
-        accent: AppColors.info,
-        onTap: controller.goToTables,
-      ),
-      _QuickActionTile(
-        icon: FontAwesomeIcons.cashRegister,
-        title: 'Caja',
-        subtitle: 'Apertura, cierre y conciliación',
-        accent: AppColors.warning,
-        onTap: () => Get.toNamed(AppRoutes.cashRegister),
-      ),
+      // Estado de mesas: lo ve mesero, cajero y gerencia. El mesero
+      // necesita saber qué mesa está libre/ocupada; el cocinero y
+      // repartidor no.
+      if (access.canSeeTables)
+        _QuickActionTile(
+          icon: FontAwesomeIcons.tableCells,
+          title: 'Estado de mesas',
+          subtitle: 'Ver ocupación y servicio en vivo',
+          accent: AppColors.info,
+          onTap: controller.goToTables,
+        ),
+      // Caja: la abre/cierra el cajero (responsable del efectivo) y
+      // admin/manager para supervisión. El mesero NO — su rol no
+      // incluye permisos sobre cash sessions y el backend devuelve
+      // 403 si intenta entrar.
+      if (access.canSeeCashRegister)
+        _QuickActionTile(
+          icon: FontAwesomeIcons.cashRegister,
+          title: 'Caja',
+          subtitle: 'Apertura, cierre y conciliación',
+          accent: AppColors.warning,
+          onTap: () => Get.toNamed(AppRoutes.cashRegister),
+        ),
+      // Mi turno: cualquier empleado puede fichar entrada/salida.
       _QuickActionTile(
         icon: FontAwesomeIcons.clock,
         title: 'Mi turno',
@@ -234,8 +248,12 @@ class DashboardTab extends GetView<HomeController> {
         accent: AppColors.primary,
         onTap: () => Get.toNamed(AppRoutes.shiftClock),
       ),
-      _PendingReviewActionTile(),
-      if (isAdminOrManager) ...[
+      // Pedidos por QR: el mesero los aprueba antes de que entren a
+      // cocina. Cajero/admin/manager también lo ven. Cocina/delivery no.
+      if (access.canSeePendingReview) _PendingReviewActionTile(),
+      // Gestión (catálogo, QRs, menú del día, reportes) → solo
+      // admin/manager.
+      if (access.isAdminOrManager) ...[
         _QuickActionTile(
           icon: FontAwesomeIcons.bowlFood,
           title: 'Productos',
@@ -302,6 +320,56 @@ class DashboardTab extends GetView<HomeController> {
     if (hour < 19) return 'Buenas tardes';
     return 'Buenas noches';
   }
+}
+
+/// Matriz de permisos de la UI por rol — fuente única de verdad sobre
+/// qué acciones MOSTRAR en el dashboard según el `roleCode` que viene
+/// del JWT.
+///
+/// **Espejo del modelo de permisos del backend** (lib/database/seeders/
+/// roles.seeder.ts):
+///
+/// | Acción          | admin | manager | cashier | waiter | kitchen | delivery | bartender |
+/// | --------------- | ----- | ------- | ------- | ------ | ------- | -------- | --------- |
+/// | Vender          |  ✓    |   ✓     |    ✓    |   ✓    |    ·    |    ·     |     ·     |
+/// | Cuentas         |  ✓    |   ✓     |    ✓    |   ✓    |    ·    |    ·     |     ·     |
+/// | Estado mesas    |  ✓    |   ✓     |    ✓    |   ✓    |    ·    |    ·     |     ·     |
+/// | Caja            |  ✓    |   ✓     |    ✓    |   ·    |    ·    |    ·     |     ·     |
+/// | Mi turno        |  ✓    |   ✓     |    ✓    |   ✓    |    ✓    |    ✓     |     ✓     |
+/// | Pendientes QR   |  ✓    |   ✓     |    ✓    |   ✓    |    ·    |    ·     |     ·     |
+/// | Productos       |  ✓    |   ✓     |    ·    |   ·    |    ·    |    ·     |     ·     |
+/// | QRs / Menú día  |  ✓    |   ✓     |    ·    |   ·    |    ·    |    ·     |     ·     |
+/// | Reportes        |  ✓    |   ✓     |    ·    |   ·    |    ·    |    ·     |     ·     |
+///
+/// Cocina, delivery y bartender tienen su propia pantalla full-screen
+/// (KDS / lista repartos) y no llegan al dashboard general — por eso
+/// acá se les niega todo de gestión. El KDS no se modela acá.
+class _RoleAccess {
+  final String? roleCode;
+  const _RoleAccess(this.roleCode);
+
+  factory _RoleAccess.from(String? roleCode) => _RoleAccess(roleCode);
+
+  bool get isAdminOrManager => roleCode == 'admin' || roleCode == 'manager';
+  bool get _isCashier => roleCode == 'cashier';
+  bool get _isWaiter => roleCode == 'waiter';
+
+  /// Vender / Cuentas abiertas (los 2 tiles primarios). Mesero, cajero,
+  /// admin y manager. Cocina/delivery/bartender no venden.
+  bool get canSell => isAdminOrManager || _isCashier || _isWaiter;
+
+  /// Tab de "Cuentas abiertas" mismo criterio que venta.
+  bool get canSeeOpenTabs => canSell;
+
+  /// "Estado de mesas" — operario de sala lo necesita; back-office no.
+  bool get canSeeTables => canSell;
+
+  /// "Caja" — quien maneja el efectivo. El mesero NO la toca, su rol
+  /// no incluye permisos sobre cash sessions y el backend devuelve 403.
+  bool get canSeeCashRegister => isAdminOrManager || _isCashier;
+
+  /// Pedidos QR pendientes de aprobación — los aprueba quien atiende.
+  bool get canSeePendingReview => canSell;
 }
 
 /// Tile horizontal de acción rápida. Reemplaza al `QuickActionCard`

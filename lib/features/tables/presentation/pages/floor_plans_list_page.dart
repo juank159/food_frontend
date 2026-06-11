@@ -37,6 +37,11 @@ class FloorPlansListPage extends GetView<FloorPlansListController> {
       floatingActionButton: Obx(() {
         if (controller.floorPlans.isEmpty) return const SizedBox.shrink();
         return FloatingActionButton(
+          // heroTag único — esta pantalla puede convivir con otras que
+          // tienen FAB dentro del IndexedStack del HomeScreen (mesero
+          // ve Órdenes + Mesas a la vez). Sin tag explícito ambos
+          // comparten "<default tag>" y Flutter tira un assert.
+          heroTag: 'floor-plans-list-fab',
           onPressed: controller.createNewFloorPlan,
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,

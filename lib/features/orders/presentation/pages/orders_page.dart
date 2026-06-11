@@ -49,6 +49,12 @@ class OrdersPage extends GetView<OrdersController> {
       floatingActionButton: Obx(() {
         if (!controller.hasOrders) return const SizedBox.shrink();
         return FloatingActionButton(
+          // heroTag único — el HomeScreen monta varias pantallas con FAB
+          // dentro del mismo IndexedStack (Órdenes + Mesas). Sin
+          // heroTag explícito, Flutter usa "<default FloatingActionButton tag>"
+          // en cada uno y al cambiar de tab tira: "multiple heroes that
+          // share the same tag within a subtree".
+          heroTag: 'orders-page-fab',
           onPressed: () => NavigationService.toCreateOrder(),
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
