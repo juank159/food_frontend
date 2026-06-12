@@ -282,6 +282,36 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<Either<Failure, Order>> updateOrderItemStatus({
+    required String orderId,
+    required String itemId,
+    required OrderStatus status,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        final result = await remoteDataSource.updateOrderItemStatus(
+          orderId,
+          itemId,
+          status,
+        );
+        return Right(result.toEntity());
+      } on UnauthorizedException {
+        return const Left(UnauthorizedFailure());
+      } on NotFoundException {
+        return const Left(NotFoundFailure('Order item not found'));
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, Order>> updateOrder({
     required String id,
     OrderStatus? status,

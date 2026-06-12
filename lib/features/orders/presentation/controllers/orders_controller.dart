@@ -1,10 +1,12 @@
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../domain/entities/order.dart' as order_entity;
 import '../../domain/usecases/create_order_usecase.dart';
 import '../../domain/usecases/get_active_orders_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
+import '../../domain/usecases/update_order_item_status_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
@@ -118,6 +120,32 @@ class OrdersController extends GetxController {
       (order) {
         selectedOrder.value = order;
         isLoading.value = false;
+      },
+    );
+  }
+
+  /// Actualiza el estado de UN item. Backend mantiene los timestamps
+  /// y auto-avanza la orden completa cuando todos los items con
+  /// preparación llegaron a `ready` / `delivered`.
+  Future<bool> updateOrderItemStatus({
+    required String orderId,
+    required String itemId,
+    required OrderStatus newStatus,
+  }) async {
+    final usecase = sl<UpdateOrderItemStatusUseCase>();
+    final result = await usecase(
+      orderId: orderId,
+      itemId: itemId,
+      status: newStatus,
+    );
+    return result.fold(
+      (failure) {
+        AppSnackbar.show('No se pudo marcar el item', failure.message);
+        return false;
+      },
+      (updatedOrder) {
+        applyOrderUpdate(updatedOrder);
+        return true;
       },
     );
   }

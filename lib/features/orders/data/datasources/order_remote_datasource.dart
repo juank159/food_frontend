@@ -28,6 +28,15 @@ abstract class OrderRemoteDataSource {
 
   Future<OrderModel> createOrder(Map<String, dynamic> orderData);
   Future<OrderModel> updateOrderStatus(String id, OrderStatus status);
+
+  /// Actualiza el estado de UN item. La orden se auto-avanza cuando
+  /// todos los items con `requires_preparation` llegan a `ready` /
+  /// `delivered`.
+  Future<OrderModel> updateOrderItemStatus(
+    String orderId,
+    String itemId,
+    OrderStatus status,
+  );
   Future<OrderModel> updateOrder(String id, Map<String, dynamic> orderData);
   Future<OrderModel> assignOrder(String id, String userId);
   Future<OrderModel> markAsPaid(String id, PaymentMethod paymentMethod);
@@ -209,6 +218,24 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
     try {
       final response = await dio.patch(
         ApiConstants.orderStatus(id),
+        data: {'status': status.value},
+      );
+      return OrderModel.fromJson(ApiResponseUtils.object(response));
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> updateOrderItemStatus(
+    String orderId,
+    String itemId,
+    OrderStatus status,
+  ) async {
+    try {
+      final response = await dio.patch(
+        '/orders/$orderId/items/$itemId/status',
         data: {'status': status.value},
       );
       return OrderModel.fromJson(ApiResponseUtils.object(response));

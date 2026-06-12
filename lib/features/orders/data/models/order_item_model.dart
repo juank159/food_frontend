@@ -1,7 +1,8 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../../../../core/config/constants/order_enums.dart';
+import '../../../../core/utils/json_parsers.dart';
 import '../../domain/entities/order_item.dart';
 import 'order_item_modifier_model.dart';
-import '../../../../core/utils/json_parsers.dart';
 
 part 'order_item_model.g.dart';
 
@@ -31,6 +32,12 @@ class OrderItemModel {
   /// cocina hasta que se actualice el producto al nuevo flag.
   @JsonKey(name: 'requires_preparation')
   final bool requiresPreparation;
+  /// Estado individual del item (pending/preparing/ready/delivered).
+  final String? status;
+  @JsonKey(name: 'prepared_at')
+  final String? preparedAt;
+  @JsonKey(name: 'delivered_at')
+  final String? deliveredAt;
   @JsonKey(name: 'created_at')
   final String createdAt;
   @JsonKey(name: 'updated_at')
@@ -48,6 +55,9 @@ class OrderItemModel {
     this.customizations,
     this.modifiers,
     this.requiresPreparation = true,
+    this.status,
+    this.preparedAt,
+    this.deliveredAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -65,6 +75,14 @@ class OrderItemModel {
       specialInstructions: specialInstructions,
       customizations: customizations,
       modifiers: modifiers?.map((m) => m.toEntity()).toList() ?? [],
+      status: status != null
+          ? OrderStatus.fromString(status!)
+          : OrderStatus.pending,
+      requiresPreparation: requiresPreparation,
+      preparedAt:
+          preparedAt != null ? DateTime.parse(preparedAt!) : null,
+      deliveredAt:
+          deliveredAt != null ? DateTime.parse(deliveredAt!) : null,
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
     );
@@ -135,6 +153,9 @@ class OrderItemModel {
           ?.map((m) => OrderItemModifierModel.fromJson(m as Map<String, dynamic>))
           .toList(),
       requiresPreparation: requiresPreparation,
+      status: json['status'] as String?,
+      preparedAt: json['prepared_at'] as String?,
+      deliveredAt: json['delivered_at'] as String?,
       createdAt: (json['created_at'] as String?) ?? DateTime.now().toIso8601String(),
       updatedAt: (json['updated_at'] as String?) ?? DateTime.now().toIso8601String(),
     );

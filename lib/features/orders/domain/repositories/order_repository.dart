@@ -67,6 +67,14 @@ abstract class OrderRepository {
     required OrderStatus status,
   });
 
+  /// Actualiza el estado de UN item. La orden completa se auto-avanza
+  /// cuando todos los items con prep llegan a `ready` / `delivered`.
+  Future<Either<Failure, order_entity.Order>> updateOrderItemStatus({
+    required String orderId,
+    required String itemId,
+    required OrderStatus status,
+  });
+
   /// Actualiza información de una orden
   Future<Either<Failure, order_entity.Order>> updateOrder({
     required String id,

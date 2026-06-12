@@ -8,6 +8,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../orders/domain/entities/order.dart';
+import '../../../orders/domain/entities/order_item.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 
 /// **Kitchen Display System (KDS)** — pantalla full-screen para el rol
@@ -270,55 +271,18 @@ class _TicketCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final item in order.items) ...[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${item.quantity}×',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: accent,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item.productName,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                              height: 1.2,
-                            ),
-                          ),
-                        ),
-                      ],
+                  // Solo items que VAN a cocina/barra. La botella de
+                  // agua y la gaseosa no se cuentan acá — la cocina
+                  // no las prepara y el mesero las entrega directo.
+                  for (final item in order.items.where(
+                    (i) => i.requiresPreparation,
+                  )) ...[
+                    _ItemRow(
+                      item: item,
+                      orderId: order.id,
+                      accent: accent,
+                      controller: controller,
                     ),
-                    if (item.specialInstructions != null &&
-                        item.specialInstructions!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(36, 2, 0, 0),
-                        child: Text(
-                          '➜ ${item.specialInstructions}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            color: AppColors.warning,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 6),
                   ],
                   if (order.specialInstructions != null &&
                       order.specialInstructions!.isNotEmpty) ...[
@@ -353,6 +317,124 @@ class _TicketCard extends StatelessWidget {
               accent: accent,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fila de un item dentro de la card del ticket. Tiene un check a la
+/// izquierda — al tocarlo el cocinero marca ese item como `ready`. El
+/// backend auto-avanza la orden cuando TODOS los items con preparación
+/// llegan a `ready`. Items ya listos se ven tachados y verdes.
+class _ItemRow extends StatelessWidget {
+  final OrderItem item;
+  final String orderId;
+  final Color accent;
+  final OrdersController controller;
+
+  const _ItemRow({
+    required this.item,
+    required this.orderId,
+    required this.accent,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = item.isReady;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: ready
+                ? null
+                : () async {
+                    HapticFeedback.mediumImpact();
+                    await controller.updateOrderItemStatus(
+                      orderId: orderId,
+                      itemId: item.id,
+                      newStatus: OrderStatus.ready,
+                    );
+                  },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: ready
+                        ? AppColors.success
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: ready
+                          ? AppColors.success
+                          : AppColors.border,
+                      width: 1.6,
+                    ),
+                  ),
+                  child: ready
+                      ? const Icon(Icons.check,
+                          color: Colors.white, size: 18)
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${item.quantity}×',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    item.productName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: ready
+                          ? AppColors.textSecondary
+                          : AppColors.textPrimary,
+                      height: 1.2,
+                      decoration: ready
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (item.specialInstructions != null &&
+              item.specialInstructions!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(46, 2, 0, 0),
+              child: Text(
+                '➜ ${item.specialInstructions}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: ready
+                      ? AppColors.textHint
+                      : AppColors.warning,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
         ],
       ),
     );
