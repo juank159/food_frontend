@@ -361,6 +361,21 @@ class ProductFormPage extends GetView<ProductFormController> {
             prefixIcon: Icons.timer_outlined,
           ),
         ),
+        const SizedBox(height: 12),
+        // Toggle "Va a cocina/barra" — decide si el item aparece en la
+        // comanda. Para botellas, snacks empacados y bebidas listas
+        // el operario lo apaga: el item no sale en la comanda y, si
+        // todos los items del ticket están en `false`, no se imprime
+        // comanda en absoluto (no se desperdicia papel).
+        Obx(() => _ToggleTile(
+              icon: Icons.kitchen_outlined,
+              label: controller.requiresPreparation.value
+                  ? 'Va a cocina / barra'
+                  : 'Entrega directa (sin comanda)',
+              value: controller.requiresPreparation.value,
+              accent: AppColors.primary,
+              onChanged: (v) => controller.requiresPreparation.value = v,
+            )),
         const SizedBox(height: 8),
         Row(
           children: [

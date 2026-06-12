@@ -25,6 +25,12 @@ class OrderItemModel {
   final String? specialInstructions;
   final Map<String, dynamic>? customizations;
   final List<OrderItemModifierModel>? modifiers;
+  /// `true` si el producto requiere paso por cocina/barra. Se lee del
+  /// JSON anidado `product.requires_preparation`. Default `true` por
+  /// compatibilidad con responses viejos: los items siguen yendo a
+  /// cocina hasta que se actualice el producto al nuevo flag.
+  @JsonKey(name: 'requires_preparation')
+  final bool requiresPreparation;
   @JsonKey(name: 'created_at')
   final String createdAt;
   @JsonKey(name: 'updated_at')
@@ -41,6 +47,7 @@ class OrderItemModel {
     this.specialInstructions,
     this.customizations,
     this.modifiers,
+    this.requiresPreparation = true,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -104,6 +111,16 @@ class OrderItemModel {
 
     final modifiersJson = json['modifiers'] as List<dynamic>?;
 
+    // `requires_preparation` puede venir en dos lugares:
+    //   - plano en el item (cuando el backend desnormaliza el flag al
+    //     crear la orden — útil para snapshot histórico).
+    //   - dentro de `product.requires_preparation` cuando el backend
+    //     trae el JOIN del producto.
+    // Default `true` si no viene en ningún lado (orden vieja pre-migración).
+    final requiresPreparation = (json['requires_preparation'] as bool?) ??
+        (product?['requires_preparation'] as bool?) ??
+        true;
+
     return OrderItemModel(
       id: json['id'] as String,
       orderId: (json['order_id'] as String?) ?? '',
@@ -117,6 +134,7 @@ class OrderItemModel {
       modifiers: modifiersJson
           ?.map((m) => OrderItemModifierModel.fromJson(m as Map<String, dynamic>))
           .toList(),
+      requiresPreparation: requiresPreparation,
       createdAt: (json['created_at'] as String?) ?? DateTime.now().toIso8601String(),
       updatedAt: (json['updated_at'] as String?) ?? DateTime.now().toIso8601String(),
     );

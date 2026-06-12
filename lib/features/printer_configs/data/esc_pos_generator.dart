@@ -69,6 +69,10 @@ class TicketItem {
   final double unitPrice;
   final double subtotal;
   final String? specialInstructions;
+  /// `true` si el producto va a cocina/barra. La comanda solo lista
+  /// los items con `true`; el recibo lista TODOS. Default `true` por
+  /// seguridad (productos sin flag explícito siguen yendo a cocina).
+  final bool requiresPreparation;
 
   const TicketItem({
     required this.quantity,
@@ -77,6 +81,7 @@ class TicketItem {
     required this.unitPrice,
     required this.subtotal,
     required this.specialInstructions,
+    this.requiresPreparation = true,
   });
 }
 
@@ -174,8 +179,14 @@ class EscPosGenerator {
 
     bytes.addAll(gen.hr());
 
-    // ─── Items (cantidad GRANDE + nombre + notas) ───
-    for (final item in data.items) {
+    // ─── Items que VAN a cocina/barra ───
+    // Las bebidas embotelladas, snacks empacados y todo lo que no pasa
+    // por cocina (`requiresPreparation == false`) NO aparece en la
+    // comanda — sale igual en el recibo del cliente y queda en el
+    // ticket, pero a la cocina/barra no le interesa. Esto evita
+    // imprimir "1× Botella de agua" en la comanda y desperdiciar papel.
+    final kitchenItems = data.items.where((i) => i.requiresPreparation);
+    for (final item in kitchenItems) {
       bytes.addAll(
         gen.text(
           '${item.quantity}x ${item.name.toUpperCase()}',

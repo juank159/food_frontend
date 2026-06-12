@@ -168,6 +168,7 @@ class ProductRepositoryImpl implements ProductRepository {
     required String categoryId,
     String? description,
     double? cost,
+    bool? requiresPreparation,
     int? preparationTime,
     String? imageUrl,
     List<String>? images,
@@ -192,6 +193,8 @@ class ProductRepositoryImpl implements ProductRepository {
           'category_id': categoryId,
           if (description != null) 'description': description,
           if (cost != null) 'cost': cost,
+          if (requiresPreparation != null)
+            'requires_preparation': requiresPreparation,
           if (preparationTime != null) 'preparation_time': preparationTime,
           if (imageUrl != null) 'image_url': imageUrl,
           if (images != null && images.isNotEmpty) 'images': images,
@@ -235,6 +238,7 @@ class ProductRepositoryImpl implements ProductRepository {
     String? categoryId,
     String? description,
     double? cost,
+    bool? requiresPreparation,
     int? preparationTime,
     String? imageUrl,
     List<String>? images,
@@ -259,6 +263,9 @@ class ProductRepositoryImpl implements ProductRepository {
         if (categoryId != null) data['category_id'] = categoryId;
         if (description != null) data['description'] = description;
         if (cost != null) data['cost'] = cost;
+        if (requiresPreparation != null) {
+          data['requires_preparation'] = requiresPreparation;
+        }
         if (preparationTime != null) data['preparation_time'] = preparationTime;
         if (imageUrl != null) data['image_url'] = imageUrl;
         if (images != null) data['images'] = images;

@@ -155,6 +155,11 @@ class ProductFormController extends GetxController {
   final RxBool isAvailable = true.obs;
   final RxBool isFeatured = false.obs;
   final RxBool trackInventory = false.obs;
+  /// `true` si el producto va a cocina/barra antes de entregarse. La
+  /// mayoría de los productos sí (default true). Para botellas, snacks
+  /// empacados y bebidas embotelladas se apaga — el item no aparece
+  /// en la comanda y, si todo el ticket es así, no se imprime comanda.
+  final RxBool requiresPreparation = true.obs;
   final RxList<String> tags = <String>[].obs;
   final RxList<String> allergens = <String>[].obs;
   final RxList<String> images = <String>[].obs;
@@ -295,6 +300,11 @@ class ProductFormController extends GetxController {
     selectedCategoryId.value = product.categoryId;
     isAvailable.value = product.isAvailable;
     trackInventory.value = product.trackInventory;
+    requiresPreparation.value = product.requiresPreparation;
+    if (product.cost != null) {
+      costController.text =
+          NumberFormatHelper.formatNumber(product.cost!.toInt());
+    }
     tags.value = List.from(product.tags);
     allergens.value = List.from(product.allergens);
 
@@ -435,6 +445,7 @@ class ProductFormController extends GetxController {
       cost: costController.text.trim().isEmpty
           ? null
           : (NumberFormatHelper.parseFormattedInt(costController.text) ?? 0).toDouble(),
+      requiresPreparation: requiresPreparation.value,
       preparationTime: NumberFormatHelper.parseFormattedInt(preparationTimeController.text),
       imageUrl: imageUrlController.text.trim().isEmpty
           ? null
@@ -536,6 +547,7 @@ class ProductFormController extends GetxController {
       cost: costController.text.trim().isEmpty
           ? null
           : (NumberFormatHelper.parseFormattedInt(costController.text) ?? 0).toDouble(),
+      requiresPreparation: requiresPreparation.value,
       preparationTime: NumberFormatHelper.parseFormattedInt(preparationTimeController.text),
       imageUrl: imageUrlController.text.trim().isEmpty
           ? null

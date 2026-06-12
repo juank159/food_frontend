@@ -9,6 +9,15 @@ class Product extends Equatable {
   final String name;
   final String description;
   final double basePrice;
+  /// Costo unitario del producto (lo que le cuesta al negocio).
+  /// `null` cuando el dueño aún no lo cargó. Se usa para `profitMargin`
+  /// y para reportar utilidad real (revenue − cost × totalSold).
+  final double? cost;
+  /// `true` si el producto va a cocina/barra antes de entregarse.
+  /// `false` para productos directos (botellas, snacks empacados):
+  /// estos NO aparecen en la comanda y, si todo el ticket es así, no
+  /// se imprime comanda en absoluto.
+  final bool requiresPreparation;
   final int preparationTime; // en minutos
   final String? imageUrl;
   final String? sku;
@@ -32,6 +41,8 @@ class Product extends Equatable {
     required this.name,
     required this.description,
     required this.basePrice,
+    this.cost,
+    this.requiresPreparation = true,
     required this.preparationTime,
     this.imageUrl,
     this.sku,
@@ -50,6 +61,19 @@ class Product extends Equatable {
     this.modifierGroups = const [],
     this.variants = const [],
   });
+
+  /// Margen porcentual: `(basePrice - cost) / basePrice × 100`.
+  /// `null` cuando falta cost o basePrice ≤ 0 (no se puede calcular).
+  double? get profitMargin {
+    if (cost == null || basePrice <= 0) return null;
+    return ((basePrice - cost!) / basePrice) * 100;
+  }
+
+  /// Ganancia por unidad vendida: `basePrice - cost`. `null` si falta cost.
+  double? get profitPerUnit {
+    if (cost == null) return null;
+    return basePrice - cost!;
+  }
 
   /// Verifica si el producto tiene stock bajo
   bool get isLowStock {
@@ -106,6 +130,8 @@ class Product extends Equatable {
         name,
         description,
         basePrice,
+        cost,
+        requiresPreparation,
         preparationTime,
         imageUrl,
         sku,

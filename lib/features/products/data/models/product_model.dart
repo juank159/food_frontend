@@ -13,6 +13,14 @@ class ProductModel {
   final String description;
   @JsonKey(fromJson: JsonParsers.parseDouble)
   final double basePrice;
+  /// Costo unitario (lo que le cuesta al negocio). Postgres lo manda
+  /// como string decimal — usamos parser tolerante en `fromJson`.
+  /// `null` cuando el dueño aún no lo cargó.
+  final double? cost;
+  /// `true` si el producto pasa por cocina/barra. Si es `false`, la
+  /// línea no aparece en la comanda impresa y, si TODOS los items del
+  /// ticket son así, no se imprime comanda en absoluto.
+  final bool requiresPreparation;
   final int preparationTime;
   final String? imageUrl;
   final String? sku;
@@ -39,6 +47,8 @@ class ProductModel {
     required this.name,
     required this.description,
     required this.basePrice,
+    this.cost,
+    this.requiresPreparation = true,
     required this.preparationTime,
     this.imageUrl,
     this.sku,
@@ -118,6 +128,14 @@ class ProductModel {
         name: json['name'] as String,
         description: json['description'] as String? ?? '',
         basePrice: _parseDouble(json['base_price']),
+        // `cost` puede no venir (productos viejos) o venir como string.
+        // `_parseNullableDouble` distingue null real de 0 — un costo de
+        // 0 es semánticamente distinto a "sin definir".
+        cost: _parseNullableDouble(json['cost']),
+        // `requires_preparation` default true por la columna del backend,
+        // pero si el JSON viene sin el campo (response viejo cacheado),
+        // mantenemos el default.
+        requiresPreparation: json['requires_preparation'] as bool? ?? true,
         preparationTime: _parseInt(json['preparation_time']) ?? 0,
         imageUrl: json['image_url'] as String?,
         sku: json['sku'] as String?,
@@ -152,6 +170,19 @@ class ProductModel {
     return 0.0;
   }
 
+  /// Helper para parsear doubles que pueden ser null (distinto de 0).
+  /// "Sin costo definido" ≠ "costo 0".
+  static double? _parseNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      if (value.isEmpty) return null;
+      return double.tryParse(value);
+    }
+    return null;
+  }
+
   /// Helper method to parse int from various types
   static int? _parseInt(dynamic value) {
     if (value == null) return null;
@@ -177,6 +208,8 @@ class ProductModel {
       'name': name,
       'description': description,
       'base_price': basePrice,
+      'cost': cost,
+      'requires_preparation': requiresPreparation,
       'preparation_time': preparationTime,
       'image_url': imageUrl,
       'sku': sku,
@@ -204,6 +237,8 @@ class ProductModel {
       name: name,
       description: description,
       basePrice: basePrice,
+      cost: cost,
+      requiresPreparation: requiresPreparation,
       preparationTime: preparationTime,
       imageUrl: imageUrl,
       sku: sku,
@@ -231,6 +266,8 @@ class ProductModel {
       name: product.name,
       description: product.description,
       basePrice: product.basePrice,
+      cost: product.cost,
+      requiresPreparation: product.requiresPreparation,
       preparationTime: product.preparationTime,
       imageUrl: product.imageUrl,
       sku: product.sku,

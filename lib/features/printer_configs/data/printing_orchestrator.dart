@@ -281,6 +281,14 @@ class PrintingOrchestrator {
     required PrinterConfigModel printer,
   }) async {
     final order = await _fetchOrder(orderId);
+    // Si es comanda y NINGÚN item requiere preparación, no imprimimos
+    // nada — sería un papel con header + 0 items (ej. ticket que solo
+    // tiene una botella de agua). Retornamos `true` para que el
+    // orquestador muestre "OK" sin marcar error.
+    if (kind == PrintJobKind.kitchen &&
+        !order.items.any((i) => i.requiresPreparation)) {
+      return true;
+    }
     final ticket = await _buildTicketData(order, kind);
     final Uint8List bytes;
     switch (kind) {
@@ -400,6 +408,7 @@ class PrintingOrchestrator {
       unitPrice: item.unitPrice,
       subtotal: item.subtotal,
       specialInstructions: item.specialInstructions,
+      requiresPreparation: item.requiresPreparation,
     );
   }
 

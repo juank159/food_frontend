@@ -18,6 +18,7 @@ Map<String, dynamic> _$OrderItemModelToJson(OrderItemModel instance) =>
       'special_instructions': instance.specialInstructions,
       'customizations': instance.customizations,
       'modifiers': instance.modifiers,
+      'requires_preparation': instance.requiresPreparation,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
     };
