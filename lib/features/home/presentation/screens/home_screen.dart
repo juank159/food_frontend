@@ -14,6 +14,7 @@ import 'dashboard_tab.dart';
 import 'delivery_dashboard.dart';
 import 'kitchen_dashboard.dart';
 import '../../../../core/utils/app_dialog.dart';
+import '../../../../core/utils/ui_access.dart';
 
 /// Home Screen - Pantalla principal con navegación inferior.
 ///
@@ -183,60 +184,63 @@ class HomeScreen extends GetView<HomeController> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      // Filtramos el menú según el rol del usuario actual. Los items
-      // sensibles (empleados, reportes, suscripción, configuración del
-      // negocio) solo aparecen para admin/manager. El backend además
-      // bloquea con `RolesGuard` — esto es UX, no seguridad.
+      // El menú "Más" filtra cada item con `UiAccess` — la misma matriz
+      // de permisos que usa el dashboard. Antes, ítems como "Clientes"
+      // y "Reservaciones" se mostraban a TODOS porque estaban fuera del
+      // bloque condicional; resultado: el cocinero veía clientes y
+      // reservas que no le sirven. Ahora cada item declara su acceso
+      // explícito y el rol que no aplique simplemente no lo ve.
       body: Obx(() {
         final user = authController.currentUserRx;
-        final isAdmin = user?.isAdmin == true;
-        final isAdminOrManager = user?.isAdminOrManager == true;
+        final access = UiAccess.from(user);
 
         final managementItems = <Widget>[
-          _buildMenuItem(
-            icon: FontAwesomeIcons.users,
-            title: 'Clientes',
-            subtitle: 'Gestiona tus clientes',
-            onTap: () => NavigationService.toCustomers(),
-          ),
-          if (isAdminOrManager)
+          if (access.canSeeCustomers)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.users,
+              title: 'Clientes',
+              subtitle: 'Gestiona tus clientes',
+              onTap: () => NavigationService.toCustomers(),
+            ),
+          if (access.canSeeEmployees)
             _buildMenuItem(
               icon: FontAwesomeIcons.userTie,
               title: 'Empleados',
               subtitle: 'Administra tu equipo',
               onTap: () => NavigationService.toEmployees(),
             ),
-          if (isAdminOrManager)
+          if (access.canSeeTablesAdmin)
             _buildMenuItem(
               icon: FontAwesomeIcons.chair,
               title: 'Mesas',
               subtitle: 'Configura tus mesas',
               onTap: () => NavigationService.toTables(),
             ),
-          if (isAdminOrManager)
+          if (access.canSeeInventory)
             _buildMenuItem(
               icon: FontAwesomeIcons.boxesStacked,
               title: 'Inventario',
               subtitle: 'Control de stock',
               onTap: () => NavigationService.toInventory(),
             ),
-          _buildMenuItem(
-            icon: FontAwesomeIcons.calendarDays,
-            title: 'Reservaciones',
-            subtitle: 'Reservas y disponibilidad',
-            onTap: () => NavigationService.toReservations(),
-          ),
+          if (access.canSeeReservations)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.calendarDays,
+              title: 'Reservaciones',
+              subtitle: 'Reservas y disponibilidad',
+              onTap: () => NavigationService.toReservations(),
+            ),
         ];
 
         final reportItems = <Widget>[
-          if (isAdminOrManager)
+          if (access.canSeeReports)
             _buildMenuItem(
               icon: FontAwesomeIcons.chartLine,
               title: 'Reportes',
               subtitle: 'Análisis de ventas',
               onTap: () => NavigationService.toReports(),
             ),
-          if (isAdminOrManager)
+          if (access.canSeeSalesReport)
             _buildMenuItem(
               icon: FontAwesomeIcons.dollarSign,
               title: 'Ventas',
@@ -246,27 +250,28 @@ class HomeScreen extends GetView<HomeController> {
         ];
 
         final settingsItems = <Widget>[
-          if (isAdmin)
+          if (access.canSeeSubscription)
             _buildMenuItem(
               icon: FontAwesomeIcons.crown,
               title: 'Mi Suscripción',
               subtitle: 'Plan actual y límites',
               onTap: () => NavigationService.toSubscription(),
             ),
-          _buildMenuItem(
-            icon: FontAwesomeIcons.user,
-            title: 'Mi Perfil',
-            subtitle: 'Información personal',
-            onTap: () => NavigationService.toProfile(),
-          ),
-          if (isAdmin)
+          if (access.canSeeProfile)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.user,
+              title: 'Mi Perfil',
+              subtitle: 'Información personal',
+              onTap: () => NavigationService.toProfile(),
+            ),
+          if (access.canSeeBusinessSettings)
             _buildMenuItem(
               icon: FontAwesomeIcons.building,
               title: 'Negocio',
               subtitle: 'Configuración del restaurante',
               onTap: () => NavigationService.toBusinessSettings(),
             ),
-          if (isAdminOrManager)
+          if (access.canSeeGeneralSettings)
             _buildMenuItem(
               icon: FontAwesomeIcons.gear,
               title: 'Configuración',

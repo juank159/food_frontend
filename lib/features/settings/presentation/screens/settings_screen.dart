@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/ui_access.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 /// Hub central de configuración. Reemplaza el placeholder de `/settings`.
 ///
@@ -16,6 +18,7 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authController = Get.find<AuthController>();
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -24,101 +27,126 @@ class SettingsScreen extends StatelessWidget {
           children: [
             _buildHeader(context),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: [
-                  _buildSectionTitle('Cuenta'),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.account_circle_outlined,
-                    title: 'Perfil',
-                    subtitle: 'Tu nombre, email y teléfono',
-                    accent: AppColors.primary,
-                    onTap: () => Get.toNamed(AppRoutes.profile),
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.lock_outline,
-                    title: 'Cambiar contraseña',
-                    subtitle: 'Actualizá tu clave de acceso',
-                    accent: AppColors.warning,
-                    onTap: () => Get.toNamed(AppRoutes.changePassword),
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.shield_outlined,
-                    title: 'Seguridad',
-                    subtitle: 'Dos factores y sesiones activas',
-                    accent: AppColors.info,
-                    onTap: () => Get.toNamed(AppRoutes.securitySettings),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Negocio'),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.business_center_outlined,
-                    title: 'Información del negocio',
-                    subtitle:
-                        'Nombre, dirección, teléfono y NIT — aparecen en CADA '
-                        'recibo y comanda. Configúralos antes de imprimir.',
-                    accent: AppColors.primary,
-                    onTap: () => Get.toNamed(AppRoutes.businessInfo),
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.storefront_outlined,
-                    title: 'Configuración del negocio',
-                    subtitle: 'Impuestos, propinas y horarios',
-                    accent: AppColors.secondary,
-                    onTap: NavigationService.toBusinessSettings,
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Cuentas de pago',
-                    subtitle: 'Nequi, Daviplata, bancos, cajas, datáfonos',
-                    accent: AppColors.success,
-                    onTap: () =>
-                        Get.toNamed(AppRoutes.paymentAccountsSettings),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Operaciones'),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.print_outlined,
-                    title: 'Impresoras',
-                    subtitle: 'Configurá tickets y dispositivos',
-                    accent: const Color(0xFF8E44AD),
-                    onTap: NavigationService.toPrinterSettings,
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notificaciones',
-                    subtitle: 'Alertas de órdenes, mesas y stock',
-                    accent: AppColors.success,
-                    onTap: () => Get.toNamed(AppRoutes.notificationSettings),
-                  ),
-                  const SizedBox(height: 10),
-                  _SettingsTile(
-                    icon: Icons.shield_outlined,
-                    title: 'Roles del equipo',
-                    subtitle: 'Permisos finos por rol (admin/manager)',
-                    accent: AppColors.primary,
-                    onTap: () => Get.toNamed(AppRoutes.roles),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Suscripción'),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.workspace_premium_outlined,
-                    title: 'Mi plan',
-                    subtitle: 'Detalles del plan y facturación',
-                    accent: AppColors.primary,
-                    onTap: NavigationService.toSubscription,
-                  ),
-                ],
-              ),
+              child: Obx(() {
+                final access = UiAccess.from(authController.currentUserRx);
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  children: [
+                    // Sección "Cuenta" — todos los roles tienen su perfil,
+                    // password y settings de seguridad propios.
+                    _buildSectionTitle('Cuenta'),
+                    const SizedBox(height: 8),
+                    _SettingsTile(
+                      icon: Icons.account_circle_outlined,
+                      title: 'Perfil',
+                      subtitle: 'Tu nombre, email y teléfono',
+                      accent: AppColors.primary,
+                      onTap: () => Get.toNamed(AppRoutes.profile),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingsTile(
+                      icon: Icons.lock_outline,
+                      title: 'Cambiar contraseña',
+                      subtitle: 'Actualizá tu clave de acceso',
+                      accent: AppColors.warning,
+                      onTap: () => Get.toNamed(AppRoutes.changePassword),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingsTile(
+                      icon: Icons.shield_outlined,
+                      title: 'Seguridad',
+                      subtitle: 'Dos factores y sesiones activas',
+                      accent: AppColors.info,
+                      onTap: () => Get.toNamed(AppRoutes.securitySettings),
+                    ),
+
+                    // Sección "Negocio" — datos comerciales: SOLO admin
+                    // (cualquier modificación afecta toda la facturación).
+                    if (access.canSeeBusinessSettings) ...[
+                      const SizedBox(height: 24),
+                      _buildSectionTitle('Negocio'),
+                      const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.business_center_outlined,
+                        title: 'Información del negocio',
+                        subtitle:
+                            'Nombre, dirección, teléfono y NIT — aparecen en CADA '
+                            'recibo y comanda. Configúralos antes de imprimir.',
+                        accent: AppColors.primary,
+                        onTap: () => Get.toNamed(AppRoutes.businessInfo),
+                      ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.storefront_outlined,
+                        title: 'Configuración del negocio',
+                        subtitle: 'Impuestos, propinas y horarios',
+                        accent: AppColors.secondary,
+                        onTap: NavigationService.toBusinessSettings,
+                      ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.account_balance_wallet_outlined,
+                        title: 'Cuentas de pago',
+                        subtitle:
+                            'Nequi, Daviplata, bancos, cajas, datáfonos',
+                        accent: AppColors.success,
+                        onTap: () =>
+                            Get.toNamed(AppRoutes.paymentAccountsSettings),
+                      ),
+                    ],
+
+                    // Sección "Operaciones" — admin/manager. El manager
+                    // necesita poder configurar impresoras y notificaciones
+                    // del turno.
+                    if (access.canSeeGeneralSettings) ...[
+                      const SizedBox(height: 24),
+                      _buildSectionTitle('Operaciones'),
+                      const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.print_outlined,
+                        title: 'Impresoras',
+                        subtitle: 'Configurá tickets y dispositivos',
+                        accent: const Color(0xFF8E44AD),
+                        onTap: NavigationService.toPrinterSettings,
+                      ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.notifications_outlined,
+                        title: 'Notificaciones',
+                        subtitle: 'Alertas de órdenes, mesas y stock',
+                        accent: AppColors.success,
+                        onTap: () =>
+                            Get.toNamed(AppRoutes.notificationSettings),
+                      ),
+                      const SizedBox(height: 10),
+                      // Roles del equipo: solo admin — manager no edita
+                      // permisos de su mismo nivel ni del admin.
+                      if (access.isAdmin)
+                        _SettingsTile(
+                          icon: Icons.shield_outlined,
+                          title: 'Roles del equipo',
+                          subtitle: 'Permisos finos por rol (admin/manager)',
+                          accent: AppColors.primary,
+                          onTap: () => Get.toNamed(AppRoutes.roles),
+                        ),
+                    ],
+
+                    // Suscripción — solo el dueño (admin).
+                    if (access.canSeeSubscription) ...[
+                      const SizedBox(height: 24),
+                      _buildSectionTitle('Suscripción'),
+                      const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.workspace_premium_outlined,
+                        title: 'Mi plan',
+                        subtitle: 'Detalles del plan y facturación',
+                        accent: AppColors.primary,
+                        onTap: NavigationService.toSubscription,
+                      ),
+                    ],
+                  ],
+                );
+              }),
             ),
           ],
         ),
