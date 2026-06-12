@@ -334,6 +334,19 @@ class PrintingOrchestrator {
     required PrinterConfigModel printer,
     String? subtitle,
   }) async {
+    // Mismo check que en `_printNetworkEscPos`: si es comanda y NINGÚN
+    // item requiere preparación, no pedimos el PDF al backend (round-
+    // trip inútil) y devolvemos success silencioso. El backend también
+    // tiene defensa en profundidad — si por algún motivo llaman al
+    // endpoint con orden 100% directa, responde 204 y este path lo
+    // maneja con un short-circuit.
+    if (kind == PrintJobKind.kitchen) {
+      final order = await _fetchOrder(orderId);
+      if (!order.items.any((i) => i.requiresPreparation)) {
+        return true;
+      }
+    }
+
     final width = printer.paperWidth == 58
         ? ThermalPaperWidth.mm58
         : ThermalPaperWidth.mm80;
@@ -354,6 +367,8 @@ class PrintingOrchestrator {
         jobName = 'QR ticket';
         break;
     }
+    // PDF vacío del backend (skip) → no abrir diálogo de impresión.
+    if (pdf.isEmpty) return true;
     return PrinterDispatcher.printPdf(pdfBytes: pdf, jobName: jobName);
   }
 

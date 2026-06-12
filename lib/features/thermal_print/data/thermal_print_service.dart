@@ -151,8 +151,16 @@ class ThermalPrintService {
         responseType: ResponseType.bytes,
         // Acepta PDF binario, no JSON.
         headers: {'Accept': 'application/pdf'},
+        // 204 (no content) es válido para comandas sin items a preparar.
+        validateStatus: (s) =>
+            s != null && (s == 204 || (s >= 200 && s < 300)),
       ),
     );
+    // 204 → la orden no tenía items que cocinar; devolvemos Uint8List
+    // vacío. El orquestador detecta `pdf.isEmpty` y no imprime.
+    if (response.statusCode == 204) {
+      return Uint8List(0);
+    }
     final data = response.data;
     if (data == null || data.isEmpty) {
       throw Exception('PDF vacío recibido del servidor');
