@@ -127,7 +127,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         _PendingReviewBanner(controller: controller),
                         const SizedBox(height: 16),
                       ],
-                      OrderItemsList(order: order),
+                      OrderItemsList(order: order, controller: controller),
                       const SizedBox(height: 16),
                       _buildPaymentSection(context, order),
                       const SizedBox(height: 16),

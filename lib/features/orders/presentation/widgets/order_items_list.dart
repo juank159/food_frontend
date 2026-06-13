@@ -1,21 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import '../../../../core/config/constants/modifier_enums.dart';
+import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/modern_card.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../domain/entities/order_item_modifier.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../controllers/order_detail_controller.dart';
 
 /// Order Items List
-/// Lista de items de la orden con totales
+///
+/// Muestra los items de la orden con su estado individual (pendiente /
+/// en cocina / listo / entregado) y permite al mesero marcar cada item
+/// como entregado a la mesa con un tap. El backend auto-avanza la
+/// orden completa cuando todos los items llegaron al final.
+///
+/// Si recibe un [controller], la lista entra en "modo interactivo":
+/// muestra el progreso de entrega + botón "Entregar todo lo listo" y
+/// cada item se vuelve tappable. Sin controller funciona como vista
+/// pasiva (igual que antes).
 class OrderItemsList extends StatelessWidget {
   final Order order;
+  final OrderDetailController? controller;
 
   const OrderItemsList({
     super.key,
     required this.order,
+    this.controller,
   });
+
+  bool get _interactive => controller != null;
+
+  /// Permisos según rol — debe ser el mismo que aplica el backend en
+  /// `OrdersService.assertItemStatusTransitionAllowed`. Mantener ambos
+  /// lados en sync evita que el frontend muestre acciones que el
+  /// backend va a rechazar con 403.
+  _ItemPermissions get _permissions =>
+      _ItemPermissions.fromRole(_currentRoleCode, order);
+
+  String? get _currentRoleCode {
+    if (!Get.isRegistered<AuthController>()) return null;
+    return Get.find<AuthController>().currentUser?.roleCode;
+  }
+
+  /// La interacción de entrega solo tiene sentido mientras la orden
+  /// está activa. Si ya está completed/cancelled, mostramos el estado
+  /// pero no permitimos tap. Además el rol debe poder hacer al menos
+  /// una transición — si no, ocultamos toda la UI interactiva.
+  bool get _canInteract =>
+      _interactive && order.isActive && _permissions.hasAnyTransition;
 
   @override
   Widget build(BuildContext context) {
@@ -27,46 +65,23 @@ class OrderItemsList extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Row(
-              children: [
-                Icon(
-                  Icons.restaurant_menu,
-                  color: theme.colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Items de la Orden',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    '${order.totalItems} items',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
+            _buildHeader(theme),
+            // Sólo mostramos el progress/botón bulk si el rol PUEDE
+            // marcar items como entregados (mesero/cashier/delivery/
+            // admin/manager). A cocina/bartender no les sirve este
+            // bloque — para ellos el flujo de "marcar listo" vive en
+            // el KDS.
+            if (_canInteract && _permissions.canDeliver) ...[
+              const SizedBox(height: 12),
+              _DeliveryProgress(
+                order: order,
+                controller: controller!,
+              ),
+            ],
             const Divider(height: 24),
 
             // Items
-            ...order.items.map((item) => _buildOrderItem(theme, item)),
+            ...order.items.map((item) => _buildOrderItem(context, item)),
 
             const Divider(height: 24),
 
@@ -108,33 +123,77 @@ class OrderItemsList extends StatelessWidget {
     );
   }
 
-  Widget _buildOrderItem(ThemeData theme, OrderItem item) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Quantity Badge
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                '${item.quantity}x',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
+  Widget _buildHeader(ThemeData theme) {
+    return Row(
+      children: [
+        Icon(
+          Icons.restaurant_menu,
+          color: theme.colorScheme.primary,
+          size: 24,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'Items de la Orden',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 6,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            '${order.totalItems} items',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onPrimaryContainer,
             ),
           ),
-          const SizedBox(width: 12),
+        ),
+      ],
+    );
+  }
 
-          // Item Info
+  Widget _buildOrderItem(BuildContext context, OrderItem item) {
+    final theme = Theme.of(context);
+    final status = _ItemStatusVisuals.of(item);
+    final nextStatus = _nextStatusForRole(item);
+    final perms = _permissions;
+    final canForward = _canInteract && nextStatus != null;
+    final canUndoDelivery =
+        _canInteract && item.isDelivered && perms.canDeliver;
+
+    // Layout pasivo del item — el ÚNICO punto tappable es el círculo
+    // grande (52x52) a la derecha. Tocar el nombre o el precio no
+    // hace nada. Esto evita marcar accidentalmente algo al hacer
+    // scroll y deja el tap target claro y enorme.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: item.isDelivered
+            ? AppColors.success.withValues(alpha: 0.07)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: item.isDelivered
+              ? AppColors.success.withValues(alpha: 0.22)
+              : Colors.transparent,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _buildLeading(theme, item),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,14 +202,16 @@ class OrderItemsList extends StatelessWidget {
                   item.productName,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    decoration: item.isDelivered
+                        ? TextDecoration.lineThrough
+                        : null,
+                    color: item.isDelivered
+                        ? theme.colorScheme.onSurfaceVariant
+                        : null,
                   ),
                 ),
-                // Modifiers ("sin cebolla", "extra queso", etc.). Sin
-                // este bloque, las personalizaciones que el operario
-                // marca al crear la orden no se ven en el detalle, y
-                // la cocina/cliente no se entera. Cada modifier va con
-                // su propio icono según el tipo (removal/addition/
-                // substitution) para que se distinga de un vistazo.
+                const SizedBox(height: 4),
+                _StatusBadge(visuals: status),
                 if (item.hasModifiers) ...[
                   const SizedBox(height: 6),
                   ...item.modifiers
@@ -182,7 +243,8 @@ class OrderItemsList extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${CurrencyFormatter.format(item.unitPrice)} c/u',
+                  '${CurrencyFormatter.format(item.unitPrice)} c/u · '
+                  '${CurrencyFormatter.format(item.subtotal)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -190,27 +252,164 @@ class OrderItemsList extends StatelessWidget {
               ],
             ),
           ),
-
-          // Subtotal
-          Text(
-            '${CurrencyFormatter.format(item.subtotal)}',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
+          const SizedBox(width: 8),
+          _DeliveryTapTarget(
+            item: item,
+            nextStatus: nextStatus,
+            canForward: canForward,
+            canUndoDelivery: canUndoDelivery,
+            canShowSheet: _canInteract,
+            onTap: () => _onItemTap(context, item),
+            onLongPress: () => _onItemLongPress(context, item),
           ),
         ],
       ),
     );
   }
 
-  /// Render de una línea de modifier dentro del item.
+  /// Badge de cantidad — solo visual (el spinner de "guardando" vive
+  /// dentro del círculo tappable a la derecha, donde el usuario está
+  /// mirando cuando ejecuta la acción).
+  Widget _buildLeading(ThemeData theme, OrderItem item) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(
+          '${item.quantity}x',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onPrimaryContainer,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tap corto = acción primaria del item:
+  ///   - si NO está entregado y el rol puede avanzarlo → avanza al
+  ///     siguiente estado **sin diálogo** (1 tap = listo). Es la
+  ///     acción de alta frecuencia del mesero.
+  ///   - si YA está entregado y el rol puede entregar → muestra
+  ///     dialog de confirmación para **deshacer la entrega**. Esto
+  ///     evita reverts accidentales si el mesero toca un item ya
+  ///     marcado al pasar el dedo por la lista.
+  void _onItemTap(BuildContext context, OrderItem item) async {
+    if (controller == null) return;
+
+    if (item.isDelivered) {
+      await _confirmUndoDelivery(context, item);
+      return;
+    }
+
+    final next = _nextStatusForRole(item);
+    if (next == null) return;
+
+    HapticFeedback.lightImpact();
+    final ok = await controller!.updateItemStatus(
+      itemId: item.id,
+      newStatus: next,
+    );
+    if (ok && context.mounted) {
+      // Pequeño "ack" háptico de confirmación. No abrimos snackbar
+      // para no inundar al mesero que está marcando varios seguidos
+      // — la card ya cambia de color sola.
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  /// Dialog para confirmar "deshacer entrega". El revert no es
+  /// destructivo (no borra datos, solo vuelve el item a `ready`),
+  /// pero queremos que sea deliberado — un tap accidental no debería
+  /// revertir lo que ya fue entregado físicamente a la mesa.
+  Future<void> _confirmUndoDelivery(
+    BuildContext context,
+    OrderItem item,
+  ) async {
+    HapticFeedback.mediumImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => _UndoDeliveryDialog(item: item),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    final ok = await controller!.updateItemStatus(
+      itemId: item.id,
+      newStatus: OrderStatus.ready,
+    );
+    if (ok) HapticFeedback.selectionClick();
+  }
+
+  /// Long press = bottom sheet con acciones avanzadas. Las del flujo
+  /// normal (avanzar / deshacer entrega) ya están cubiertas por el tap
+  /// simple, así que acá solo abrimos si quedan acciones edge — "Marcar
+  /// listo desde pending" o "Devolver a cocina".
+  void _onItemLongPress(BuildContext context, OrderItem item) {
+    if (controller == null) return;
+    final perms = _permissions;
+    final hasAdvancedActions =
+        // "Marcar como listo" (solo si el rol puede + el item está
+        // antes de ready y no entregado)
+        (!item.isReady && !item.isDelivered && perms.canMarkReady) ||
+            // "Devolver a cocina" (solo cocina/bartender/admin)
+            (item.status != OrderStatus.preparing &&
+                !item.isDelivered &&
+                perms.canMarkPreparing);
+    if (!hasAdvancedActions) return;
+
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _ItemActionsSheet(
+        item: item,
+        controller: controller!,
+        permissions: perms,
+      ),
+    );
+  }
+
+  /// Devuelve el próximo status al que el ROL puede llevar al item con
+  /// UN SOLO tap, o null si el rol no tiene nada útil que hacer en
+  /// este item.
   ///
-  /// Convención visual:
-  /// - `removal` ("sin cebolla") → icono `remove_circle_outline` rojo
-  /// - `addition` ("extra queso") → icono `add_circle_outline` verde,
-  ///   con precio si tiene costo
-  /// - `substitution` → icono `swap_horiz` ámbar
+  /// La regla es deliberadamente simple para que el operario haga
+  /// **un tap por item**, no dos:
+  ///   - Si el rol puede entregar (mesero/cashier/admin/manager/
+  ///     delivery): tap → delivered. Saltamos ready, sin importar el
+  ///     estado previo. Si la cocina nunca marcó ready, el backend
+  ///     setea `prepared_at` automáticamente al saltar.
+  ///   - Si el rol solo puede marcar listo (cocina/bartender): tap →
+  ///     ready.
+  OrderStatus? _nextStatusForRole(OrderItem item) {
+    if (item.isDelivered ||
+        item.status == OrderStatus.completed ||
+        item.status == OrderStatus.cancelled) {
+      return null;
+    }
+    final perms = _permissions;
+
+    // El mesero/cashier va siempre directo a delivered — no le hace
+    // ningún favor pasar por ready primero (sería un doble tap inútil).
+    if (perms.canDeliver) return OrderStatus.delivered;
+
+    // La cocina/bartender marca listo. Si el item ya está ready no
+    // tiene nada que hacer.
+    if (perms.canMarkReady && !item.isReady) {
+      return OrderStatus.ready;
+    }
+    return null;
+  }
+
+
   Widget _buildModifierLine(ThemeData theme, OrderItemModifier mod) {
     IconData icon;
     Color color;
@@ -278,7 +477,7 @@ class OrderItemsList extends StatelessWidget {
                 ),
         ),
         Text(
-          '${CurrencyFormatter.format(amount.abs())}',
+          CurrencyFormatter.format(amount.abs()),
           style: isHighlight
               ? theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -290,6 +489,790 @@ class OrderItemsList extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────── Progress + bulk action ───────────────────────
+
+/// Card con barra de progreso "X de Y entregados" y botón "Entregar todo
+/// lo listo" para que el mesero descargue la bandeja entera de un toque
+/// cuando llega a la mesa.
+class _DeliveryProgress extends StatelessWidget {
+  final Order order;
+  final OrderDetailController controller;
+
+  const _DeliveryProgress({
+    required this.order,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      // Forzar dependencia del Rx del controller.
+      final _ = controller.order.value;
+      final progress = controller.deliveryProgress;
+      final delivered = progress.delivered;
+      final total = progress.total;
+      final pendingReady = order.items
+          .where((i) => i.isReady && !i.isDelivered)
+          .length;
+      final allDelivered = total > 0 && delivered == total;
+      final pct = total == 0 ? 0.0 : delivered / total;
+
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: allDelivered
+              ? AppColors.success.withValues(alpha: 0.08)
+              : AppColors.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: allDelivered
+                ? AppColors.success.withValues(alpha: 0.35)
+                : AppColors.primary.withValues(alpha: 0.20),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  allDelivered
+                      ? Icons.task_alt
+                      : Icons.delivery_dining_outlined,
+                  size: 18,
+                  color: allDelivered ? AppColors.success : AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    allDelivered
+                        ? 'Todos los items entregados'
+                        : 'Entregados $delivered de $total',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: allDelivered
+                          ? AppColors.success
+                          : AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                if (pendingReady > 0)
+                  FilledButton.icon(
+                    onPressed: controller.deliverAllPending,
+                    icon: const Icon(Icons.done_all, size: 16),
+                    label: Text(
+                      pendingReady == total
+                          ? 'Entregar todo'
+                          : 'Entregar $pendingReady listos',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 6,
+                backgroundColor: Colors.white,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  allDelivered ? AppColors.success : AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+// ───────────────────────── Status visuals ─────────────────────────
+
+/// Mapeo declarativo de status → color/icono/label para el badge.
+class _ItemStatusVisuals {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _ItemStatusVisuals({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  factory _ItemStatusVisuals.of(OrderItem item) {
+    if (item.isDelivered) {
+      return const _ItemStatusVisuals(
+        label: 'Entregado',
+        icon: Icons.check_circle,
+        color: AppColors.success,
+      );
+    }
+    if (item.isReady) {
+      return const _ItemStatusVisuals(
+        label: 'Listo para entregar',
+        icon: Icons.done_all,
+        color: AppColors.success,
+      );
+    }
+    switch (item.status) {
+      case OrderStatus.preparing:
+        return const _ItemStatusVisuals(
+          label: 'En cocina',
+          icon: Icons.restaurant,
+          color: Color(0xFF8E44AD),
+        );
+      case OrderStatus.cancelled:
+        return const _ItemStatusVisuals(
+          label: 'Cancelado',
+          icon: Icons.cancel_outlined,
+          color: AppColors.error,
+        );
+      case OrderStatus.pendingReview:
+      case OrderStatus.pending:
+      case OrderStatus.confirmed:
+      default:
+        return _ItemStatusVisuals(
+          label: item.requiresPreparation
+              ? 'Por preparar'
+              : 'Sin preparación',
+          icon: item.requiresPreparation
+              ? Icons.schedule
+              : Icons.local_bar_outlined,
+          color: item.requiresPreparation
+              ? AppColors.warning
+              : AppColors.info,
+        );
+    }
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final _ItemStatusVisuals visuals;
+  const _StatusBadge({required this.visuals});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: visuals.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: visuals.color.withValues(alpha: 0.35),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(visuals.icon, size: 12, color: visuals.color),
+          const SizedBox(width: 4),
+          Text(
+            visuals.label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: visuals.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Long-press sheet ─────────────────────────
+
+/// Sheet de acciones por item — escape hatch para "deshacer" un tap
+/// equivocado o forzar un estado fuera del avance normal. Las
+/// acciones que aparecen se filtran por permisos del rol — un mesero
+/// no ve "devolver a cocina"; un cocinero no ve "marcar entregado".
+class _ItemActionsSheet extends StatelessWidget {
+  final OrderItem item;
+  final OrderDetailController controller;
+  final _ItemPermissions permissions;
+
+  const _ItemActionsSheet({
+    required this.item,
+    required this.controller,
+    required this.permissions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = <(IconData, String, OrderStatus, Color)>[];
+
+    // Acciones avanzadas — el tap simple ya cubre el caso frecuente
+    // (avanzar / deshacer entrega). Acá solo dejamos los edge cases
+    // que no se llegan con tap: marcar listo desde pending/confirmed
+    // sin pasar por preparing, devolver a cocina, etc.
+    if (!item.isReady && !item.isDelivered && permissions.canMarkReady) {
+      actions.add((Icons.done_all, 'Marcar como listo',
+          OrderStatus.ready, AppColors.success));
+    }
+    if (item.status != OrderStatus.preparing &&
+        !item.isDelivered &&
+        permissions.canMarkPreparing) {
+      // "Devolver a cocina" es atribución de cocina/bartender (o
+      // admin). Mesero no debería poder mandarlo de vuelta.
+      actions.add((Icons.restaurant, 'Devolver a cocina',
+          OrderStatus.preparing, const Color(0xFF8E44AD)));
+    }
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              item.productName,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Estado actual: ${_ItemStatusVisuals.of(item).label}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (actions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'No tenés acciones disponibles para este item '
+                  'con tu rol.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            for (final a in actions) ...[
+              FilledButton.icon(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  final ok = await controller.updateItemStatus(
+                    itemId: item.id,
+                    newStatus: a.$3,
+                  );
+                  // Si el backend rechazó (ej. una excepción de
+                  // permisos por race condition entre token y matriz)
+                  // el controller ya muestra un snackbar. Acá solo
+                  // dejamos un fallback si por algún motivo no se
+                  // mostró nada.
+                  if (!ok) {
+                    AppSnackbar.show(
+                      'No se pudo actualizar',
+                      'Verificá tu rol o intentá de nuevo.',
+                    );
+                  }
+                },
+                icon: Icon(a.$1, size: 18),
+                label: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(a.$2),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: a.$4,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  alignment: Alignment.centerLeft,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Tap target ─────────────────────────
+
+/// Botón circular grande (52×52) — el ÚNICO punto del item que
+/// dispara la acción. Tres estados visuales:
+///
+///   1. Item entregado, rol puede deshacer → círculo verde sólido
+///      con check blanco. Tap → confirmación para deshacer.
+///   2. Item avanzable por el rol → círculo con borde de color +
+///      icono `Icons.radio_button_unchecked`. Tap → avanza al
+///      siguiente estado (sin diálogo, instant).
+///   3. Item no tocable por este rol (cocina viendo un ready,
+///      mesero viendo un pending sin prep, etc.) → círculo gris
+///      con icono de estado, NO tappable.
+///
+/// Mientras hay un update en vuelo para este item, mostramos un
+/// `CircularProgressIndicator` adentro del círculo y bloqueamos
+/// taps subsiguientes — sin esto el usuario podía tap-tap-tap rápido
+/// y dejar múltiples requests en vuelo.
+class _DeliveryTapTarget extends StatelessWidget {
+  final OrderItem item;
+  final OrderStatus? nextStatus;
+  final bool canForward;
+  final bool canUndoDelivery;
+  final bool canShowSheet;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _DeliveryTapTarget({
+    required this.item,
+    required this.nextStatus,
+    required this.canForward,
+    required this.canUndoDelivery,
+    required this.canShowSheet,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Si no podemos hacer nada con este item, mostramos un círculo
+    // gris pequeño solo de referencia visual (cocina ve check verde
+    // si el ítem ya fue entregado por el mesero, etc.).
+    if (!canForward && !canUndoDelivery) {
+      return _StaticIndicator(item: item);
+    }
+
+    final isUndo = !canForward && canUndoDelivery;
+    final Color color = isUndo
+        ? AppColors.warning
+        : (nextStatus == OrderStatus.delivered
+            ? AppColors.success
+            : AppColors.primary);
+
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          onLongPress: canShowSheet ? onLongPress : null,
+          child: Center(
+            child: _CircleBody(
+              item: item,
+              color: color,
+              isUndo: isUndo,
+              isForwardToDelivered:
+                  canForward && nextStatus == OrderStatus.delivered,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cuerpo visual del círculo (52×52). Cambia el icono según el
+/// destino del tap. Si hay un update en vuelo para este item, muestra
+/// un spinner adentro.
+class _CircleBody extends StatelessWidget {
+  final OrderItem item;
+  final Color color;
+  final bool isUndo;
+  final bool isForwardToDelivered;
+
+  const _CircleBody({
+    required this.item,
+    required this.color,
+    required this.isUndo,
+    required this.isForwardToDelivered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final OrderDetailController? ctrl =
+        Get.isRegistered<OrderDetailController>()
+            ? Get.find<OrderDetailController>()
+            : null;
+    Widget bodyFor(bool busy) {
+      if (busy) {
+        return SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.6,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        );
+      }
+      // Item ya entregado → círculo lleno con check blanco.
+      // Item por avanzar → círculo con borde + icono.
+      if (item.isDelivered) {
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.30),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.check_rounded,
+            color: Colors.white,
+            size: 26,
+          ),
+        );
+      }
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 2.4),
+        ),
+        child: Icon(
+          isForwardToDelivered
+              ? Icons.check_rounded
+              : Icons.done_all_rounded,
+          color: color,
+          size: 24,
+        ),
+      );
+    }
+
+    if (ctrl == null) return bodyFor(false);
+    return Obx(() {
+      final busy = ctrl.updatingItemIds.contains(item.id);
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        transitionBuilder: (child, anim) =>
+            ScaleTransition(scale: anim, child: child),
+        child: KeyedSubtree(
+          key: ValueKey('${item.id}-$busy-${item.status}'),
+          child: bodyFor(busy),
+        ),
+      );
+    });
+  }
+}
+
+/// Indicador no-tappable para items que el rol actual no puede tocar.
+/// Mantiene el espacio visual del lado derecho de la lista para que
+/// los items queden alineados, pero deja claro que no es interactivo.
+class _StaticIndicator extends StatelessWidget {
+  final OrderItem item;
+  const _StaticIndicator({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final visuals = _ItemStatusVisuals.of(item);
+    final isDone = item.isDelivered ||
+        item.status == OrderStatus.completed;
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Center(
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: visuals.color.withValues(alpha: isDone ? 0.18 : 0.08),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: visuals.color.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Icon(
+            visuals.icon,
+            color: visuals.color,
+            size: 18,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────── Item-level role permissions ─────────────────────
+
+/// Permisos del rol actual para `updateItemStatus`. Mantiene la MISMA
+/// matriz que `OrdersService.assertItemStatusTransitionAllowed` en el
+/// backend — si el backend cambia, este archivo cambia también, o el
+/// usuario verá botones que reciben 403.
+///
+/// La matriz por rol:
+///   - admin/manager → todo
+///   - kitchen/bartender → puede `preparing`, `ready` (no entrega)
+///   - waiter/cashier → puede `ready`, `delivered` (no manda a cocina)
+///   - delivery → puede `delivered` SOLO en órdenes `order_type=delivery`
+///   - cualquier otro / sin rol → nada
+class _ItemPermissions {
+  final bool canMarkReady;
+  final bool canDeliver;
+  final bool canMarkPreparing;
+
+  const _ItemPermissions({
+    required this.canMarkReady,
+    required this.canDeliver,
+    required this.canMarkPreparing,
+  });
+
+  factory _ItemPermissions.fromRole(String? roleCode, Order order) {
+    if (roleCode == null) {
+      return const _ItemPermissions(
+        canMarkReady: false,
+        canDeliver: false,
+        canMarkPreparing: false,
+      );
+    }
+    switch (roleCode) {
+      case 'admin':
+      case 'manager':
+        return const _ItemPermissions(
+          canMarkReady: true,
+          canDeliver: true,
+          canMarkPreparing: true,
+        );
+      case 'kitchen':
+      case 'bartender':
+        return const _ItemPermissions(
+          canMarkReady: true,
+          canDeliver: false,
+          canMarkPreparing: true,
+        );
+      case 'waiter':
+      case 'cashier':
+        return const _ItemPermissions(
+          canMarkReady: true,
+          canDeliver: true,
+          canMarkPreparing: false,
+        );
+      case 'delivery':
+        // Repartidor solo puede marcar entregado, y solo en órdenes
+        // que efectivamente son delivery — espejo de la regla del
+        // backend.
+        final isDelivery = order.orderType == OrderType.delivery;
+        return _ItemPermissions(
+          canMarkReady: false,
+          canDeliver: isDelivery,
+          canMarkPreparing: false,
+        );
+      default:
+        return const _ItemPermissions(
+          canMarkReady: false,
+          canDeliver: false,
+          canMarkPreparing: false,
+        );
+    }
+  }
+
+  bool get hasAnyTransition =>
+      canMarkReady || canDeliver || canMarkPreparing;
+}
+
+// ───────────────────── Undo delivery confirmation ─────────────────────
+
+/// Dialog de confirmación para deshacer la entrega de un item. Diseño:
+/// header naranja con icono `undo`, nombre del item destacado, texto
+/// claro de qué pasa, y dos botones — Cancelar (neutro) / Deshacer
+/// (naranja). Compacto, sin scrim del AlertDialog estándar.
+class _UndoDeliveryDialog extends StatelessWidget {
+  final OrderItem item;
+  const _UndoDeliveryDialog({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      backgroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.undo_rounded,
+                    color: AppColors.warning,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    '¿Deshacer entrega?',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${item.quantity}x',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      item.productName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'El item volverá a estado "Listo" y dejará de contar como '
+              'entregado. Usalo solo si lo tocaste por error o si el '
+              'cliente devolvió el plato.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    icon: const Icon(Icons.undo_rounded, size: 18),
+                    label: const Text(
+                      'Sí, deshacer',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.warning,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

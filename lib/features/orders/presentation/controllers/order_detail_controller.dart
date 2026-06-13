@@ -6,7 +6,9 @@ import '../../../../core/utils/safe_get.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../data/datasources/order_remote_datasource.dart';
 import '../../domain/entities/order.dart';
+import '../../domain/entities/order_item.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
+import '../../domain/usecases/update_order_item_status_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -29,6 +31,10 @@ class OrderDetailController extends GetxController {
   final RxBool isLoading = false.obs;
   final Rx<String?> errorMessage = Rx<String?>(null);
   final RxBool isUpdatingStatus = false.obs;
+
+  /// IDs de items con un update en vuelo. Permite mostrar un spinner
+  /// SOLO en el item tocado en vez de bloquear toda la lista.
+  final RxSet<String> updatingItemIds = <String>{}.obs;
 
   // Getters
   bool get hasOrder => order.value != null;
@@ -154,6 +160,122 @@ class OrderDetailController extends GetxController {
     } finally {
       isUpdatingStatus.value = false;
     }
+  }
+
+  /// Actualiza el estado de UN item de la orden actual. El backend
+  /// mantiene los timestamps (`prepared_at`, `delivered_at`) y, cuando
+  /// todos los items con preparación llegan al mismo estado, avanza la
+  /// orden completa automáticamente.
+  ///
+  /// La UI usa esto típicamente para que el mesero marque item-por-item
+  /// lo que va bajando a la mesa: el item pasa de `ready` → `delivered`
+  /// y cuando todos están delivered la orden completa avanza sola.
+  Future<bool> updateItemStatus({
+    required String itemId,
+    required OrderStatus newStatus,
+  }) async {
+    if (!hasOrder) return false;
+    if (updatingItemIds.contains(itemId)) return false;
+
+    // Optimistic update: mutamos el item LOCALMENTE antes de mandar
+    // al backend, así la UI cambia al instante del tap. Si el backend
+    // falla, restauramos la orden previa. Sin esto el usuario tenía
+    // que esperar el round-trip y a veces parecía que "no respondía".
+    final previousOrder = currentOrder!;
+    final patchedItems = previousOrder.items.map((it) {
+      if (it.id != itemId) return it;
+      final now = DateTime.now();
+      return OrderItem(
+        id: it.id,
+        orderId: it.orderId,
+        productId: it.productId,
+        productName: it.productName,
+        unitPrice: it.unitPrice,
+        quantity: it.quantity,
+        subtotal: it.subtotal,
+        specialInstructions: it.specialInstructions,
+        customizations: it.customizations,
+        modifiers: it.modifiers,
+        status: newStatus,
+        requiresPreparation: it.requiresPreparation,
+        preparedAt: newStatus == OrderStatus.ready
+            ? (it.preparedAt ?? now)
+            : it.preparedAt,
+        deliveredAt: newStatus == OrderStatus.delivered
+            ? now
+            : (newStatus == OrderStatus.ready ? null : it.deliveredAt),
+        createdAt: it.createdAt,
+        updatedAt: now,
+      );
+    }).toList();
+    order.value = previousOrder.copyWith(items: patchedItems);
+    order.refresh();
+
+    updatingItemIds.add(itemId);
+    try {
+      final usecase = sl<UpdateOrderItemStatusUseCase>();
+      final result = await usecase(
+        orderId: previousOrder.id,
+        itemId: itemId,
+        status: newStatus,
+      );
+      return result.fold(
+        (failure) {
+          // Revertir el optimistic update
+          order.value = previousOrder;
+          order.refresh();
+          AppSnackbar.show('No se pudo marcar el item', failure.message);
+          return false;
+        },
+        (updatedOrder) {
+          order.value = updatedOrder;
+          order.refresh();
+          if (Get.isRegistered<OrdersController>()) {
+            Get.find<OrdersController>().applyOrderUpdate(updatedOrder);
+          }
+          return true;
+        },
+      );
+    } catch (e) {
+      // Fallback de seguridad por si el use case throws fuera del fold
+      order.value = previousOrder;
+      order.refresh();
+      AppSnackbar.show('No se pudo marcar el item', e.toString());
+      return false;
+    } finally {
+      updatingItemIds.remove(itemId);
+    }
+  }
+
+  /// Marca TODOS los items pendientes como entregados de una vez.
+  /// Útil cuando el mesero llega a la mesa con la bandeja entera y
+  /// no quiere ir uno por uno. Llama al endpoint item-por-item para
+  /// que el backend respete sus timestamps y auto-advances.
+  Future<void> deliverAllPending() async {
+    if (!hasOrder) return;
+    final pending = currentOrder!.items
+        .where((i) => !i.isDelivered)
+        .map((i) => i.id)
+        .toList();
+    if (pending.isEmpty) return;
+
+    for (final id in pending) {
+      await updateItemStatus(itemId: id, newStatus: OrderStatus.delivered);
+    }
+    AppSnackbar.show(
+      'Entrega registrada',
+      '${pending.length} ${pending.length == 1 ? "item" : "items"} marcado(s) como entregado(s)',
+    );
+  }
+
+  /// Cuántos items ya están entregados sobre el total. Lo usa la UI
+  /// de la lista para el chip "X de Y entregados" y el progress bar.
+  ({int delivered, int total}) get deliveryProgress {
+    if (!hasOrder) return (delivered: 0, total: 0);
+    final total = currentOrder!.items.length;
+    final delivered =
+        currentOrder!.items.where((i) => i.isDelivered).length;
+    return (delivered: delivered, total: total);
   }
 
   /// Muestra el dialog de pago
