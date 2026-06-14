@@ -101,7 +101,6 @@ import '../../features/payments/domain/repositories/payment_repository.dart';
 import '../../features/payments/domain/usecases/get_payments_by_order_usecase.dart';
 import '../../features/payments/domain/usecases/create_payment_usecase.dart';
 import '../../features/payments/domain/usecases/process_order_payment_usecase.dart';
-import '../../features/payments/domain/usecases/process_split_payment_usecase.dart';
 import '../../features/payments/domain/usecases/refund_payment_usecase.dart';
 import '../../features/payments/domain/usecases/process_tab_payment_usecase.dart';
 import '../../features/tab_sessions/data/datasources/tab_session_remote_datasource.dart';
@@ -410,7 +409,6 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => ProcessOrderPaymentUseCase(sl()));
-  sl.registerLazySingleton(() => ProcessSplitPaymentUseCase(sl()));
   sl.registerLazySingleton(() => GetPaymentsByOrderUseCase(sl()));
   sl.registerLazySingleton(() => RefundPaymentUseCase(sl()));
   sl.registerLazySingleton(() => ProcessTabPaymentUseCase(sl()));

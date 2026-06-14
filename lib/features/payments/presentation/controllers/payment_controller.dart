@@ -2,13 +2,12 @@
 import 'dart:async';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
-import '../../../orders/presentation/controllers/order_detail_controller.dart';
+import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/payment.dart';
 import '../../domain/usecases/create_payment_usecase.dart';
 import '../../domain/usecases/get_payments_by_order_usecase.dart';
 import '../../domain/usecases/process_order_payment_usecase.dart';
-import '../../domain/usecases/process_split_payment_usecase.dart';
 import '../../domain/usecases/refund_payment_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
@@ -17,14 +16,12 @@ import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.d
 /// Controlador para manejar el estado y lógica de pagos
 class PaymentController extends GetxController {
   final ProcessOrderPaymentUseCase processOrderPaymentUseCase;
-  final ProcessSplitPaymentUseCase processSplitPaymentUseCase;
   final GetPaymentsByOrderUseCase getPaymentsByOrderUseCase;
   final RefundPaymentUseCase refundPaymentUseCase;
   final CreatePaymentUseCase createPaymentUseCase;
 
   PaymentController({
     required this.processOrderPaymentUseCase,
-    required this.processSplitPaymentUseCase,
     required this.getPaymentsByOrderUseCase,
     required this.refundPaymentUseCase,
     required this.createPaymentUseCase,
@@ -46,9 +43,6 @@ class PaymentController extends GetxController {
   // Ahorros, etc.). Opcional — si el tenant no tiene cuentas configuradas,
   // queda null y el backend acepta el pago solo con la categoría.
   final RxnString selectedTenantAccountId = RxnString();
-
-  // Split Payment Data
-  final RxList<SplitPaymentItem> splitPayments = <SplitPaymentItem>[].obs;
 
   /// Carga los pagos de una orden
   Future<void> loadPaymentsByOrder(String orderId) async {
@@ -217,88 +211,6 @@ class PaymentController extends GetxController {
     }
   }
 
-  /// Procesa pagos divididos
-  Future<List<Payment>?> processSplitPayments({required String orderId}) async {
-    try {
-      isProcessing.value = true;
-      errorMessage.value = '';
-
-      // Validar que haya pagos divididos
-      if (splitPayments.isEmpty) {
-        errorMessage.value = 'Debe agregar al menos un pago';
-        AppSnackbar.show(
-          'Error',
-          'Debe agregar al menos un pago',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
-          colorText: Get.theme.colorScheme.onError,
-        );
-        return null;
-      }
-
-      // Convertir a formato de API
-      final paymentsData = splitPayments.map((item) {
-        return {
-          'order_id': orderId,
-          'payment_method': item.paymentMethod.value,
-          'amount': item.amount,
-          if (item.receivedAmount != null)
-            'received_amount': item.receivedAmount,
-          if (item.transactionReference != null)
-            'transaction_reference': item.transactionReference,
-          if (item.notes != null) 'notes': item.notes,
-          if (item.tenantPaymentAccountId != null)
-            'tenant_payment_account_id': item.tenantPaymentAccountId,
-        };
-      }).toList();
-
-      final result = await processSplitPaymentUseCase(
-        orderId: orderId,
-        payments: paymentsData,
-      );
-
-      return result.fold(
-        (failure) {
-          errorMessage.value = failure.message;
-          if (isCashSessionRequiredError(failure.message)) {
-            handleCashSessionError(failure.message);
-            return null;
-          }
-          AppSnackbar.show(
-            'Error',
-            failure.message,
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.error,
-            colorText: Get.theme.colorScheme.onError,
-            duration: const Duration(seconds: 5),
-          );
-          return null;
-        },
-        (paymentsList) {
-          AppSnackbar.show(
-            'Pagos exitosos',
-            '${paymentsList.length} pagos procesados correctamente',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.primary,
-            colorText: Get.theme.colorScheme.onPrimary,
-            duration: const Duration(seconds: 3),
-          );
-
-          // Agregar a la lista de pagos
-          payments.addAll(paymentsList);
-          _notifyOrderChanged(orderId, tryPrintReceipt: true);
-
-          // Limpiar pagos divididos
-          splitPayments.clear();
-
-          return paymentsList;
-        },
-      );
-    } finally {
-      isProcessing.value = false;
-    }
-  }
-
   /// Reembolsa un pago
   Future<Payment?> refundPayment({
     required String paymentId,
@@ -355,69 +267,48 @@ class PaymentController extends GetxController {
     }
   }
 
-  /// Propaga un cambio de pagos al `OrderDetailController` si está
-  /// activo mostrando la misma orden. El detalle se recarga del backend
-  /// (`loadOrder`), que a su vez notifica al `OrdersController` para
-  /// que la card de la lista vea el nuevo `payment_status` /
-  /// `payment_method` sin pull-to-refresh manual.
+  /// Propaga el cambio tras un cobro a TODOS los lugares que tienen
+  /// la orden en memoria — lista global, lista de activas, detalle si
+  /// está abierto. Lo centralizamos vía `OrdersController.reloadAndApply`
+  /// que hace un único GET y aplica el resultado en cascada.
   ///
-  /// Si el detalle no está montado (caso edge: cobro desde otra
-  /// pantalla), no hay nada que hacer — al volver a entrar al detalle
-  /// se recargará igual.
+  /// Antes este flujo dependía del `OrderDetailController.refresh()`,
+  /// que NO actualizaba la lista si el detalle se cerraba antes de que
+  /// el GET terminara, o si el cobro ocurría desde una pantalla donde
+  /// el detalle ni estaba registrado. Resultado: el usuario veía data
+  /// vieja en el listado y tenía que pull-to-refresh.
   ///
-  /// **Auto-print del recibo:** si después del refresh la orden quedó
-  /// totalmente pagada Y no la imprimimos antes en esta sesión,
-  /// disparamos `PrintingOrchestrator.autoPrintReceipt` fire-and-forget.
-  /// El set `_printedReceiptIds` evita re-imprimir si el usuario hace
-  /// varios cobros parciales que terminan completando.
+  /// **Auto-print del recibo:** si la orden quedó totalmente pagada y
+  /// no la imprimimos antes en esta sesión, disparamos
+  /// `PrintingOrchestrator.autoPrintReceipt` fire-and-forget. El set
+  /// `_printedReceiptIds` evita re-imprimir si hay varios cobros
+  /// parciales que terminan completando.
   void _notifyOrderChanged(String orderId, {bool tryPrintReceipt = false}) {
-    if (!Get.isRegistered<OrderDetailController>()) return;
-    final detail = Get.find<OrderDetailController>();
-    if (detail.currentOrder?.id == orderId) {
-      detail.refresh().then((_) {
-        if (!tryPrintReceipt) return;
-        final order = detail.currentOrder;
-        if (order == null) return;
-        if (!order.isPaymentCompleted) return;
-        if (_printedReceiptIds.contains(order.id)) return;
-        _printedReceiptIds.add(order.id);
-        unawaited(
-          PrintingOrchestrator.autoPrintReceipt(
-            orderId: order.id,
-            subtitle: order.displayTableLabel,
-          ),
-        );
-      });
+    if (!Get.isRegistered<OrdersController>()) {
+      // Edge case: cobramos antes de que la lista esté montada. La
+      // próxima vez que se abra ya hará un GET fresco al onInit.
+      return;
     }
+    final orders = Get.find<OrdersController>();
+    orders.reloadAndApply(orderId).then((updated) {
+      if (updated == null) return;
+      if (!tryPrintReceipt) return;
+      if (!updated.isPaymentCompleted) return;
+      if (_printedReceiptIds.contains(updated.id)) return;
+      _printedReceiptIds.add(updated.id);
+      unawaited(
+        PrintingOrchestrator.autoPrintReceipt(
+          orderId: updated.id,
+          subtitle: updated.displayTableLabel,
+        ),
+      );
+    });
   }
 
   /// IDs de órdenes para las cuales ya disparamos auto-print del
   /// recibo en esta sesión. Evita re-imprimir si llegan varios
   /// `_notifyOrderChanged` después del cobro final.
   final Set<String> _printedReceiptIds = <String>{};
-
-  /// Agrega un pago a la lista de pagos divididos
-  void addSplitPayment(SplitPaymentItem item) {
-    splitPayments.add(item);
-  }
-
-  /// Elimina un pago de la lista de pagos divididos
-  void removeSplitPayment(int index) {
-    if (index >= 0 && index < splitPayments.length) {
-      splitPayments.removeAt(index);
-    }
-  }
-
-  /// Actualiza un pago en la lista de pagos divididos
-  void updateSplitPayment(int index, SplitPaymentItem item) {
-    if (index >= 0 && index < splitPayments.length) {
-      splitPayments[index] = item;
-    }
-  }
-
-  /// Calcula el total de pagos divididos
-  double get splitPaymentsTotal =>
-      splitPayments.fold(0.0, (sum, item) => sum + item.amount);
 
   /// Calcula el total pagado de una orden
   double getTotalPaid() {
@@ -451,11 +342,6 @@ class PaymentController extends GetxController {
     selectedTenantAccountId.value = null;
   }
 
-  /// Limpia todos los pagos divididos
-  void clearSplitPayments() {
-    splitPayments.clear();
-  }
-
   /// Selecciona un pago
   void selectPayment(Payment payment) {
     selectedPayment.value = payment;
@@ -467,27 +353,3 @@ class PaymentController extends GetxController {
   }
 }
 
-/// Split Payment Item
-/// Modelo para item de pago dividido
-class SplitPaymentItem {
-  final PaymentMethod paymentMethod;
-  final double amount;
-  final double? receivedAmount;
-  final String? transactionReference;
-  final String? notes;
-  /// Cuenta específica del tenant (Nequi, Bancolombia, etc.) para esta
-  /// parte del split. Opcional — si no se elige, el pago se registra
-  /// solo con la categoría.
-  final String? tenantPaymentAccountId;
-  final String? tenantPaymentAccountName;
-
-  SplitPaymentItem({
-    required this.paymentMethod,
-    required this.amount,
-    this.receivedAmount,
-    this.transactionReference,
-    this.notes,
-    this.tenantPaymentAccountId,
-    this.tenantPaymentAccountName,
-  });
-}

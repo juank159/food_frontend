@@ -5,7 +5,6 @@ import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../payments/domain/usecases/create_payment_usecase.dart';
 import '../../../payments/domain/usecases/get_payments_by_order_usecase.dart';
 import '../../../payments/domain/usecases/process_order_payment_usecase.dart';
-import '../../../payments/domain/usecases/process_split_payment_usecase.dart';
 import '../../../payments/domain/usecases/refund_payment_usecase.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../controllers/order_detail_controller.dart';
@@ -28,7 +27,6 @@ class OrderDetailBinding extends Bindings {
       Get.lazyPut<PaymentController>(
         () => PaymentController(
           processOrderPaymentUseCase: sl<ProcessOrderPaymentUseCase>(),
-          processSplitPaymentUseCase: sl<ProcessSplitPaymentUseCase>(),
           getPaymentsByOrderUseCase: sl<GetPaymentsByOrderUseCase>(),
           refundPaymentUseCase: sl<RefundPaymentUseCase>(),
           createPaymentUseCase: sl<CreatePaymentUseCase>(),

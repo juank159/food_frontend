@@ -1,14 +1,13 @@
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
-import '../../../../core/di/injection_container.dart';
 import '../../domain/entities/order.dart' as order_entity;
 import '../../domain/usecases/create_order_usecase.dart';
 import '../../domain/usecases/get_active_orders_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
-import '../../domain/usecases/update_order_item_status_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import 'order_detail_controller.dart';
 
 /// Orders Controller
 /// Controlador para gestionar el estado de las órdenes
@@ -124,32 +123,6 @@ class OrdersController extends GetxController {
     );
   }
 
-  /// Actualiza el estado de UN item. Backend mantiene los timestamps
-  /// y auto-avanza la orden completa cuando todos los items con
-  /// preparación llegaron a `ready` / `delivered`.
-  Future<bool> updateOrderItemStatus({
-    required String orderId,
-    required String itemId,
-    required OrderStatus newStatus,
-  }) async {
-    final usecase = sl<UpdateOrderItemStatusUseCase>();
-    final result = await usecase(
-      orderId: orderId,
-      itemId: itemId,
-      status: newStatus,
-    );
-    return result.fold(
-      (failure) {
-        AppSnackbar.show('No se pudo marcar el item', failure.message);
-        return false;
-      },
-      (updatedOrder) {
-        applyOrderUpdate(updatedOrder);
-        return true;
-      },
-    );
-  }
-
   /// Actualiza el estado de una orden
   Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
     isLoading.value = true;
@@ -198,37 +171,82 @@ class OrdersController extends GetxController {
     );
   }
 
-  /// Aplica una actualización de orden a la lista local SIN ir al backend.
+  /// Aplica una actualización de orden a TODOS los lugares donde la
+  /// orden vive en memoria — lista global, lista de activas, detail
+  /// abierto. Es el **punto único** de sincronización tras cambios:
+  /// cobros, status updates, item changes, etc.
   ///
-  /// Lo usa `OrderDetailController` después de un `updateOrderStatus`
-  /// exitoso para que la lista (`orders_page`) se entere del cambio
-  /// inmediatamente — sin esto, el usuario tendría que pull-to-refresh
-  /// manual al volver del detalle.
+  /// Sin esto los flujos asincrónicos (cobro desde detail, refresh
+  /// post-update) actualizaban solo UNA de las listas y el usuario
+  /// tenía que pull-to-refresh para ver el cambio en la otra pantalla.
   ///
-  /// Si el filtro activo es "Solo activas" y la orden pasó a un
-  /// estado terminal (completed/cancelled), la sacamos de la lista
-  /// para que no quede visible como "activa" siendo terminal.
+  /// Si está filtrando "solo activas" y la orden pasó a estado final,
+  /// la sacamos de la lista para que no quede colgada como activa.
   void applyOrderUpdate(order_entity.Order updated) {
+    // 1. Lista global `orders` (la que muestra orders_page).
     final index = orders.indexWhere((o) => o.id == updated.id);
-    if (index == -1) return;
-
-    // Si está filtrando solo activas y la orden ya no es activa,
-    // sacarla de la lista. Si no, reemplazar in-place.
-    if (showOnlyActive.value && updated.status.isFinal) {
-      orders.removeAt(index);
-    } else {
-      orders[index] = updated;
-      // `RxList[]=` debería disparar refresh interno, pero lo forzamos
-      // explícitamente — si la nueva Order es Equatable-igual a la
-      // previa (puede pasar con cambios solo en campos derivados como
-      // paidAmount cuando ya estaba seteado), el Obx no repintaría.
-      orders.refresh();
+    if (index != -1) {
+      if (showOnlyActive.value && updated.status.isFinal) {
+        orders.removeAt(index);
+      } else {
+        orders[index] = updated;
+        // `RxList[]=` debería disparar refresh interno, pero lo forzamos
+        // explícitamente — si la nueva Order es Equatable-igual a la
+        // previa (puede pasar con cambios solo en campos derivados como
+        // paidAmount cuando ya estaba seteado), el Obx no repintaría.
+        orders.refresh();
+      }
     }
 
-    // Actualizar selectedOrder por si es la misma
+    // 2. Lista `activeOrders` — la usan ciertas vistas (dashboard,
+    //    KDS, lista filtrada por activas). Si no la sincronizamos,
+    //    queda con data vieja para siempre hasta que alguien llame
+    //    `loadActiveOrders` manualmente.
+    final activeIndex =
+        activeOrders.indexWhere((o) => o.id == updated.id);
+    if (activeIndex != -1) {
+      if (updated.status.isFinal) {
+        activeOrders.removeAt(activeIndex);
+      } else {
+        activeOrders[activeIndex] = updated;
+        activeOrders.refresh();
+      }
+    }
+
+    // 3. `selectedOrder` si apunta a la misma.
     if (selectedOrder.value?.id == updated.id) {
       selectedOrder.value = updated;
     }
+
+    // 4. OrderDetailController si está abierto en esta orden — así
+    //    el detail se sincroniza sin que el caller tenga que llamarlo
+    //    manualmente (era una fuente clásica de "data vieja" si el
+    //    detail se quedaba abierto tras el cambio).
+    if (Get.isRegistered<OrderDetailController>()) {
+      final detail = Get.find<OrderDetailController>();
+      if (detail.currentOrder?.id == updated.id) {
+        detail.acceptExternalUpdate(updated);
+      }
+    }
+  }
+
+  /// Hace un GET fresco de UNA orden y aplica el resultado a todos los
+  /// lugares relevantes. Es la forma "robusta" de pedirle al sistema
+  /// que se entere de cambios remotos — usada típicamente después de
+  /// un cobro o cambio que afectó campos derivados que no podemos
+  /// calcular localmente (ej. `payment_status`, `paid_amount`, etc.).
+  ///
+  /// Devuelve la orden actualizada o null si el GET falló (en cuyo
+  /// caso no aplicamos nada para no aplastar con datos parciales).
+  Future<order_entity.Order?> reloadAndApply(String orderId) async {
+    final result = await getOrderByIdUseCase(orderId);
+    return result.fold(
+      (_) => null,
+      (order) {
+        applyOrderUpdate(order);
+        return order;
+      },
+    );
   }
 
   /// Filtra órdenes por estado

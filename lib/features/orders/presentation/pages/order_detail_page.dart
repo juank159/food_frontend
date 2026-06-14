@@ -288,11 +288,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       builder: (context) => ProcessPaymentDialog(
         orderId: order.id,
         orderTotal: order.totalAmount,
+        // Si la orden tiene pagos parciales previos, el cobro restante
+        // es el balance — NO el total. Sin pasar esto, el dialog le
+        // pedía al cajero el total completo aunque ya hubiera abonado
+        // antes.
+        amountDue: order.balance,
         controller: paymentController,
       ),
-    ).then((payment) {
-      if (payment != null) controller.refresh();
-    });
+    );
+    // OJO: NO hacemos `controller.refresh()` acá. El PaymentController
+    // ya dispara `_notifyOrderChanged(orderId)` al success, que recarga
+    // este detalle automáticamente — sin esto teníamos un GET extra
+    // por cada cobro.
   }
 
   void _showPaymentHistory(BuildContext context) {

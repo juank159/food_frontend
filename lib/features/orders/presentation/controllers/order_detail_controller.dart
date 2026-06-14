@@ -292,6 +292,19 @@ class OrderDetailController extends GetxController {
     }
   }
 
+  /// Aceptar una orden actualizada **sin ir al backend**. Lo invoca
+  /// `OrdersController.applyOrderUpdate` cuando un cambio externo
+  /// (cobro, status update) actualizó la orden en la lista y este
+  /// detalle está abierto en la misma. Antes el detalle solo se
+  /// enteraba si alguien llamaba `refresh()` manualmente y duplicaba
+  /// el GET — ahora aprovechamos el order completo que ya viene del
+  /// backend en el flujo principal.
+  void acceptExternalUpdate(Order updated) {
+    if (currentOrder?.id != updated.id) return;
+    order.value = updated;
+    order.refresh();
+  }
+
   /// True si la orden actual es una self-order por QR que está
   /// esperando aprobación. La UI usa esto para mostrar el banner
   /// + botones "Aprobar/Rechazar" en lugar del card genérico de

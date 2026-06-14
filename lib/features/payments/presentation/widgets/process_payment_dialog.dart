@@ -12,18 +12,42 @@ import '../../../cash_sessions/presentation/widgets/cash_session_required_banner
 import '../../domain/entities/payment.dart';
 
 /// Process Payment Dialog
-/// Dialog principal para procesar pagos de una orden
+/// Dialog principal para procesar pagos de una orden.
+///
+/// Cuando ya hay pagos parciales registrados, el cobro restante NO es
+/// el `orderTotal` sino lo que falta (`amountDue = total - paidAmount`).
+/// El backend siempre cobra el saldo automáticamente, pero la UI tiene
+/// que reflejar ESE saldo — sino el cajero pide más plata de la cuenta,
+/// el cash dialog calcula mal el cambio, y el resumen se ve incorrecto.
 class ProcessPaymentDialog extends StatelessWidget {
   final String orderId;
+  /// Total bruto de la orden (referencia para la UI).
   final double orderTotal;
+  /// Monto realmente a cobrar — el saldo pendiente. Si la orden no
+  /// tiene pagos previos, coincide con `orderTotal`. Si se omite, se
+  /// asume que no hay pagos previos (legacy callers).
+  final double? amountDue;
   final PaymentController controller;
 
   const ProcessPaymentDialog({
     super.key,
     required this.orderId,
     required this.orderTotal,
+    this.amountDue,
     required this.controller,
   });
+
+  /// Lo que efectivamente se va a cobrar en este dialog.
+  double get _effectiveAmount => amountDue ?? orderTotal;
+
+  /// `true` si la orden tiene pagos previos (mostramos doble badge:
+  /// total + saldo).
+  bool get _hasPartialPayment =>
+      amountDue != null && amountDue! < orderTotal - 0.01;
+
+  /// Total ya cobrado en payments previos.
+  double get _alreadyPaid =>
+      _hasPartialPayment ? (orderTotal - amountDue!) : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +109,9 @@ class ProcessPaymentDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Procesar Pago',
+                          _hasPartialPayment
+                              ? 'Cobrar saldo pendiente'
+                              : 'Procesar Pago',
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onPrimaryContainer,
@@ -93,12 +119,28 @@ class ProcessPaymentDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Total: ${CurrencyFormatter.format(orderTotal)}',
+                          // El monto destacado es el que efectivamente
+                          // se va a cobrar. Si hay pagos previos, esto
+                          // es el SALDO, no el total. Antes mostraba
+                          // siempre `orderTotal` y el cajero pedía
+                          // plata de más en la 2da pasada.
+                          'A cobrar: ${CurrencyFormatter.format(_effectiveAmount)}',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.primary,
                           ),
                         ),
+                        if (_hasPartialPayment) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Total ${CurrencyFormatter.format(orderTotal)} · '
+                            'ya abonado ${CurrencyFormatter.format(_alreadyPaid)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer
+                                  .withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -117,6 +159,17 @@ class ProcessPaymentDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Lista colapsada de pagos previos — sólo cuando
+                    // hay pagos parciales. Antes el cajero tenía que
+                    // cerrar el dialog para ver qué se había cobrado.
+                    if (_hasPartialPayment) ...[
+                      _PreviousPaymentsTile(
+                        controller: controller,
+                        orderId: orderId,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Payment Method Selector
                     Obx(() => PaymentMethodSelector(
                           selectedMethod: controller.selectedPaymentMethod.value,
@@ -310,7 +363,11 @@ class ProcessPaymentDialog extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'El pago se procesará por el monto completo de ${CurrencyFormatter.format(orderTotal)}',
+            _hasPartialPayment
+                ? 'Se cobrará el saldo pendiente de '
+                    '${CurrencyFormatter.format(_effectiveAmount)}.'
+                : 'El pago se procesará por el monto completo de '
+                    '${CurrencyFormatter.format(_effectiveAmount)}.',
             style: theme.textTheme.bodyMedium,
           ),
         ],
@@ -332,7 +389,10 @@ class ProcessPaymentDialog extends StatelessWidget {
       await showDialog(
         context: context,
         builder: (cashContext) => CashPaymentDialog(
-          totalAmount: orderTotal,
+          // Pasamos el SALDO PENDIENTE (no el total), así el cálculo
+          // de cambio y la validación de "recibido >= a cobrar" usan
+          // el monto correcto.
+          totalAmount: _effectiveAmount,
           onConfirm: (receivedAmount) async {
             controller.receivedAmount.value = receivedAmount;
             await _executePayment(outerContext);
@@ -346,9 +406,13 @@ class ProcessPaymentDialog extends StatelessWidget {
   }
 
   Future<void> _executePayment(BuildContext context) async {
+    // El backend siempre cobra el saldo pendiente automáticamente —
+    // este `orderTotal` parámetro es informativo (no se manda en el
+    // payload). Pasamos `_effectiveAmount` para que cualquier check
+    // local del controller compare contra el saldo correcto.
     final payment = await controller.processOrderPayment(
       orderId: orderId,
-      orderTotal: orderTotal,
+      orderTotal: _effectiveAmount,
     );
 
     // Si el pago fue OK y el dialog sigue montado, cerrar devolviendo
@@ -379,13 +443,186 @@ class ProcessPaymentDialog extends StatelessWidget {
       ),
     );
 
-    final paidSum = (result ?? const <Payment>[])
+    // Sumamos los pagos nuevos del split (ya vienen del backend con
+    // sus amounts reales). Para decidir si la orden quedó completa,
+    // comparamos contra el saldo PENDIENTE — si entré con $3000 de
+    // saldo y cobré $3000 en el split, eso completa la orden, aunque
+    // el total fuese $10000 con pagos previos.
+    final paidSumNow = (result ?? const <Payment>[])
         .where((p) => p.status == PaymentStatus.completed)
         .fold<double>(0, (sum, p) => sum + p.amount);
-    final fullyPaid = paidSum >= orderTotal - 0.01;
+    final fullyPaid = paidSumNow >= _effectiveAmount - 0.01;
 
     if (fullyPaid && outerContext.mounted) {
       Navigator.pop(outerContext, result);
+    }
+  }
+}
+
+// ─────────────────────── Previous payments tile ───────────────────────
+
+/// Tile colapsado con la lista de pagos ya cobrados de esta orden.
+/// Sólo se muestra cuando hay pagos parciales (decisión del parent).
+/// Carga los payments del backend al montar — el cajero ve método +
+/// monto + hora de cada cobro previo sin cerrar el dialog.
+class _PreviousPaymentsTile extends StatefulWidget {
+  final PaymentController controller;
+  final String orderId;
+
+  const _PreviousPaymentsTile({
+    required this.controller,
+    required this.orderId,
+  });
+
+  @override
+  State<_PreviousPaymentsTile> createState() => _PreviousPaymentsTileState();
+}
+
+class _PreviousPaymentsTileState extends State<_PreviousPaymentsTile> {
+  @override
+  void initState() {
+    super.initState();
+    // Cargamos los payments de esta orden al abrir el dialog si la
+    // lista actual está vacía o pertenece a otra orden. Se hace en
+    // post-frame para no llamar setState durante build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final needsReload = widget.controller.payments.isEmpty ||
+          widget.controller.payments.first.orderId != widget.orderId;
+      if (needsReload) {
+        widget.controller.loadPaymentsByOrder(widget.orderId);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Obx(() {
+      final completed = widget.controller.payments
+          .where((p) =>
+              p.orderId == widget.orderId &&
+              p.status == PaymentStatus.completed)
+          .toList()
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      if (completed.isEmpty) return const SizedBox.shrink();
+
+      final total = completed.fold<double>(0, (s, p) => s + p.amount);
+
+      return Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 4,
+          ),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.history,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          title: Text(
+            'Ya cobrado',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: Text(
+            '${completed.length} '
+            '${completed.length == 1 ? "pago" : "pagos"} · '
+            '${CurrencyFormatter.format(total)}',
+            style: theme.textTheme.bodySmall,
+          ),
+          children: [
+            const Divider(height: 1),
+            for (final p in completed)
+              _PreviousPaymentRow(payment: p),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _PreviousPaymentRow extends StatelessWidget {
+  final Payment payment;
+  const _PreviousPaymentRow({required this.payment});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final time = TimeOfDay.fromDateTime(payment.createdAt);
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Icon(
+            _iconFor(payment.paymentMethod),
+            size: 18,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  payment.paymentMethod.displayName,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  '$hh:$mm',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            CurrencyFormatter.format(payment.amount),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _iconFor(PaymentMethod m) {
+    switch (m) {
+      case PaymentMethod.cash:
+        return Icons.payments_outlined;
+      case PaymentMethod.card:
+        return Icons.credit_card;
+      case PaymentMethod.transfer:
+        return Icons.account_balance;
+      case PaymentMethod.digitalWallet:
+        return Icons.account_balance_wallet_outlined;
     }
   }
 }

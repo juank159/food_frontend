@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/domain/entities/order_item.dart';
+import '../../../orders/domain/usecases/update_order_item_status_usecase.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 
 /// **Kitchen Display System (KDS)** — pantalla full-screen para el rol
@@ -72,12 +74,30 @@ class KitchenDashboard extends StatelessWidget {
     );
   }
 
-  /// Tickets visibles para cocina: confirmed + preparing. Ordenados por
-  /// más antiguos primero (FIFO — primero entra, primero sale).
+  /// Tickets visibles para cocina: confirmed + preparing, MÁS órdenes
+  /// `pending` que contienen al menos un item que requiere preparación.
+  ///
+  /// Por qué incluir pending: con el flujo nuevo el waiter marca items
+  /// como entregados directamente desde el detalle (skip de `ready`),
+  /// así que la orden puede quedar en `pending` aunque tenga items en
+  /// cocina. Sin esta línea, esos tickets nunca aparecían en el KDS y
+  /// la cocina trabajaba "a ciegas" hasta que alguien confirmara la
+  /// orden manualmente.
+  ///
+  /// Items NO prep (bebidas embotelladas, snacks empacados) NO cuentan
+  /// — si una orden es solo "una coca-cola" no debería entrar al KDS.
+  ///
+  /// Ordenados FIFO (primero entra, primero sale).
   List<Order> _kitchenTickets(OrdersController c) {
     final list = c.orders.where((o) {
-      return o.status == OrderStatus.confirmed ||
-          o.status == OrderStatus.preparing;
+      if (o.status == OrderStatus.confirmed ||
+          o.status == OrderStatus.preparing) {
+        return true;
+      }
+      if (o.status == OrderStatus.pending) {
+        return o.items.any((i) => i.requiresPreparation);
+      }
+      return false;
     }).toList();
     list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return list;
@@ -93,9 +113,10 @@ class KitchenDashboard extends StatelessWidget {
       final preparing = tickets
           .where((o) => o.status == OrderStatus.preparing)
           .length;
-      final waiting = tickets
-          .where((o) => o.status == OrderStatus.confirmed)
-          .length;
+      // "Esperando" cubre tanto las órdenes en `confirmed` como las
+      // `pending` con items que requieren prep (ahora pueden coexistir
+      // — ver `_kitchenTickets`).
+      final waiting = tickets.length - preparing;
       return AppGradientHeader(
         title: 'Cocina · $name',
         subtitle: '$waiting esperando · $preparing en preparación',
@@ -353,10 +374,23 @@ class _ItemRow extends StatelessWidget {
                 ? null
                 : () async {
                     HapticFeedback.mediumImpact();
-                    await controller.updateOrderItemStatus(
+                    // Llamamos al use case directo en vez de pasar por
+                    // un método del controller — el OrdersController no
+                    // tiene optimistic update y duplicaba la versión
+                    // del OrderDetailController. Acá la cocina no
+                    // necesita optimistic (un tap = un cambio simple),
+                    // así que el use case + applyOrderUpdate alcanza.
+                    final result = await sl<UpdateOrderItemStatusUseCase>()(
                       orderId: orderId,
                       itemId: item.id,
-                      newStatus: OrderStatus.ready,
+                      status: OrderStatus.ready,
+                    );
+                    result.fold(
+                      (failure) => AppSnackbar.show(
+                        'No se pudo marcar el item',
+                        failure.message,
+                      ),
+                      controller.applyOrderUpdate,
                     );
                   },
             child: Row(
@@ -498,6 +532,3 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Helper para mostrar el horario de creación en cards detallados —
-/// no se usa en el grid principal pero queda disponible.
-String _fmtTime(DateTime t) => DateFormat('HH:mm').format(t);
