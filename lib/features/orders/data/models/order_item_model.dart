@@ -32,6 +32,16 @@ class OrderItemModel {
   /// cocina hasta que se actualice el producto al nuevo flag.
   @JsonKey(name: 'requires_preparation')
   final bool requiresPreparation;
+  /// Categoría del producto — usada para agrupar la comanda de cocina e
+  /// imprimir tickets separados por categoría. Se leen del JSON anidado
+  /// `product.category`. No se serializan de vuelta (no van en el create).
+  @JsonKey(includeToJson: false)
+  final String? categoryId;
+  @JsonKey(includeToJson: false)
+  final String? categoryName;
+  /// Si la categoría imprime comanda de cocina. Default `true`.
+  @JsonKey(includeToJson: false)
+  final bool categoryPrintsKitchen;
   /// Estado individual del item (pending/preparing/ready/delivered).
   final String? status;
   @JsonKey(name: 'prepared_at')
@@ -55,6 +65,9 @@ class OrderItemModel {
     this.customizations,
     this.modifiers,
     this.requiresPreparation = true,
+    this.categoryId,
+    this.categoryName,
+    this.categoryPrintsKitchen = true,
     this.status,
     this.preparedAt,
     this.deliveredAt,
@@ -139,6 +152,9 @@ class OrderItemModel {
         (product?['requires_preparation'] as bool?) ??
         true;
 
+    // Categoría del producto (para agrupar la comanda por categoría).
+    final category = product?['category'] as Map<String, dynamic>?;
+
     return OrderItemModel(
       id: json['id'] as String,
       orderId: (json['order_id'] as String?) ?? '',
@@ -153,6 +169,10 @@ class OrderItemModel {
           ?.map((m) => OrderItemModifierModel.fromJson(m as Map<String, dynamic>))
           .toList(),
       requiresPreparation: requiresPreparation,
+      categoryId: category?['id'] as String?,
+      categoryName: category?['name'] as String?,
+      categoryPrintsKitchen:
+          (category?['prints_kitchen'] as bool?) ?? true,
       status: json['status'] as String?,
       preparedAt: json['prepared_at'] as String?,
       deliveredAt: json['delivered_at'] as String?,

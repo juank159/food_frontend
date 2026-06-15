@@ -104,6 +104,14 @@ class OrderFormController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Sincronizar el estado con el modo por defecto (Mostrador). Sin esto,
+    // `currentMode` arranca en counter pero `orderType` queda en su default
+    // dineIn y `isQuickSale` en false → la pantalla EXIGE mesa aunque el
+    // pill diga "Mostrador" (el bug que reportó el usuario). `_applyInitialMode`
+    // de SellPage solo corre cuando hay args, así que el caso "Nueva orden"
+    // sin args quedaba inconsistente. Aplicar el modo acá lo deja coherente
+    // siempre; si llegan args, SellPage vuelve a llamar applyMode y gana ese.
+    applyMode(currentMode.value);
     // Cargar tax_settings + tip_settings del tenant para que los cálculos
     // del cart usen la misma lógica que el backend (una sola request).
     loadTenantPricingSettings();

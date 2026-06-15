@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -10,6 +12,7 @@ import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/process_payment_dialog.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../controllers/order_form_controller.dart';
 import '../models/sell_mode.dart';
 import '../widgets/cart_widget.dart';
@@ -530,6 +533,13 @@ class _BottomBar extends StatelessWidget {
     if (!context.mounted) return;
     final order = controller.lastCreatedOrder.value;
     if (order == null) return; // submitOrder ya mostró el error.
+
+    // Imprimir la(s) comanda(s) de cocina automáticamente al registrar el
+    // pedido — una por categoría (solo categorías con `prints_kitchen` e
+    // items que requieren preparación). Fire-and-forget: no bloquea el
+    // cobro ni la navegación; el orquestador omite solo si no hay
+    // impresora de cocina configurada o no hay items para cocina.
+    unawaited(PrintingOrchestrator.autoPrintKitchen(orderId: order.id));
 
     if (mode.autoPayAfterSubmit) {
       // Mostrador, takeaway, delivery: cobramos directo.

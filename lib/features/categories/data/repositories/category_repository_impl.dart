@@ -192,6 +192,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
     bool isActive = true,
     int displayOrder = 0,
     String? parentId,
+    bool printsKitchen = true,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -204,6 +205,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
           isActive: isActive,
           displayOrder: displayOrder,
           parentId: parentId,
+          printsKitchen: printsKitchen,
         );
         return Right(result.toEntity());
       } on UnauthorizedException {
@@ -231,6 +233,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -244,6 +247,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
           isActive: isActive,
           displayOrder: displayOrder,
           parentId: parentId,
+          printsKitchen: printsKitchen,
         );
         return Right(result.toEntity());
       } on UnauthorizedException {

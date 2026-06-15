@@ -19,6 +19,7 @@ class CreateCategoryUseCase {
     bool isActive = true,
     int displayOrder = 0,
     String? parentId,
+    bool printsKitchen = true,
   }) async {
     return await repository.createCategory(
       name: name,
@@ -29,6 +30,7 @@ class CreateCategoryUseCase {
       isActive: isActive,
       displayOrder: displayOrder,
       parentId: parentId,
+      printsKitchen: printsKitchen,
     );
   }
 }

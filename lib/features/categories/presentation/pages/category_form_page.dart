@@ -299,6 +299,51 @@ class CategoryFormPage extends GetView<CategoryFormController> {
             ),
           );
         }),
+        const Divider(height: 1),
+        Obx(() {
+          final prints = controller.printsKitchen.value;
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SwitchListTile.adaptive(
+              activeColor: AppColors.primary,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                prints ? 'Imprime comanda en cocina' : 'No imprime comanda',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                prints
+                    ? 'Sus productos que van a preparación salen en una comanda aparte al registrar el pedido'
+                    : 'Sus productos no se mandan a cocina (ej. bebidas de nevera)',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              secondary: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: (prints ? AppColors.primary : AppColors.textSecondary)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  prints ? Icons.print : Icons.print_disabled,
+                  color: prints ? AppColors.primary : AppColors.textSecondary,
+                  size: 18,
+                ),
+              ),
+              value: prints,
+              onChanged: (value) => controller.printsKitchen.value = value,
+            ),
+          );
+        }),
       ],
     );
   }

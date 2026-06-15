@@ -42,6 +42,8 @@ class CategoryFormController extends GetxController {
 
   // Observable states
   final RxBool isActive = true.obs;
+  /// Si la categoría imprime comanda de cocina al registrar el pedido.
+  final RxBool printsKitchen = true.obs;
   final Rx<String?> selectedParentId = Rx<String?>(null);
   final RxList<Category> availableParentCategories = <Category>[].obs;
 
@@ -95,6 +97,7 @@ class CategoryFormController extends GetxController {
     iconController.text = category.icon ?? '';
     displayOrderController.text = category.displayOrder.toString();
     isActive.value = category.isActive;
+    printsKitchen.value = category.printsKitchen;
     selectedParentId.value = category.parentId;
   }
 
@@ -202,6 +205,7 @@ class CategoryFormController extends GetxController {
       isActive: isActive.value,
       displayOrder: int.tryParse(displayOrderController.text) ?? 0,
       parentId: selectedParentId.value,
+      printsKitchen: printsKitchen.value,
     );
 
     result.fold(
@@ -256,6 +260,7 @@ class CategoryFormController extends GetxController {
       isActive: isActive.value,
       displayOrder: int.tryParse(displayOrderController.text) ?? 0,
       parentId: selectedParentId.value,
+      printsKitchen: printsKitchen.value,
     );
 
     result.fold(

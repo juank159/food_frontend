@@ -31,6 +31,9 @@ class CategoryModel {
   final int? displayOrder;
   @JsonKey(name: 'parent_category_id')
   final String? parentId;
+  /// Si la categoría imprime comanda de cocina. Default `true`.
+  @JsonKey(name: 'prints_kitchen')
+  final bool printsKitchen;
   // El backend devuelve la relación como `subcategories` (TypeORM).
   // Aceptamos también `children` por si algún endpoint lo serializa así.
   @JsonKey(name: 'subcategories', readValue: _readChildren)
@@ -50,6 +53,7 @@ class CategoryModel {
     required this.isActive,
     this.displayOrder,
     this.parentId,
+    this.printsKitchen = true,
     this.children,
     required this.createdAt,
     required this.updatedAt,
@@ -67,6 +71,7 @@ class CategoryModel {
       isActive: isActive,
       displayOrder: displayOrder ?? 0,
       parentId: parentId,
+      printsKitchen: printsKitchen,
       children: children?.map((child) => child.toEntity()).toList() ?? const [],
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
@@ -85,6 +90,7 @@ class CategoryModel {
       isActive: category.isActive,
       displayOrder: category.displayOrder,
       parentId: category.parentId,
+      printsKitchen: category.printsKitchen,
       children: category.children
           .map((child) => CategoryModel.fromEntity(child))
           .toList(),

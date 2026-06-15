@@ -41,6 +41,7 @@ abstract class CategoryRemoteDataSource {
     bool isActive = true,
     int displayOrder = 0,
     String? parentId,
+    bool printsKitchen = true,
   });
 
   /// Actualiza una categoría
@@ -54,6 +55,7 @@ abstract class CategoryRemoteDataSource {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
   });
 
   /// Elimina una categoría
@@ -254,6 +256,7 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     bool isActive = true,
     int displayOrder = 0,
     String? parentId,
+    bool printsKitchen = true,
   }) async {
     try {
       // NOTA: el backend usa `whitelist + forbidNonWhitelisted` en el
@@ -266,6 +269,7 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
         'description': description,
         'is_active': isActive,
         'sort_order': displayOrder,
+        'prints_kitchen': printsKitchen,
       };
 
       if (imageUrl != null) requestBody['image_url'] = imageUrl;
@@ -305,6 +309,7 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
   }) async {
     try {
       final requestBody = <String, dynamic>{};
@@ -315,6 +320,9 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
       if (isActive != null) requestBody['is_active'] = isActive;
       if (displayOrder != null) requestBody['sort_order'] = displayOrder;
       if (parentId != null) requestBody['parent_category_id'] = parentId;
+      if (printsKitchen != null) {
+        requestBody['prints_kitchen'] = printsKitchen;
+      }
 
       final response = await dio.patch(
         ApiConstants.categoryById(id),

@@ -20,6 +20,7 @@ class UpdateCategoryUseCase {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
   }) async {
     return await repository.updateCategory(
       id: id,
@@ -31,6 +32,7 @@ class UpdateCategoryUseCase {
       isActive: isActive,
       displayOrder: displayOrder,
       parentId: parentId,
+      printsKitchen: printsKitchen,
     );
   }
 }

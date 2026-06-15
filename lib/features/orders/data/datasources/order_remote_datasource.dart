@@ -94,10 +94,14 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
       if (orderType != null) queryParams['order_type'] = orderType.value;
       if (tableId != null) queryParams['table_id'] = tableId;
       if (customerId != null) queryParams['customer_id'] = customerId;
+      // El backend espera `date_from` / `date_to` (ver
+      // orders.controller.ts @Query). Antes mandábamos `start_date` /
+      // `end_date`, que el backend ignoraba en silencio → el filtro de
+      // fecha nunca tomaba efecto (acá y en reportes).
       if (startDate != null) {
-        queryParams['start_date'] = startDate.toIso8601String();
+        queryParams['date_from'] = startDate.toIso8601String();
       }
-      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+      if (endDate != null) queryParams['date_to'] = endDate.toIso8601String();
       if (page != null) queryParams['page'] = page;
       if (limit != null) queryParams['limit'] = limit;
 

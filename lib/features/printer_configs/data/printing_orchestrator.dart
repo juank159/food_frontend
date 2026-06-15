@@ -285,8 +285,7 @@ class PrintingOrchestrator {
     // nada — sería un papel con header + 0 items (ej. ticket que solo
     // tiene una botella de agua). Retornamos `true` para que el
     // orquestador muestre "OK" sin marcar error.
-    if (kind == PrintJobKind.kitchen &&
-        !order.items.any((i) => i.requiresPreparation)) {
+    if (kind == PrintJobKind.kitchen && !_hasKitchenItems(order)) {
       return true;
     }
     final ticket = await _buildTicketData(order, kind);
@@ -342,7 +341,7 @@ class PrintingOrchestrator {
     // maneja con un short-circuit.
     if (kind == PrintJobKind.kitchen) {
       final order = await _fetchOrder(orderId);
-      if (!order.items.any((i) => i.requiresPreparation)) {
+      if (!_hasKitchenItems(order)) {
         return true;
       }
     }
@@ -424,8 +423,15 @@ class PrintingOrchestrator {
       subtotal: item.subtotal,
       specialInstructions: item.specialInstructions,
       requiresPreparation: item.requiresPreparation,
+      categoryName: item.categoryName,
+      categoryPrintsKitchen: item.categoryPrintsKitchen,
     );
   }
+
+  /// `true` si la orden tiene al menos un item que debe ir a cocina:
+  /// requiere preparación Y su categoría imprime comanda.
+  static bool _hasKitchenItems(OrderModel order) =>
+      order.items.any((i) => i.requiresPreparation && i.categoryPrintsKitchen);
 
   // ── Snackbars (siempre via AppSnackbar) ───────────────────────────
 

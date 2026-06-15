@@ -7,6 +7,7 @@ import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/date_period.dart';
 import 'order_detail_controller.dart';
 
 /// Orders Controller
@@ -41,6 +42,9 @@ class OrdersController extends GetxController {
   final Rx<DateTime?> startDate = Rx<DateTime?>(null);
   final Rx<DateTime?> endDate = Rx<DateTime?>(null);
 
+  /// Período de fecha seleccionado en el filtro. Default = hoy.
+  final Rx<DatePeriod> datePeriod = DatePeriod.today.obs;
+
   // View states
   final RxBool showOnlyActive = false.obs;
   final RxInt selectedTabIndex = 0.obs;
@@ -48,6 +52,11 @@ class OrdersController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Arrancamos mostrando SOLO las órdenes de hoy — es la vista que el
+    // cajero/mesero necesita el 99% del tiempo y evita traer histórico
+    // pesado al abrir. El usuario puede ampliar el período desde el
+    // filtro de fecha.
+    _applyPeriodDates(DatePeriod.today);
     loadOrders();
   }
 
@@ -255,23 +264,23 @@ class OrdersController extends GetxController {
     loadOrders();
   }
 
-  /// Filtra órdenes por tipo
+  /// Filtra órdenes por tipo (server-side). Sale del modo "solo activas"
+  /// (endpoint /active, que ignora filtros) para que el tipo tome efecto.
   void filterByOrderType(OrderType? orderType) {
     filterOrderType.value = orderType;
+    if (showOnlyActive.value) showOnlyActive.value = false;
     loadOrders();
   }
 
-  /// Filtra órdenes por estado de pago
+  /// Filtra órdenes por estado de pago.
+  ///
+  /// El backend NO soporta este filtro, así que es client-side. ANTES se
+  /// mutaba `orders.value = orders.where(...)`, lo que destruía la lista
+  /// cargada: al combinarlo con otro filtro se perdían órdenes hasta un
+  /// reload. Ahora solo guardamos el valor y el getter `filteredOrders`
+  /// lo aplica como VISTA (no destructivo, combinable con búsqueda).
   void filterByPaymentStatus(PaymentStatus? paymentStatus) {
     filterPaymentStatus.value = paymentStatus;
-    // Aplicar filtro local ya que el backend no soporta este filtro directamente
-    if (paymentStatus == null) {
-      loadOrders();
-    } else {
-      orders.value = orders
-          .where((order) => order.paymentStatus == paymentStatus)
-          .toList();
-    }
   }
 
   /// Alterna el filtro de solo activos
@@ -291,15 +300,47 @@ class OrdersController extends GetxController {
     loadOrders();
   }
 
-  /// Limpia todos los filtros
+  /// Traduce un [DatePeriod] a un rango concreto (via `resolveDatePeriod`,
+  /// reutilizable en otras pantallas) y lo deja en `startDate`/`endDate`
+  /// SIN recargar. Lo usa `onInit` (default hoy) y `setDatePeriod`.
+  void _applyPeriodDates(
+    DatePeriod period, {
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) {
+    final range = resolveDatePeriod(
+      period,
+      customStart: customStart,
+      customEnd: customEnd,
+    );
+    startDate.value = range.start;
+    endDate.value = range.end;
+    datePeriod.value = period;
+  }
+
+  /// Cambia el período del filtro de fecha y recarga desde el backend.
+  /// Para `custom` pasar [customStart] y [customEnd] (del date range picker).
+  void setDatePeriod(
+    DatePeriod period, {
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) {
+    // El filtro de fecha trabaja sobre la carga "por fechas" (loadOrders).
+    // Si estábamos en "solo activas" (endpoint /active, que ignora fechas)
+    // salimos de ese modo para que el período tenga efecto.
+    if (showOnlyActive.value) showOnlyActive.value = false;
+    _applyPeriodDates(period, customStart: customStart, customEnd: customEnd);
+    loadOrders();
+  }
+
+  /// Limpia todos los filtros y vuelve al default (órdenes de hoy).
   void clearFilters() {
     filterStatus.value = null;
     filterOrderType.value = null;
     filterPaymentStatus.value = null;
     searchQuery.value = '';
-    startDate.value = null;
-    endDate.value = null;
     showOnlyActive.value = false;
+    _applyPeriodDates(DatePeriod.today);
     loadOrders();
   }
 
@@ -359,28 +400,68 @@ class OrdersController extends GetxController {
   /// Verifica si hay órdenes cargadas
   bool get hasOrders => orders.isNotEmpty;
 
-  /// Verifica si hay filtros activos
+  /// Verifica si hay filtros activos. El período "Hoy" es el default, así
+  /// que NO cuenta como filtro activo; cualquier otro período sí.
   bool get hasActiveFilters =>
       filterStatus.value != null ||
       filterOrderType.value != null ||
       filterPaymentStatus.value != null ||
       searchQuery.value.isNotEmpty ||
-      startDate.value != null ||
-      endDate.value != null;
+      datePeriod.value != DatePeriod.today;
 
-  /// Aplica el `searchQuery` localmente sobre la lista ya cargada.
-  /// Buscamos en número de orden, nombre del cliente, mesa y teléfono.
-  /// Búsqueda case-insensitive — el operario escribe rápido y sin
-  /// formato.
+  /// Vista filtrada sobre la lista ya cargada. Aplica, en este orden, los
+  /// filtros CLIENT-SIDE (no destructivos):
+  ///   1. Estado de pago (el backend no lo soporta).
+  ///   2. Búsqueda por número / cliente / mesa / teléfono (case-insensitive).
+  ///
+  /// Los filtros server-side (fecha, estado, tipo) ya vienen aplicados en
+  /// `orders` porque disparan un reload. Este getter se lee dentro de `Obx`,
+  /// así que cambiar pago o búsqueda repinta la lista sin volver al backend.
   List<order_entity.Order> get filteredOrders {
+    Iterable<order_entity.Order> result = orders;
+
+    final pay = filterPaymentStatus.value;
+    if (pay != null) {
+      result = result.where((o) => o.paymentStatus == pay);
+    }
+
     final q = searchQuery.value.trim().toLowerCase();
-    if (q.isEmpty) return orders;
-    return orders.where((o) {
-      return o.orderNumber.toLowerCase().contains(q) ||
-          (o.customerName?.toLowerCase().contains(q) ?? false) ||
-          (o.customerPhone?.toLowerCase().contains(q) ?? false) ||
-          (o.displayTableLabel.toLowerCase().contains(q));
-    }).toList();
+    if (q.isNotEmpty) {
+      result = result.where((o) {
+        return o.orderNumber.toLowerCase().contains(q) ||
+            (o.customerName?.toLowerCase().contains(q) ?? false) ||
+            (o.customerPhone?.toLowerCase().contains(q) ?? false) ||
+            (o.displayTableLabel.toLowerCase().contains(q));
+      });
+    }
+
+    return result.toList();
+  }
+
+  /// Cantidad de filtros avanzados activos: estado (estado puntual o
+  /// "solo activas" cuentan como 1), tipo de orden y estado de pago. Lo
+  /// usa el badge del botón "Filtros". El período NO cuenta (se ve en su
+  /// propio pill) ni la búsqueda (tiene su propio campo).
+  int get advancedFilterCount =>
+      ((filterStatus.value != null || showOnlyActive.value) ? 1 : 0) +
+      (filterOrderType.value != null ? 1 : 0) +
+      (filterPaymentStatus.value != null ? 1 : 0);
+
+  /// Limpia los filtros avanzados (estado, "solo activas", tipo de orden y
+  /// estado de pago), preservando período de fecha y búsqueda. Lo usan el
+  /// botón "Limpiar" del sheet y los chips de filtros activos.
+  void clearAdvancedFilters() {
+    // ¿Algún filtro server-side activo? (status / tipo / modo activas)
+    final hadServerFilter = filterStatus.value != null ||
+        filterOrderType.value != null ||
+        showOnlyActive.value;
+    filterStatus.value = null;
+    filterOrderType.value = null;
+    filterPaymentStatus.value = null;
+    showOnlyActive.value = false;
+    // status/tipo son server-side → recargar por fechas. El pago es
+    // client-side (lo aplica `filteredOrders`), no necesita reload.
+    if (hadServerFilter) loadOrders();
   }
 
   /// Setter del query — al ser RxString reactivo, cualquier widget que

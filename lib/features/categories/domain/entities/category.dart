@@ -12,6 +12,11 @@ class Category extends Equatable {
   final bool isActive;
   final int displayOrder;
   final String? parentId;
+
+  /// Si la categoría imprime comanda de cocina al registrar el pedido
+  /// (para sus productos que requieren preparación). Default true.
+  final bool printsKitchen;
+
   final List<Category> children;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -26,6 +31,7 @@ class Category extends Equatable {
     required this.isActive,
     required this.displayOrder,
     this.parentId,
+    this.printsKitchen = true,
     this.children = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -51,6 +57,7 @@ class Category extends Equatable {
         isActive,
         displayOrder,
         parentId,
+        printsKitchen,
         children,
         createdAt,
         updatedAt,
@@ -67,6 +74,7 @@ class Category extends Equatable {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
     List<Category>? children,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -81,6 +89,7 @@ class Category extends Equatable {
       isActive: isActive ?? this.isActive,
       displayOrder: displayOrder ?? this.displayOrder,
       parentId: parentId ?? this.parentId,
+      printsKitchen: printsKitchen ?? this.printsKitchen,
       children: children ?? this.children,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

@@ -74,6 +74,14 @@ class TicketItem {
   /// seguridad (productos sin flag explícito siguen yendo a cocina).
   final bool requiresPreparation;
 
+  /// Categoría del producto — la comanda se agrupa por categoría e
+  /// imprime un ticket separado por cada una.
+  final String? categoryName;
+
+  /// Si la categoría imprime comanda. Items en `false` no salen a cocina
+  /// aunque `requiresPreparation` sea true. Default `true`.
+  final bool categoryPrintsKitchen;
+
   const TicketItem({
     required this.quantity,
     required this.name,
@@ -82,6 +90,8 @@ class TicketItem {
     required this.subtotal,
     required this.specialInstructions,
     this.requiresPreparation = true,
+    this.categoryName,
+    this.categoryPrintsKitchen = true,
   });
 }
 
@@ -113,7 +123,41 @@ class EscPosGenerator {
     final bytes = <int>[];
     bytes.addAll(gen.reset());
 
-    // ─── Header: "COMANDA" + tipo de orden ───
+    // Items que VAN a cocina/barra: requieren preparación Y su categoría
+    // imprime comanda. Lo demás (botellas, snacks, categorías excluidas)
+    // no aparece — sale en el recibo pero no en cocina.
+    final kitchenItems = data.items
+        .where((i) => i.requiresPreparation && i.categoryPrintsKitchen)
+        .toList();
+    if (kitchenItems.isEmpty) {
+      return Uint8List.fromList(bytes);
+    }
+
+    // Agrupar por categoría preservando el orden de aparición → una
+    // comanda SEPARADA (con su propio corte) por cada categoría.
+    final groups = <String, List<TicketItem>>{};
+    for (final item in kitchenItems) {
+      final key = (item.categoryName ?? 'GENERAL').toUpperCase();
+      groups.putIfAbsent(key, () => []).add(item);
+    }
+
+    for (final entry in groups.entries) {
+      _writeKitchenSection(gen, bytes, data, entry.key, entry.value);
+    }
+
+    return Uint8List.fromList(bytes);
+  }
+
+  /// Escribe UNA comanda (la de una categoría) en [bytes], terminando con
+  /// corte de papel para que cada categoría salga en su propio ticket.
+  static void _writeKitchenSection(
+    Generator gen,
+    List<int> bytes,
+    TicketData data,
+    String categoryName,
+    List<TicketItem> items,
+  ) {
+    // ─── Header: "COMANDA" + categoría (estación) + tipo de orden ───
     bytes.addAll(
       gen.text(
         'COMANDA',
@@ -121,6 +165,16 @@ class EscPosGenerator {
           align: PosAlign.center,
           height: PosTextSize.size2,
           width: PosTextSize.size2,
+          bold: true,
+        ),
+      ),
+    );
+    bytes.addAll(
+      gen.text(
+        categoryName,
+        styles: const PosStyles(
+          align: PosAlign.center,
+          height: PosTextSize.size2,
           bold: true,
         ),
       ),
@@ -179,14 +233,8 @@ class EscPosGenerator {
 
     bytes.addAll(gen.hr());
 
-    // ─── Items que VAN a cocina/barra ───
-    // Las bebidas embotelladas, snacks empacados y todo lo que no pasa
-    // por cocina (`requiresPreparation == false`) NO aparece en la
-    // comanda — sale igual en el recibo del cliente y queda en el
-    // ticket, pero a la cocina/barra no le interesa. Esto evita
-    // imprimir "1× Botella de agua" en la comanda y desperdiciar papel.
-    final kitchenItems = data.items.where((i) => i.requiresPreparation);
-    for (final item in kitchenItems) {
+    // ─── Items de esta categoría ───
+    for (final item in items) {
       bytes.addAll(
         gen.text(
           '${item.quantity}x ${item.name.toUpperCase()}',
@@ -211,7 +259,7 @@ class EscPosGenerator {
       bytes.addAll(gen.feed(1));
     }
 
-    // ─── Notas generales ───
+    // ─── Notas generales (se repiten en cada comanda) ───
     if (data.notes != null && data.notes!.isNotEmpty) {
       bytes.addAll(gen.hr());
       bytes.addAll(
@@ -228,11 +276,9 @@ class EscPosGenerator {
       ),
     );
 
-    // Avance + corte.
+    // Avance + corte → ticket independiente por categoría.
     bytes.addAll(gen.feed(2));
     bytes.addAll(gen.cut());
-
-    return Uint8List.fromList(bytes);
   }
 
   /// Genera recibo del cliente (con precios + totales + método de pago).

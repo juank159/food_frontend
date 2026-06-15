@@ -45,6 +45,7 @@ abstract class CategoryRepository {
     bool isActive = true,
     int displayOrder = 0,
     String? parentId,
+    bool printsKitchen = true,
   });
 
   /// Actualiza una categoría existente
@@ -58,6 +59,7 @@ abstract class CategoryRepository {
     bool? isActive,
     int? displayOrder,
     String? parentId,
+    bool? printsKitchen,
   });
 
   /// Elimina una categoría
