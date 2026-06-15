@@ -42,6 +42,9 @@ class OrderItemModel {
   /// Si la categoría imprime comanda de cocina. Default `true`.
   @JsonKey(includeToJson: false)
   final bool categoryPrintsKitchen;
+  /// Cremas/sabores elegidos (snapshot de nombres) — para la comanda.
+  @JsonKey(includeToJson: false)
+  final List<String> selectedFlavors;
   /// Estado individual del item (pending/preparing/ready/delivered).
   final String? status;
   @JsonKey(name: 'prepared_at')
@@ -68,6 +71,7 @@ class OrderItemModel {
     this.categoryId,
     this.categoryName,
     this.categoryPrintsKitchen = true,
+    this.selectedFlavors = const [],
     this.status,
     this.preparedAt,
     this.deliveredAt,
@@ -173,6 +177,11 @@ class OrderItemModel {
       categoryName: category?['name'] as String?,
       categoryPrintsKitchen:
           (category?['prints_kitchen'] as bool?) ?? true,
+      selectedFlavors:
+          (json['selected_flavors'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const [],
       status: json['status'] as String?,
       preparedAt: json['prepared_at'] as String?,
       deliveredAt: json['delivered_at'] as String?,

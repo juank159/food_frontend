@@ -10,6 +10,7 @@ import '../../features/categories/presentation/bindings/categories_binding.dart'
 import '../../features/categories/presentation/bindings/category_detail_binding.dart';
 import '../../features/categories/presentation/bindings/category_form_binding.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
+import '../../features/flavors/presentation/pages/flavors_page.dart';
 import '../../features/categories/presentation/pages/category_detail_page.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
 import '../../features/customers/presentation/bindings/customer_detail_binding.dart';
@@ -429,6 +430,15 @@ class AppPages {
       binding: ModifierFormBinding(),
       middlewares: [AuthGuard()],
       transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // ==================== FLAVORS / CREMAS PAGE ====================
+    GetPage(
+      name: AppRoutes.flavors,
+      page: () => const FlavorsPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),
     ),
 

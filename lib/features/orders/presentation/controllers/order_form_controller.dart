@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/error/failures.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/domain/entities/product_variant.dart';
@@ -21,6 +24,10 @@ class CartItem {
   String? specialInstructions;
   ProductVariant? selectedVariant;
   List<SelectedModifier> selectedModifiers;
+  /// Cremas/sabores elegidos (uno por bola; pueden repetirse). `flavorIds`
+  /// viaja al backend; `flavorNames` es para mostrar en el carrito.
+  List<String> flavorIds;
+  List<String> flavorNames;
 
   CartItem({
     required this.product,
@@ -29,8 +36,12 @@ class CartItem {
     this.specialInstructions,
     this.selectedVariant,
     List<SelectedModifier>? selectedModifiers,
+    List<String>? flavorIds,
+    List<String>? flavorNames,
   })  : unitPrice = unitPrice ?? product.basePrice,
-        selectedModifiers = selectedModifiers ?? [];
+        selectedModifiers = selectedModifiers ?? [],
+        flavorIds = flavorIds ?? [],
+        flavorNames = flavorNames ?? [];
 
   /// Calcula el precio base considerando variante
   double get effectiveBasePrice {
@@ -71,6 +82,7 @@ class CartItem {
       if (selectedVariant != null) 'variant_id': selectedVariant!.id,
       if (selectedModifiers.isNotEmpty)
         'modifiers': selectedModifiers.map((m) => m.toJson()).toList(),
+      if (flavorIds.isNotEmpty) 'flavor_ids': flavorIds,
     };
   }
 
@@ -82,6 +94,8 @@ class CartItem {
     String? specialInstructions,
     ProductVariant? selectedVariant,
     List<SelectedModifier>? selectedModifiers,
+    List<String>? flavorIds,
+    List<String>? flavorNames,
   }) {
     return CartItem(
       product: product ?? this.product,
@@ -90,6 +104,8 @@ class CartItem {
       specialInstructions: specialInstructions ?? this.specialInstructions,
       selectedVariant: selectedVariant ?? this.selectedVariant,
       selectedModifiers: selectedModifiers ?? this.selectedModifiers,
+      flavorIds: flavorIds ?? this.flavorIds,
+      flavorNames: flavorNames ?? this.flavorNames,
     );
   }
 }
@@ -488,6 +504,9 @@ class OrderFormController extends GetxController {
     ProductVariant? variant,
     List<SelectedModifier>? modifiers,
     String? specialInstructions,
+    List<String>? flavorIds,
+    List<String>? flavorNames,
+    bool silent = false,
   }) {
     // Validación de stock — si el producto trackea inventario, no podemos
     // dejar que el carrito supere `currentStock` porque al confirmar la orden
@@ -506,12 +525,14 @@ class OrderFormController extends GetxController {
 
     final notes = specialInstructions?.trim();
     final hasNotes = notes != null && notes.isNotEmpty;
+    final hasFlavors = flavorIds != null && flavorIds.isNotEmpty;
 
-    // Si el producto tiene variantes, modificadores o nota explícita,
-    // siempre se agrega como item nuevo — cada combinación es única y
-    // dos clientes pueden pedir "sin cebolla" en pedidos distintos.
+    // Si el producto tiene variantes, modificadores, cremas o nota
+    // explícita, siempre se agrega como item nuevo — cada combinación es
+    // única y dos clientes pueden pedir "sin cebolla" en pedidos distintos.
     if ((variant != null) ||
         (modifiers != null && modifiers.isNotEmpty) ||
+        hasFlavors ||
         hasNotes) {
       cartItems.add(CartItem(
         product: product,
@@ -519,6 +540,8 @@ class OrderFormController extends GetxController {
         selectedVariant: variant,
         selectedModifiers: modifiers ?? [],
         specialInstructions: hasNotes ? notes : null,
+        flavorIds: flavorIds,
+        flavorNames: flavorNames,
       ));
     } else {
       // Check if product already exists (sin variante ni modificadores ni nota)
@@ -541,7 +564,11 @@ class OrderFormController extends GetxController {
       }
     }
 
-    // Mostrar mensaje con variante y modificadores si aplica
+    // Feedback. En el agregado rápido (stepper inline en el catálogo) lo
+    // omitimos: la cantidad del card ya cambia a la vista y un snackbar por
+    // toque sería ruido que ralentiza al operario tocando varias veces.
+    if (silent) return;
+
     final variantText = variant != null ? ' (${variant.name})' : '';
     final modifiersText = modifiers != null && modifiers.isNotEmpty
         ? ' + ${modifiers.length} modificadores'
@@ -553,6 +580,33 @@ class OrderFormController extends GetxController {
       snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
+  }
+
+  /// Cantidad en el carrito de la línea "simple" de un producto: sin
+  /// variante, sin modificadores y sin nota. Es la que maneja el stepper
+  /// rápido del catálogo. Los items con variante/modificadores/nota se
+  /// gestionan como líneas propias desde el carrito.
+  int plainCartQuantity(Product product) {
+    return cartItems
+        .where((i) =>
+            i.product.id == product.id &&
+            i.selectedVariant == null &&
+            i.selectedModifiers.isEmpty &&
+            (i.specialInstructions == null ||
+                i.specialInstructions!.isEmpty))
+        .fold(0, (sum, i) => sum + i.quantity);
+  }
+
+  /// Quita una unidad de la línea simple del producto (stepper rápido).
+  /// Si llega a 0, `updateQuantity` elimina la línea.
+  void decrementPlain(Product product) {
+    final idx = cartItems.indexWhere((i) =>
+        i.product.id == product.id &&
+        i.selectedVariant == null &&
+        i.selectedModifiers.isEmpty &&
+        (i.specialInstructions == null || i.specialInstructions!.isEmpty));
+    if (idx == -1) return;
+    updateQuantity(idx, cartItems[idx].quantity - 1);
   }
 
   /// Remove item from cart
@@ -866,6 +920,16 @@ class OrderFormController extends GetxController {
           );
         },
         (order) {
+          // Imprimir la(s) comanda(s) de cocina automáticamente al
+          // registrar el pedido — UNA por categoría (solo categorías con
+          // `prints_kitchen` e items que requieren preparación). Va ACÁ
+          // (y no en SellPage._checkout) porque para mesa/cuenta libre/
+          // takeaway/delivery el submit hace `Get.back` y nunca setea
+          // `lastCreatedOrder`, así que el checkout no alcanzaba a
+          // imprimir. Fire-and-forget: el orquestador omite solo si no
+          // hay impresora de cocina o no hay items para cocina.
+          unawaited(PrintingOrchestrator.autoPrintKitchen(orderId: order.id));
+
           // En Venta Express NO mostramos snackbar de "Orden creada" ni
           // popeamos la pantalla — el caller se encarga del flujo (abrir
           // dialog de cobro, mostrar feedback final). Solo exponemos la

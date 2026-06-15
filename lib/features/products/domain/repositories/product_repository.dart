@@ -107,6 +107,7 @@ abstract class ProductRepository {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   });
 
   /// Actualizar una variante
@@ -119,6 +120,7 @@ abstract class ProductRepository {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   });
 
   /// Eliminar una variante

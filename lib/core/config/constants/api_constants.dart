@@ -92,6 +92,10 @@ class ApiConstants {
   static String subcategories(String parentId) =>
       '/categories/$parentId/subcategories';
 
+  // Flavors / cremas (heladería)
+  static const String flavors = '/flavors';
+  static String flavorById(String id) => '/flavors/$id';
+
   // Order Endpoints
   static const String orders = '/orders';
   static String orderById(String id) => '/orders/$id';

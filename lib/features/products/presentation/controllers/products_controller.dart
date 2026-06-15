@@ -45,11 +45,15 @@ class ProductsController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
+      // Cargamos el catálogo COMPLETO una sola vez y filtramos en memoria
+      // (categoría, disponibilidad y texto) vía `filteredProducts`. Así
+      // tocar un chip de categoría o tipear es INSTANTÁNEO y sin requests
+      // — clave para la agilidad del POS y para no pegar contra el 429.
+      // Solo se pasan filtros al backend si un caller los pide explícito.
       final result = await getProductsUseCase(
-        categoryId: categoryId ?? selectedCategoryId.value,
-        isAvailable: isAvailable ?? (showOnlyAvailable.value ? true : null),
-        search:
-            search ?? (searchQuery.value.isNotEmpty ? searchQuery.value : null),
+        categoryId: categoryId,
+        isAvailable: isAvailable,
+        search: search,
       );
 
       result.fold(
@@ -122,30 +126,62 @@ class ProductsController extends GetxController {
     }
   }
 
-  /// Buscar productos
+  /// Buscar productos — CLIENT-SIDE.
+  ///
+  /// Antes esto llamaba `loadProducts(search:)` en CADA tecla, lo que
+  /// disparaba una request al backend por carácter y pegaba contra el
+  /// rate-limit (429 "Too Many Requests"), bloqueando el buscador. El
+  /// catálogo de un POS es acotado, así que filtramos en memoria sobre
+  /// `products` ya cargado: instantáneo y sin requests. La UI lee
+  /// `filteredProducts`.
   void searchProducts(String query) {
     searchQuery.value = query;
-    loadProducts(search: query);
   }
 
-  /// Filtrar por categoría
+  /// Productos visibles aplicando TODOS los filtros client-side sobre la
+  /// lista ya cargada: categoría, disponibilidad y texto (nombre /
+  /// descripción / SKU). Reactivo: leerlo dentro de un `Obx` repinta al
+  /// instante al tocar un chip o tipear, sin tocar el backend.
+  List<Product> get filteredProducts {
+    Iterable<Product> result = products;
+
+    final cat = selectedCategoryId.value;
+    if (cat != null) {
+      result = result.where((p) => p.categoryId == cat);
+    }
+
+    if (showOnlyAvailable.value) {
+      result = result.where((p) => p.isAvailable);
+    }
+
+    final q = searchQuery.value.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      result = result.where((p) {
+        return p.name.toLowerCase().contains(q) ||
+            p.description.toLowerCase().contains(q) ||
+            (p.sku?.toLowerCase().contains(q) ?? false);
+      });
+    }
+
+    return result.toList();
+  }
+
+  /// Filtrar por categoría — client-side, instantáneo (solo setea el id;
+  /// `filteredProducts` lo aplica). Sin request al backend.
   void filterByCategory(String? categoryId) {
     selectedCategoryId.value = categoryId;
-    loadProducts(categoryId: categoryId);
   }
 
-  /// Toggle filtro de disponibles
+  /// Toggle filtro de disponibles — client-side, instantáneo.
   void toggleAvailableFilter() {
     showOnlyAvailable.value = !showOnlyAvailable.value;
-    loadProducts(isAvailable: showOnlyAvailable.value ? true : null);
   }
 
-  /// Limpiar filtros
+  /// Limpiar filtros — client-side, instantáneo (no recarga).
   void clearFilters() {
     searchQuery.value = '';
     selectedCategoryId.value = null;
     showOnlyAvailable.value = false;
-    loadProducts();
   }
 
   /// Refrescar productos

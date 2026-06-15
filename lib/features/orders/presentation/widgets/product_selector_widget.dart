@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/responsive_config.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/widgets/app_filter_chip.dart';
 import '../../../../core/widgets/modern_card.dart';
+import '../../../flavors/data/datasources/flavor_remote_datasource.dart';
+import '../../../flavors/domain/entities/flavor.dart';
+import '../../../categories/presentation/bindings/categories_binding.dart';
+import '../../../categories/presentation/controllers/categories_controller.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/domain/entities/product_variant.dart';
 import '../../../products/presentation/bindings/products_binding.dart';
@@ -34,6 +40,12 @@ class ProductSelectorWidget extends StatelessWidget {
     }
     final productsController = Get.find<ProductsController>();
 
+    // Categorías para los chips de salto rápido entre secciones.
+    if (!Get.isRegistered<CategoriesController>()) {
+      CategoriesBinding().dependencies();
+    }
+    final categoriesController = Get.find<CategoriesController>();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -42,6 +54,10 @@ class ProductSelectorWidget extends StatelessWidget {
           padding: EdgeInsets.all(responsive.isMobile ? 8 : responsive.padding / 2),
           child: _buildHeader(context, productsController, responsive),
         ),
+
+        // Chips de categoría — salto instantáneo entre secciones (Todos /
+        // Heladería / Especiales / Comida…). Filtrado client-side.
+        _buildCategoryChips(productsController, categoriesController),
 
         // Filters
         Padding(
@@ -65,15 +81,21 @@ class ProductSelectorWidget extends StatelessWidget {
               );
             }
 
+            // Catálogo vacío de verdad (sin productos cargados).
             if (productsController.products.isEmpty) {
               return _buildEmptyState(context);
             }
 
-            return _buildProductsGrid(
-              context,
-              productsController.products,
-              responsive,
-            );
+            // Filtro de texto local (instantáneo, sin requests al backend).
+            final visible = productsController.filteredProducts;
+            if (visible.isEmpty) {
+              return _buildNoMatchesState(
+                context,
+                productsController.searchQuery.value,
+              );
+            }
+
+            return _buildProductsGrid(context, visible, responsive);
           }),
         ),
       ],
@@ -121,6 +143,49 @@ class ProductSelectorWidget extends StatelessWidget {
     );
   }
 
+  /// Fila horizontal de chips de categoría para saltar de sección al
+  /// instante. Solo lista las categorías activas que tienen productos en
+  /// el catálogo (no muestra secciones vacías), ordenadas por su orden.
+  /// Filtrado client-side → cambiar de sección es inmediato, sin requests.
+  Widget _buildCategoryChips(
+    ProductsController pc,
+    CategoriesController cc,
+  ) {
+    return Obx(() {
+      final presentIds = pc.products.map((p) => p.categoryId).toSet();
+      final cats = cc.categories
+          .where((c) => c.isActive && presentIds.contains(c.id))
+          .toList()
+        ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+
+      // Con 0 ó 1 categoría la fila no aporta — la ocultamos.
+      if (cats.length < 2) return const SizedBox.shrink();
+
+      final selected = pc.selectedCategoryId.value;
+      return SizedBox(
+        height: 40,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          children: [
+            AppFilterChip(
+              label: 'Todos',
+              selected: selected == null,
+              onTap: () => pc.filterByCategory(null),
+            ),
+            for (final c in cats)
+              AppFilterChip(
+                label: c.name,
+                selected: selected == c.id,
+                onTap: () =>
+                    pc.filterByCategory(selected == c.id ? null : c.id),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
   Widget _buildFilters(
     BuildContext context,
     ProductsController controller,
@@ -136,13 +201,8 @@ class ProductSelectorWidget extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
-          if (controller.selectedCategoryId.value != null)
-            FilterChip(
-              label: const Text('Categoría seleccionada'),
-              onSelected: (_) => controller.filterByCategory(null),
-              onDeleted: () => controller.filterByCategory(null),
-              avatar: const Icon(Icons.category, size: 18),
-            ),
+          // La categoría seleccionada ya se ve resaltada en la fila de
+          // chips de arriba — no repetimos un pill acá.
           if (controller.showOnlyAvailable.value)
             FilterChip(
               label: const Text('Solo disponibles'),
@@ -208,7 +268,11 @@ class ProductSelectorWidget extends StatelessWidget {
           product.isAvailable && !outOfStock && !cartFull;
 
       return HoverCard(
-        onTap: isAvailable ? () => _showProductDetails(context, product) : null,
+        // Tap = agregar al instante. Para productos simples suma 1 (rápido);
+        // para los que tienen variante/modificadores abre el detalle a elegir
+        // (lo decide `_addToCart`). Antes el tap SIEMPRE abría el sheet, que
+        // para un producto simple era un paso de más.
+        onTap: isAvailable ? () => _addToCart(context, product) : null,
         elevation: 2,
         hoverElevation: 6,
         child: Container(
@@ -359,18 +423,8 @@ class ProductSelectorWidget extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.add_shopping_cart, size: 18),
-                      onPressed: isAvailable
-                          ? () => _addToCart(context, product)
-                          : null,
-                      tooltip: isAvailable ? 'Agregar' : 'Agotado',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
+                    _buildAddControl(context, product, isAvailable,
+                        compact: true),
                   ],
                 ),
               ],
@@ -544,13 +598,8 @@ class ProductSelectorWidget extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.add_shopping_cart, size: 20),
-                      onPressed: isAvailable
-                          ? () => _addToCart(context, product)
-                          : null,
-                      tooltip: isAvailable ? 'Agregar al carrito' : 'Agotado',
-                    ),
+                    _buildAddControl(context, product, isAvailable,
+                        compact: false),
                   ],
                 ),
               ],
@@ -659,6 +708,120 @@ class ProductSelectorWidget extends StatelessWidget {
     );
   }
 
+  /// Control de agregado en el card. Tres estados:
+  ///   - Producto con variante/modificadores → botón que abre el detalle
+  ///     (cada combinación es una línea distinta, no se puede stepper).
+  ///   - Producto simple sin nada en el carrito → botón "+" (agrega 1).
+  ///   - Producto simple ya en el carrito → stepper [− qty +] para sumar
+  ///     o restar unidades al instante, sin abrir nada.
+  /// Vive dentro del `Obx` del card (que ya depende de `cartItems`), así
+  /// que la cantidad se actualiza sola.
+  Widget _buildAddControl(
+    BuildContext context,
+    Product product,
+    bool isAvailable, {
+    required bool compact,
+  }) {
+    final theme = Theme.of(context);
+    final hasOptions =
+        product.hasVariants || product.modifierGroups.any((g) => g.isActive);
+    final qty = orderController.plainCartQuantity(product);
+    final double dim = compact ? 32 : 36;
+    final double iconSize = compact ? 18 : 20;
+
+    if (hasOptions || qty == 0) {
+      return IconButton.filledTonal(
+        icon: Icon(hasOptions ? Icons.tune : Icons.add, size: iconSize),
+        onPressed:
+            isAvailable ? () => _addToCart(context, product) : null,
+        tooltip: !isAvailable
+            ? 'Agotado'
+            : hasOptions
+                ? 'Elegir opciones'
+                : 'Agregar',
+        padding: EdgeInsets.zero,
+        constraints: BoxConstraints(minWidth: dim, minHeight: dim),
+      );
+    }
+
+    // Stepper compacto [− qty +]. Material propio para garantizar el
+    // ripple sin depender de un ancestro Material del card.
+    Widget circle(IconData icon, VoidCallback? onTap) {
+      return Material(
+        color: onTap == null
+            ? theme.colorScheme.surfaceContainerHighest
+            : theme.colorScheme.primaryContainer,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: dim,
+            height: dim,
+            child: Icon(
+              icon,
+              size: iconSize,
+              color: onTap == null
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        circle(Icons.remove, () => orderController.decrementPlain(product)),
+        Container(
+          constraints: BoxConstraints(minWidth: compact ? 22 : 28),
+          alignment: Alignment.center,
+          child: Text(
+            '$qty',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        circle(
+          Icons.add,
+          isAvailable
+              ? () => orderController.addToCart(product, silent: true)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoMatchesState(BuildContext context, String query) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 56, color: theme.colorScheme.outline),
+            const SizedBox(height: 12),
+            Text(
+              'Sin resultados para "$query"',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Probá con otro nombre.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _addToCart(BuildContext context, Product product) {
     // Si el producto tiene variantes o grupos de modificadores activos, NO se
     // puede agregar directamente al carrito sin pasar por el selector. Si el
@@ -681,13 +844,16 @@ class ProductSelectorWidget extends StatelessWidget {
       isScrollControlled: true,
       builder: (context) => _ProductDetailsSheet(
         product: product,
-        onAddToCart: (quantity, variant, modifiers, notes) {
+        onAddToCart: (quantity, variant, modifiers, notes, flavorIds,
+            flavorNames) {
           orderController.addToCart(
             product,
             quantity: quantity,
             variant: variant,
             modifiers: modifiers,
             specialInstructions: notes,
+            flavorIds: flavorIds.isEmpty ? null : flavorIds,
+            flavorNames: flavorNames.isEmpty ? null : flavorNames,
           );
           Navigator.pop(context);
         },
@@ -740,6 +906,8 @@ class _ProductDetailsSheet extends StatefulWidget {
     ProductVariant? variant,
     List<SelectedModifier>? modifiers,
     String? notes,
+    List<String> flavorIds,
+    List<String> flavorNames,
   ) onAddToCart;
 
   const _ProductDetailsSheet({
@@ -758,6 +926,43 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   final TextEditingController _notesCtrl = TextEditingController();
   ProductVariant? _selectedVariant;
   List<SelectedModifier> _selectedModifiers = [];
+
+  // Cremas/sabores de la categoría del producto + selección por bola.
+  List<Flavor> _flavors = [];
+  bool _flavorsLoading = false;
+  List<String?> _selectedFlavors = []; // length = scoopCount de la variante
+
+  int get _scoopCount => _selectedVariant?.scoopCount ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFlavors();
+  }
+
+  Future<void> _loadFlavors() async {
+    setState(() => _flavorsLoading = true);
+    try {
+      final list = await sl<FlavorRemoteDataSource>()
+          .getFlavors(categoryId: widget.product.categoryId);
+      if (!mounted) return;
+      setState(() {
+        _flavors = list.where((f) => f.isAvailable).toList();
+        _flavorsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _flavorsLoading = false);
+    }
+  }
+
+  /// Reajusta los slots de cremas cuando cambia la variante (bolas).
+  void _syncFlavorSlots() {
+    final n = _scoopCount;
+    if (_selectedFlavors.length != n) {
+      _selectedFlavors = List<String?>.filled(n, null);
+    }
+  }
 
   @override
   void dispose() {
@@ -878,9 +1083,16 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                         onChanged: (variant) {
                           setState(() {
                             _selectedVariant = variant;
+                            _syncFlavorSlots();
                           });
                         },
                       ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Selector de cremas (heladería) — una por bola.
+                    if (_scoopCount > 0) ...[
+                      _buildFlavorSelector(theme),
                       const SizedBox(height: 24),
                     ],
 
@@ -1046,15 +1258,127 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       }
     }
 
+    // Validar cremas: si la variante pide N bolas, deben estar todas.
+    if (_scoopCount > 0) {
+      if (_flavors.isEmpty) {
+        AppSnackbar.show(
+          'Faltan cremas',
+          'Esta categoría no tiene cremas cargadas. Cargalas en Productos → Cremas.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error,
+          colorText: Get.theme.colorScheme.onError,
+          duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+      if (_selectedFlavors.any((f) => f == null)) {
+        AppSnackbar.show(
+          'Elegí las cremas',
+          'Seleccioná las $_scoopCount cremas antes de agregar.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error,
+          colorText: Get.theme.colorScheme.onError,
+          duration: const Duration(seconds: 3),
+        );
+        return;
+      }
+    }
+
     // Get selected modifiers
     final modifiers = _modifierKey.currentState?.getSelectedModifiers();
 
     final notes = _notesCtrl.text.trim();
+    final flavorIds = <String>[];
+    final flavorNames = <String>[];
+    if (_scoopCount > 0) {
+      for (final id in _selectedFlavors) {
+        if (id == null) continue;
+        flavorIds.add(id);
+        flavorNames.add(
+          _flavors.firstWhere((f) => f.id == id).name,
+        );
+      }
+    }
+
     widget.onAddToCart(
       quantity,
       _selectedVariant,
       modifiers,
       notes.isEmpty ? null : notes,
+      flavorIds,
+      flavorNames,
+    );
+  }
+
+  /// Selector de cremas: una fila (dropdown) por bola; permite repetir.
+  Widget _buildFlavorSelector(ThemeData theme) {
+    if (_flavorsLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.icecream, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              'Elegí tus cremas ($_scoopCount)',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_flavors.isEmpty)
+          Text(
+            'No hay cremas cargadas para esta categoría. Cargalas en Productos → Cremas.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+          )
+        else
+          for (int i = 0; i < _scoopCount; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      'Bola ${i + 1}',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _selectedFlavors[i],
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        hintText: 'Elegí…',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: [
+                        for (final f in _flavors)
+                          DropdownMenuItem(value: f.id, child: Text(f.name)),
+                      ],
+                      onChanged: (val) =>
+                          setState(() => _selectedFlavors[i] = val),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ],
     );
   }
 

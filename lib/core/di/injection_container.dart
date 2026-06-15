@@ -14,6 +14,7 @@ import '../../features/auth/domain/usecases/login_usecase.dart';
 import '../../features/auth/domain/usecases/logout_usecase.dart';
 import '../../features/auth/domain/usecases/register_usecase.dart';
 import '../../features/categories/data/datasources/category_remote_datasource.dart';
+import '../../features/flavors/data/datasources/flavor_remote_datasource.dart';
 import '../../features/categories/data/repositories/category_repository_impl.dart';
 import '../../features/categories/domain/repositories/category_repository.dart';
 import '../../features/categories/domain/usecases/create_category_usecase.dart';
@@ -258,6 +259,9 @@ Future<void> init() async {
   // Data Sources
   sl.registerLazySingleton<CategoryRemoteDataSource>(
     () => CategoryRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<FlavorRemoteDataSource>(
+    () => FlavorRemoteDataSourceImpl(dio: sl()),
   );
 
   // ========================================

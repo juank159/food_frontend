@@ -311,6 +311,35 @@ class CartWidget extends StatelessWidget {
                     ),
                   ],
 
+                  // Cremas/sabores (heladería)
+                  if (item.flavorNames.isNotEmpty) ...[
+                    SizedBox(height: responsive.isMobile ? 2 : 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.icecream,
+                          size: responsive.isMobile ? 12 : 14,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            item.flavorNames.join(', '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: (responsive.isMobile
+                                    ? theme.textTheme.bodySmall
+                                    : theme.textTheme.bodyMedium)
+                                ?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   // Modifiers (if any)
                   if (item.hasModifiers) ...[
                     SizedBox(height: responsive.isMobile ? 4 : 6),

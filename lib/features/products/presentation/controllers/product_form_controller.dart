@@ -28,6 +28,9 @@ class VariantFormData {
   final TextEditingController priceModifierController;
   final TextEditingController descriptionController;
   final TextEditingController skuController;
+  /// Cantidad de cremas/bolas que pide esta variante (heladería). Vacío/0
+  /// = no pide cremas. Es un campo de texto numérico simple.
+  final TextEditingController scoopController;
   bool isDefault;
   bool isAvailable;
   int sortOrder;
@@ -38,10 +41,16 @@ class VariantFormData {
     double? priceModifier,
     String? description,
     String? sku,
+    int? scoopCount,
     this.isDefault = false,
     this.isAvailable = true,
     this.sortOrder = 0,
   })  : nameController = TextEditingController(text: name),
+        scoopController = TextEditingController(
+          text: (scoopCount != null && scoopCount > 0)
+              ? scoopCount.toString()
+              : '',
+        ),
         // OJO: NO usar `priceModifier?.toString()` — produce "3000.0"
         // que el `ThousandsSeparatorInputFormatter` interpreta como
         // "3000.0" → al parsearlo con `parseFormattedInt` el `.` se
@@ -62,10 +71,17 @@ class VariantFormData {
       priceModifier: variant.priceModifier,
       description: variant.description,
       sku: variant.sku,
+      scoopCount: variant.scoopCount,
       isDefault: variant.isDefault,
       isAvailable: variant.isAvailable,
       sortOrder: variant.sortOrder,
     );
+  }
+
+  /// Lee la cantidad de cremas del campo (null si vacío/0).
+  int? get scoopCountValue {
+    final n = int.tryParse(scoopController.text.trim());
+    return (n != null && n > 0) ? n : null;
   }
 
   void dispose() {
@@ -73,6 +89,7 @@ class VariantFormData {
     priceModifierController.dispose();
     descriptionController.dispose();
     skuController.dispose();
+    scoopController.dispose();
   }
 }
 
@@ -390,7 +407,13 @@ class ProductFormController extends GetxController {
         errorMessage.value = 'Variante ${i + 1}: El nombre es requerido';
         return false;
       }
-      final priceModifier = double.tryParse(variant.priceModifierController.text);
+      // El campo viene formateado es_CO ("12.000"). `double.tryParse` sobre
+      // eso devuelve null (dos puntos) o un valor equivocado ("5.000"→5.0),
+      // así que la validación fallaba con "Precio inválido" y NO dejaba
+      // guardar la edición de variantes. Usamos el mismo parser de miles
+      // que el resto del flujo (_syncVariants ya lo usa).
+      final priceModifier =
+          NumberFormatHelper.parseFormattedInt(variant.priceModifierController.text);
       if (priceModifier == null) {
         errorMessage.value = 'Variante ${i + 1}: Precio inválido';
         return false;
@@ -644,13 +667,30 @@ class ProductFormController extends GetxController {
         sku: variantData.skuController.text.trim().isEmpty
             ? null
             : variantData.skuController.text.trim(),
+        scoopCount: variantData.scoopCountValue,
       );
     }
   }
 
   Future<void> _syncVariants(String productId) async {
-    // This is simplified - in production you'd track which are new/updated/deleted
-    // For now, just create new variants
+    // 1. Borrar las variantes que el usuario quitó del form. Comparamos
+    //    los IDs que tenía el producto al abrir contra los que quedan en
+    //    el form; los ausentes se eliminan en el backend (antes esto no
+    //    se hacía y las variantes "borradas" seguían vivas en la BD).
+    //    Corremos los create/update DESPUÉS para que, si se reasignó el
+    //    default, la variante default vieja ya no esté (el backend
+    //    bloquea borrar la default).
+    final originalIds = (productToEdit?.variants ?? const [])
+        .map((v) => v.id)
+        .toSet();
+    final currentIds =
+        variants.where((v) => v.id != null).map((v) => v.id!).toSet();
+    final removedIds = originalIds.difference(currentIds);
+    for (final removedId in removedIds) {
+      await deleteVariantUseCase(removedId);
+    }
+
+    // 2. Crear nuevas / actualizar existentes.
     for (var variantData in variants) {
       if (variantData.id == null) {
         // New variant
@@ -669,6 +709,7 @@ class ProductFormController extends GetxController {
           sku: variantData.skuController.text.trim().isEmpty
               ? null
               : variantData.skuController.text.trim(),
+          scoopCount: variantData.scoopCountValue,
         );
       } else {
         // Update existing variant
@@ -687,6 +728,7 @@ class ProductFormController extends GetxController {
           sku: variantData.skuController.text.trim().isEmpty
               ? null
               : variantData.skuController.text.trim(),
+          scoopCount: variantData.scoopCountValue,
         );
       }
     }

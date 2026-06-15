@@ -71,6 +71,9 @@ class AppRoutes {
   static const String createModifier = '/modifiers/create';
   static const String editModifier = '/modifiers/edit';
 
+  // ==================== FLAVORS ROUTES ====================
+  static const String flavors = '/flavors';
+
   // ==================== CATEGORIES ROUTES ====================
   static const String categories = '/categories';
   static const String categoriesList = '/categories/list';

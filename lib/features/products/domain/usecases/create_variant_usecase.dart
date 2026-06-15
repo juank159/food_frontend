@@ -19,6 +19,7 @@ class CreateVariantUseCase {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   }) async {
     return await repository.createVariant(
       productId: productId,
@@ -29,6 +30,7 @@ class CreateVariantUseCase {
       sortOrder: sortOrder,
       isAvailable: isAvailable,
       sku: sku,
+      scoopCount: scoopCount,
     );
   }
 }

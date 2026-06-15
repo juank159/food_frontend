@@ -4,13 +4,16 @@ import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
+import '../../../../core/widgets/app_filter_chip.dart';
 import '../../domain/entities/product.dart';
 import '../controllers/modifiers_controller.dart';
 import '../controllers/products_controller.dart';
 import '../widgets/product_card.dart';
 import '../../../../core/utils/safe_get.dart';
+import '../../../categories/presentation/bindings/categories_binding.dart';
 import '../../../categories/presentation/controllers/categories_controller.dart';
 import '../../../categories/presentation/pages/categories_page.dart';
 import 'modifiers_page.dart';
@@ -139,6 +142,9 @@ class _ProductsHeader extends StatelessWidget {
                         );
                       }
                       break;
+                    case 'flavors':
+                      Get.toNamed(AppRoutes.flavors);
+                      break;
                   }
                 },
                 itemBuilder: (_) => const [
@@ -169,6 +175,16 @@ class _ProductsHeader extends StatelessWidget {
                         Icon(FontAwesomeIcons.circlePlus, size: 16),
                         SizedBox(width: 12),
                         Text('Nuevo modificador'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'flavors',
+                    child: Row(
+                      children: [
+                        Icon(FontAwesomeIcons.iceCream, size: 16),
+                        SizedBox(width: 12),
+                        Text('Cremas / sabores'),
                       ],
                     ),
                   ),
@@ -234,6 +250,7 @@ class _ProductsTab extends GetView<ProductsController> {
     return Column(
       children: [
         const _ProductsSearchBar(),
+        const _ProductsCategoryChips(),
         Expanded(
           child: Obx(() {
             if (controller.isLoading.value && controller.products.isEmpty) {
@@ -264,6 +281,16 @@ class _ProductsTab extends GetView<ProductsController> {
                 },
               );
             }
+            // Filtro de texto local (instantáneo, sin requests al backend).
+            final visible = controller.filteredProducts;
+            if (visible.isEmpty) {
+              return AppEmptyState(
+                icon: Icons.search_off,
+                title: 'Sin resultados',
+                message:
+                    'Ningún producto coincide con "${controller.searchQuery.value}".',
+              );
+            }
             return RefreshIndicator(
               color: AppColors.primary,
               onRefresh: controller.refreshProducts,
@@ -291,9 +318,9 @@ class _ProductsTab extends GetView<ProductsController> {
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                     ),
-                    itemCount: controller.products.length,
+                    itemCount: visible.length,
                     itemBuilder: (context, index) {
-                      final product = controller.products[index];
+                      final product = visible[index];
                       return ProductCard(
                         product: product,
                         onTap: () => _openProductDetail(product),
@@ -324,6 +351,56 @@ class _ProductsTab extends GetView<ProductsController> {
   }
 }
 
+/// Fila de chips de categoría para saltar de sección al instante en la
+/// gestión de productos. Filtrado client-side (mismo `filterByCategory`
+/// que el POS) → cambiar de sección es inmediato, sin requests. Solo
+/// lista categorías activas que tienen productos, ordenadas por su orden.
+class _ProductsCategoryChips extends StatelessWidget {
+  const _ProductsCategoryChips();
+
+  @override
+  Widget build(BuildContext context) {
+    final pc = Get.find<ProductsController>();
+    if (!Get.isRegistered<CategoriesController>()) {
+      CategoriesBinding().dependencies();
+    }
+    final cc = Get.find<CategoriesController>();
+
+    return Obx(() {
+      final presentIds = pc.products.map((p) => p.categoryId).toSet();
+      final cats = cc.categories
+          .where((c) => c.isActive && presentIds.contains(c.id))
+          .toList()
+        ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+
+      if (cats.length < 2) return const SizedBox.shrink();
+
+      final selected = pc.selectedCategoryId.value;
+      return SizedBox(
+        height: 40,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+          children: [
+            AppFilterChip(
+              label: 'Todos',
+              selected: selected == null,
+              onTap: () => pc.filterByCategory(null),
+            ),
+            for (final c in cats)
+              AppFilterChip(
+                label: c.name,
+                selected: selected == c.id,
+                onTap: () =>
+                    pc.filterByCategory(selected == c.id ? null : c.id),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
 /// Search bar siempre visible (no escondida en un dialog). Patrón de
 /// Stripe Dashboard / Linear / Shopify Admin — el filtro nunca está
 /// a más de 1 click.
@@ -341,7 +418,8 @@ class _ProductsSearchBar extends GetView<ProductsController> {
               Expanded(
                 child: TextField(
                   textInputAction: TextInputAction.search,
-                  onSubmitted: controller.searchProducts,
+                  // Filtrado local instantáneo (sin requests al backend).
+                  onChanged: controller.searchProducts,
                   decoration: InputDecoration(
                     hintText: 'Buscar productos…',
                     hintStyle: const TextStyle(
@@ -406,10 +484,7 @@ class _ProductsSearchBar extends GetView<ProductsController> {
                 _ActiveFilterPill(
                   icon: Icons.search,
                   label: '"${controller.searchQuery.value}"',
-                  onClear: () {
-                    controller.searchQuery.value = '';
-                    controller.loadProducts();
-                  },
+                  onClear: () => controller.searchQuery.value = '',
                 ),
               if (controller.selectedCategoryId.value != null)
                 _ActiveFilterPill(

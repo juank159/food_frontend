@@ -162,6 +162,25 @@ class VariantFormWidget extends StatelessWidget {
 
           SizedBox(height: 16.0),
 
+          // Cremas / bolas (heladería) — cuántos sabores pide esta variante.
+          TextFormField(
+            controller: variant.scoopController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Cremas / bolas (opcional)',
+              hintText: 'Ej: 2 → el cliente elige 2 sabores',
+              helperText:
+                  'Solo heladería. Dejalo vacío si la variante no lleva cremas.',
+              helperMaxLines: 2,
+              prefixIcon: const Icon(Icons.icecream),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+            ),
+          ),
+
+          SizedBox(height: 16.0),
+
           // Description field (optional)
           TextFormField(
             controller: variant.descriptionController,

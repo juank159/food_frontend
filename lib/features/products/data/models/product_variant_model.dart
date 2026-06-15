@@ -39,6 +39,8 @@ class ProductVariantModel {
   final int? sortOrder;
   final bool isAvailable;
   final String? sku;
+  /// Cantidad de cremas/bolas que exige la variante (null/0 = ninguna).
+  final int? scoopCount;
   final String createdAt;
   final String updatedAt;
   final String? deletedAt;
@@ -53,6 +55,7 @@ class ProductVariantModel {
     this.sortOrder,
     required this.isAvailable,
     this.sku,
+    this.scoopCount,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -77,6 +80,7 @@ class ProductVariantModel {
       sortOrder: sortOrder ?? 0,
       isAvailable: isAvailable,
       sku: sku,
+      scoopCount: scoopCount,
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
     );
@@ -94,6 +98,7 @@ class ProductVariantModel {
       sortOrder: variant.sortOrder,
       isAvailable: variant.isAvailable,
       sku: variant.sku,
+      scoopCount: variant.scoopCount,
       createdAt: variant.createdAt.toIso8601String(),
       updatedAt: variant.updatedAt.toIso8601String(),
       deletedAt: null,

@@ -12,6 +12,11 @@ class ProductVariant extends Equatable {
   final int sortOrder;
   final bool isAvailable;
   final String? sku;
+
+  /// Cantidad de cremas/bolas que esta variante exige al venderse
+  /// (ej. "2 bolas" → 2). null/0 = no pide cremas (no es heladería).
+  final int? scoopCount;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +30,7 @@ class ProductVariant extends Equatable {
     required this.sortOrder,
     required this.isAvailable,
     this.sku,
+    this.scoopCount,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -54,6 +60,7 @@ class ProductVariant extends Equatable {
         sortOrder,
         isAvailable,
         sku,
+        scoopCount,
         createdAt,
         updatedAt,
       ];

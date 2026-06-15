@@ -365,6 +365,7 @@ class ProductRepositoryImpl implements ProductRepository {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -377,6 +378,7 @@ class ProductRepositoryImpl implements ProductRepository {
           if (sortOrder != null) 'sort_order': sortOrder,
           if (isAvailable != null) 'is_available': isAvailable,
           if (sku != null) 'sku': sku,
+          if (scoopCount != null) 'scoop_count': scoopCount,
         };
 
         final variantModel = await remoteDataSource.createVariant(data);
@@ -407,6 +409,7 @@ class ProductRepositoryImpl implements ProductRepository {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -418,6 +421,7 @@ class ProductRepositoryImpl implements ProductRepository {
           if (sortOrder != null) 'sort_order': sortOrder,
           if (isAvailable != null) 'is_available': isAvailable,
           if (sku != null) 'sku': sku,
+          if (scoopCount != null) 'scoop_count': scoopCount,
         };
 
         final variantModel = await remoteDataSource.updateVariant(variantId, data);

@@ -82,6 +82,9 @@ class TicketItem {
   /// aunque `requiresPreparation` sea true. Default `true`.
   final bool categoryPrintsKitchen;
 
+  /// Cremas/sabores elegidos (uno por bola) — se imprimen en la comanda.
+  final List<String> selectedFlavors;
+
   const TicketItem({
     required this.quantity,
     required this.name,
@@ -92,6 +95,7 @@ class TicketItem {
     this.requiresPreparation = true,
     this.categoryName,
     this.categoryPrintsKitchen = true,
+    this.selectedFlavors = const [],
   });
 }
 
@@ -246,6 +250,14 @@ class EscPosGenerator {
       );
       if (item.variantName != null && item.variantName!.isNotEmpty) {
         bytes.addAll(gen.text('  -> ${item.variantName}'));
+      }
+      if (item.selectedFlavors.isNotEmpty) {
+        bytes.addAll(
+          gen.text(
+            '  * ${item.selectedFlavors.join(', ')}',
+            styles: const PosStyles(bold: true),
+          ),
+        );
       }
       if (item.specialInstructions != null &&
           item.specialInstructions!.isNotEmpty) {

@@ -425,6 +425,7 @@ class PrintingOrchestrator {
       requiresPreparation: item.requiresPreparation,
       categoryName: item.categoryName,
       categoryPrintsKitchen: item.categoryPrintsKitchen,
+      selectedFlavors: item.selectedFlavors,
     );
   }
 

@@ -19,6 +19,7 @@ class UpdateVariantUseCase {
     int? sortOrder,
     bool? isAvailable,
     String? sku,
+    int? scoopCount,
   }) async {
     return await repository.updateVariant(
       variantId: variantId,
@@ -29,6 +30,7 @@ class UpdateVariantUseCase {
       sortOrder: sortOrder,
       isAvailable: isAvailable,
       sku: sku,
+      scoopCount: scoopCount,
     );
   }
 }
