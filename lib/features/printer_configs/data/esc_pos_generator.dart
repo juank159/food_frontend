@@ -183,17 +183,14 @@ class EscPosGenerator {
         ),
       ),
     );
-    bytes.addAll(
-      gen.text(
-        _formatOrderType(data.orderType),
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
-    );
 
-    // ─── Mesa / destino (GRANDE) ───
+    // ─── Destino (GRANDE) ───
+    // Mostramos la etiqueta del destino: mesa ("Mesa 5"), cuenta libre
+    // ("papa") o, si no hay etiqueta, el tipo en coloquial. NO repetimos
+    // "PARA LLEVAR" cuando ya hay una etiqueta propia (era confuso: salía
+    // "para llevar" en cuentas que no eran para llevar).
     bytes.addAll(gen.feed(1));
-    final destination = data.tableLabel ??
-        (data.orderType == 'takeaway' ? 'PICKUP' : 'SIN MESA');
+    final destination = _destinationLabel(data);
     bytes.addAll(
       gen.text(
         destination,
@@ -509,6 +506,24 @@ class EscPosGenerator {
     }
   }
 
+  /// Etiqueta de destino para la comanda: si la orden tiene etiqueta propia
+  /// (mesa "Mesa 5" o cuenta libre "papa") se usa esa; si no, el tipo en
+  /// coloquial. Evita "PICKUP"/"SIN MESA" y el falso "PARA LLEVAR".
+  static String _destinationLabel(TicketData data) {
+    final label = data.tableLabel?.trim();
+    if (label != null && label.isNotEmpty) return label;
+    switch (data.orderType) {
+      case 'takeaway':
+        return 'PARA LLEVAR';
+      case 'delivery':
+        return 'DOMICILIO';
+      case 'dine_in':
+        return 'EN EL SALÓN';
+      default:
+        return 'PEDIDO';
+    }
+  }
+
   static String _formatPaymentMethod(String method) {
     switch (method) {
       case 'cash':
@@ -526,14 +541,19 @@ class EscPosGenerator {
 
   static String _money(double n) => CurrencyFormatter.format(n);
 
+  // Las fechas del backend vienen en UTC (…Z). Convertimos a hora LOCAL
+  // del dispositivo (ej. Colombia UTC-5) para que la hora de la comanda
+  // sea la real, no 5 horas adelantada.
   static String _hhmm(DateTime d) {
-    return '${d.hour.toString().padLeft(2, '0')}:'
-        '${d.minute.toString().padLeft(2, '0')}';
+    final l = d.toLocal();
+    return '${l.hour.toString().padLeft(2, '0')}:'
+        '${l.minute.toString().padLeft(2, '0')}';
   }
 
   static String _fullDate(DateTime d) {
-    return '${d.day.toString().padLeft(2, '0')}/'
-        '${d.month.toString().padLeft(2, '0')}/'
-        '${d.year}  ${_hhmm(d)}';
+    final l = d.toLocal();
+    return '${l.day.toString().padLeft(2, '0')}/'
+        '${l.month.toString().padLeft(2, '0')}/'
+        '${l.year}  ${_hhmm(l)}';
   }
 }

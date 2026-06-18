@@ -268,11 +268,11 @@ class ProductSelectorWidget extends StatelessWidget {
           product.isAvailable && !outOfStock && !cartFull;
 
       return HoverCard(
-        // Tap = agregar al instante. Para productos simples suma 1 (rápido);
-        // para los que tienen variante/modificadores abre el detalle a elegir
-        // (lo decide `_addToCart`). Antes el tap SIEMPRE abría el sheet, que
-        // para un producto simple era un paso de más.
-        onTap: isAvailable ? () => _addToCart(context, product) : null,
+        // Tap en la card = abrir el detalle (cantidad + NOTAS para cocina +
+        // variantes/cremas si tiene). Así se le puede poner "sin cebolla" a
+        // cualquier producto, no solo a los de heladería. El agregado rápido
+        // sin abrir nada queda en el botón "+" (y su stepper).
+        onTap: isAvailable ? () => _showProductDetails(context, product) : null,
         elevation: 2,
         hoverElevation: 6,
         child: Container(
