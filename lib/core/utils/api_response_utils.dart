@@ -108,14 +108,35 @@ class ApiResponseUtils {
   static Map<String, dynamic>? meta(Response response) =>
       _instance.extractMeta(response);
 
-  /// Extrae un mensaje de error del body de un DioException.
-  /// Defensivo: si `data` no es Map o no tiene `message`, retorna `null`.
-  static String? errorMessage(DioException error) {
+  /// Extrae un mensaje de error del body de un DioException de forma
+  /// 100% defensiva — NUNCA lanza, sin importar la forma del `data`.
+  ///
+  /// Maneja todos los casos reales que devuelve el stack:
+  ///   - body JSON `{ "message": "..." }` o `{ "message": [...] }` (NestJS
+  ///     validation devuelve un array de mensajes).
+  ///   - body JSON `{ "error": "..." }`.
+  ///   - body **texto plano** (ej. 502 "Bad Gateway", 504 del proxy,
+  ///     HTML de error) → lo devuelve tal cual. ESTE es el caso que
+  ///     crasheaba al hacer `data['message']` sobre un String (indexar
+  ///     un String con un String → TypeError).
+  ///   - cualquier otra cosa → `null` (el caller usa su fallback).
+  ///
+  /// Acepta `dynamic` para poder pasarle también un `Object e` de un
+  /// `catch` sin castear.
+  static String? errorMessage(Object? error) {
+    if (error is! DioException) return null;
     final data = error.response?.data;
-    if (data is Map<String, dynamic>) {
-      final msg = data['message'];
-      if (msg is String) return msg;
-      if (msg is List && msg.isNotEmpty) return msg.first.toString();
+
+    if (data is Map) {
+      final msg = data['message'] ?? data['error'];
+      if (msg is String && msg.trim().isNotEmpty) return msg.trim();
+      if (msg is List && msg.isNotEmpty) {
+        return msg.map((e) => e.toString()).join(', ');
+      }
+      if (msg != null) return msg.toString();
+    }
+    if (data is String && data.trim().isNotEmpty) {
+      return data.trim();
     }
     return null;
   }

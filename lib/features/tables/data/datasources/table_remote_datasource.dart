@@ -458,7 +458,7 @@ class TableRemoteDataSourceImpl implements TableRemoteDataSource {
     } else if (e.response?.statusCode == 404) {
       throw NotFoundException('Table not found');
     } else if (e.response?.statusCode == 400) {
-      final message = e.response?.data['message'] ?? 'Bad request';
+      final message = ApiResponseUtils.errorMessage(e) ?? 'Bad request';
       throw ValidationException(message);
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
@@ -467,7 +467,7 @@ class TableRemoteDataSourceImpl implements TableRemoteDataSource {
       throw NetworkException('Network error: ${e.message}');
     } else {
       throw ServerException(
-        e.response?.data['message'] ?? 'Server error occurred',
+        ApiResponseUtils.errorMessage(e) ?? 'Server error occurred',
       );
     }
   }

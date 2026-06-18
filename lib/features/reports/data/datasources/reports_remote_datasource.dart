@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../customers/data/models/customer_model.dart';
@@ -211,7 +212,7 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
       throw NotFoundException('Statistics not found');
     } else if (e.response?.statusCode == 400) {
       final message = e.response?.data is Map
-          ? (e.response?.data['message']?.toString() ?? 'Bad request')
+          ? (ApiResponseUtils.errorMessage(e) ?? 'Bad request')
           : 'Bad request';
       throw ValidationException(message);
     } else if (e.type == DioExceptionType.connectionTimeout ||
@@ -221,7 +222,7 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
       throw NetworkException('Network error: ${e.message}');
     } else {
       final fallback = e.response?.data is Map
-          ? (e.response?.data['message']?.toString() ??
+          ? (ApiResponseUtils.errorMessage(e) ??
               'Server error occurred')
           : 'Server error occurred';
       throw ServerException(fallback);

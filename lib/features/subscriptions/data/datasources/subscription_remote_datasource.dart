@@ -236,13 +236,13 @@ class SubscriptionRemoteDataSourceImpl
       throw UnauthorizedException('No autorizado');
     } else if (e.response?.statusCode == 403) {
       throw UnauthorizedException(
-        e.response?.data['message'] ?? 'Acceso denegado',
+        ApiResponseUtils.errorMessage(e) ?? 'Acceso denegado',
       );
     } else if (e.response?.statusCode == 404) {
       throw NotFoundException('Recurso no encontrado');
     } else if (e.response?.statusCode == 400) {
       throw ValidationException(
-        e.response?.data['message'] ?? 'Datos inválidos',
+        ApiResponseUtils.errorMessage(e) ?? 'Datos inválidos',
       );
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
@@ -251,7 +251,7 @@ class SubscriptionRemoteDataSourceImpl
       throw NetworkException('Error de conexión');
     } else {
       throw ServerException(
-        e.response?.data['message'] ?? 'Error del servidor',
+        ApiResponseUtils.errorMessage(e) ?? 'Error del servidor',
         e.response?.statusCode,
       );
     }

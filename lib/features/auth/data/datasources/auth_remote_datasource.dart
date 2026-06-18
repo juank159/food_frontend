@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/auth_response_model.dart';
@@ -66,7 +67,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw NotFoundException('User not found');
       } else if (e.response?.statusCode == 400) {
         throw ServerException(
-          e.response?.data['message'] ?? 'Bad request',
+          ApiResponseUtils.errorMessage(e) ?? 'Bad request',
           e.response?.statusCode,
         );
       } else if (e.type == DioExceptionType.connectionTimeout ||
@@ -76,7 +77,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw NetworkException('No internet connection');
       } else {
         throw ServerException(
-          e.response?.data['message'] ?? 'Server error',
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
           e.response?.statusCode,
         );
       }
@@ -128,7 +129,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw ConflictException('Email already exists');
       } else if (e.response?.statusCode == 400) {
         throw ValidationException(
-          e.response?.data['message'] ?? 'Validation error',
+          ApiResponseUtils.errorMessage(e) ?? 'Validation error',
         );
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
@@ -137,7 +138,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw NetworkException('No internet connection');
       } else {
         throw ServerException(
-          e.response?.data['message'] ?? 'Server error',
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
           e.response?.statusCode,
         );
       }
@@ -170,7 +171,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw NetworkException('No internet connection');
       } else {
         throw ServerException(
-          e.response?.data['message'] ?? 'Server error',
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
           e.response?.statusCode,
         );
       }
@@ -199,7 +200,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw UnauthorizedException('Refresh token expired');
       } else {
         throw ServerException(
-          e.response?.data['message'] ?? 'Server error',
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
           e.response?.statusCode,
         );
       }

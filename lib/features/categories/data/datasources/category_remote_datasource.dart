@@ -3,6 +3,7 @@
 import 'package:dio/dio.dart';
 import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../../../core/utils/api_response_utils.dart';
 import '../models/category_model.dart';
 
 /// Category Remote Data Source
@@ -368,33 +369,22 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     } else if (e.response?.statusCode == 404) {
       throw NotFoundException('Category not found');
     } else if (e.response?.statusCode == 400) {
-      final messageData = e.response?.data['message'];
-      String message;
-      if (messageData is List) {
-        // Si es un array, unir los mensajes
-        message = messageData.join(', ');
-      } else if (messageData is String) {
-        message = messageData;
-      } else {
-        message = 'Bad request';
-      }
-      throw ValidationException(message);
+      // `ApiResponseUtils.errorMessage` extrae el mensaje sin importar la
+      // forma del body (Map, lista de validación o texto plano) → nunca
+      // crashea por indexar un String, que era el bug recurrente.
+      throw ValidationException(
+        ApiResponseUtils.errorMessage(e) ?? 'Bad request',
+      );
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
       throw NetworkException('Connection timeout');
     } else if (e.type == DioExceptionType.unknown) {
       throw NetworkException('Network error: ${e.message}');
     } else {
-      final messageData = e.response?.data['message'];
-      String message;
-      if (messageData is List) {
-        message = messageData.join(', ');
-      } else if (messageData is String) {
-        message = messageData;
-      } else {
-        message = 'Server error occurred';
-      }
-      throw ServerException(message);
+      // Cubre 5xx (incluido 502 "Bad Gateway" en texto plano del proxy).
+      throw ServerException(
+        ApiResponseUtils.errorMessage(e) ?? 'Server error occurred',
+      );
     }
   }
 }

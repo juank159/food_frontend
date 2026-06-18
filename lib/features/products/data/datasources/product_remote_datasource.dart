@@ -629,7 +629,7 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       throw NotFoundException('Product not found');
     } else if (e.response?.statusCode == 400) {
       throw ValidationException(
-        e.response?.data['message'] ?? 'Validation error',
+        ApiResponseUtils.errorMessage(e) ?? 'Validation error',
       );
     } else if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
@@ -638,7 +638,7 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       throw NetworkException('No internet connection');
     } else {
       throw ServerException(
-        e.response?.data['message'] ?? 'Server error',
+        ApiResponseUtils.errorMessage(e) ?? 'Server error',
         e.response?.statusCode,
       );
     }
