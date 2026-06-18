@@ -252,6 +252,10 @@ class OrderModel {
 
     final table = json['table'] as Map<String, dynamic>?;
     final assignedToUser = json['assigned_to_user'] as Map<String, dynamic>?;
+    // El cliente viene anidado (`customer: { full_name }`) en /orders/:id;
+    // el campo plano `customer_name` casi nunca está. Tomamos el anidado
+    // como fallback para que el nombre salga (ej. en la comanda).
+    final customer = json['customer'] as Map<String, dynamic>?;
     final itemsJson = (json['items'] as List<dynamic>?) ?? const [];
 
     // Derivamos paid_amount sumando los payments completed del JSON
@@ -279,8 +283,10 @@ class OrderModel {
       tableLabel: json['table_label'] as String?,
       tabSessionId: json['tab_session_id'] as String?,
       customerId: json['customer_id'] as String?,
-      customerName: json['customer_name'] as String?,
-      customerPhone: json['customer_phone'] as String?,
+      customerName: (json['customer_name'] as String?) ??
+          customer?['full_name'] as String?,
+      customerPhone: (json['customer_phone'] as String?) ??
+          customer?['phone'] as String?,
       customerEmail: json['customer_email'] as String?,
       deliveryAddress: json['delivery_address'] as Map<String, dynamic>?,
       assignedTo: json['assigned_to'] as String?,

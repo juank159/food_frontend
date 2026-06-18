@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../controllers/product_form_controller.dart';
@@ -163,15 +164,25 @@ class VariantFormWidget extends StatelessWidget {
           SizedBox(height: 16.0),
 
           // Cremas / bolas (heladería) — cuántos sabores pide esta variante.
+          // Campo SOLO numérico: teclado numérico + filtro que descarta
+          // cualquier carácter que no sea dígito (no deja escribir texto).
           TextFormField(
             controller: variant.scoopController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: false,
+              signed: false,
+            ),
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(2), // hasta 99 bolas, de sobra
+            ],
             decoration: InputDecoration(
-              labelText: 'Cremas / bolas (opcional)',
+              labelText: 'Cantidad de cremas / bolas (opcional)',
               hintText: 'Ej: 2 → el cliente elige 2 sabores',
               helperText:
-                  'Solo heladería. Dejalo vacío si la variante no lleva cremas.',
-              helperMaxLines: 2,
+                  'Solo números. Es para heladería: cuántos sabores se eligen '
+                  'con esta variante. Dejalo vacío si no lleva cremas.',
+              helperMaxLines: 3,
               prefixIcon: const Icon(Icons.icecream),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12.0),
