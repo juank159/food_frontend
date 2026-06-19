@@ -297,26 +297,29 @@ class _ProductsTab extends GetView<ProductsController> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
+                  // Más columnas en cada breakpoint para densificar y
+                  // aprovechar el espacio: mobile 2 (antes 1 → card
+                  // gigante), tablet 3, desktop 4, desktop grande 5.
                   final cross = width > 1200
+                      ? 5
+                      : width > 900
                       ? 4
-                      : width > 800
-                      ? 3
                       : width > 600
-                      ? 2
-                      : 1;
-                  final cardWidth = (width - 16 * 2 - 16 * (cross - 1)) / cross;
-                  // El card tiene imagen 16:10 + bloque de info. Forzamos
-                  // un aspect entre 0.65 (más alto que ancho, mobile) y
-                  // 0.95 (cuasi-cuadrado, desktop denso) para que el
-                  // contenido nunca se apriete contra la imagen.
-                  final aspect = (cardWidth / 320).clamp(0.65, 0.95);
+                      ? 3
+                      : 2;
+                  final gap = width < 600 ? 10.0 : 14.0;
+                  final cardWidth = (width - 16 * 2 - gap * (cross - 1)) / cross;
+                  // El card tiene imagen 16:9 + bloque de info compacto.
+                  // Aspect entre 0.74 (compacto en mobile) y 1.05 (denso
+                  // en desktop) para que no se apriete ni desperdicie alto.
+                  final aspect = (cardWidth / 240).clamp(0.74, 1.05);
                   return GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: cross,
                       childAspectRatio: aspect,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                      crossAxisSpacing: gap,
+                      mainAxisSpacing: gap,
                     ),
                     itemCount: visible.length,
                     itemBuilder: (context, index) {

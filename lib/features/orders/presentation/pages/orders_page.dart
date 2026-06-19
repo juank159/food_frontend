@@ -210,59 +210,55 @@ class _Header extends StatelessWidget {
           bottomRight: Radius.circular(24),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top row: título + búsqueda. Sin AppBar dedicado — más limpio
-          // y aprovechamos el real estate vertical en mobile.
+          // Fila única: título + total del día inline (antes el total era
+          // una tarjeta grande aparte que comía mucho alto) + refrescar.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Órdenes',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Resumen de hoy',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+              const Text(
+                'Órdenes',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
               ),
+              const Spacer(),
+              Obx(() => Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Ventas hoy',
+                        style: TextStyle(color: Colors.white70, fontSize: 10),
+                      ),
+                      Text(
+                        CurrencyFormatter.format(controller.totalSalesToday),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          height: 1.0,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ],
+                  )),
               IconButton(
                 onPressed: controller.refreshOrders,
                 tooltip: 'Refrescar',
-                icon: const Icon(Icons.refresh, color: Colors.white),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Card principal con el total del día — el KPI más importante
-          // para el dueño / cajero al primer vistazo.
-          Obx(() => _SalesCard(
-                amount: controller.totalSalesToday,
-                completedCount: controller.orders
-                    .where((o) =>
-                        o.isCompleted &&
-                        _isSameDay(o.createdAt, DateTime.now()))
-                    .length,
-              )),
-          const SizedBox(height: 14),
-          // Stats secundarios — chips compactos transparentes que se ven
-          // sobre el gradient sin pelear con el card de arriba.
+          const SizedBox(height: 10),
+          // Stats secundarios — chips compactos sobre el gradient.
           Obx(() => Row(
                 children: [
                   Expanded(
@@ -303,78 +299,6 @@ class _Header extends StatelessWidget {
     );
   }
 
-  static bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-}
-
-class _SalesCard extends StatelessWidget {
-  final double amount;
-  final int completedCount;
-  const _SalesCard({required this.amount, required this.completedCount});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.trending_up,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Ventas del día',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  CurrencyFormatter.format(amount),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$completedCount ${completedCount == 1 ? "orden cerrada" : "órdenes cerradas"}',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _StatChip extends StatelessWidget {
@@ -390,15 +314,15 @@ class _StatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(height: 4),
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(height: 3),
           Text(
             value.toString(),
             style: const TextStyle(

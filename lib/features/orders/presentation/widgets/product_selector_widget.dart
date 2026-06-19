@@ -228,18 +228,23 @@ class ProductSelectorWidget extends StatelessWidget {
     return GridView.builder(
       padding: EdgeInsets.all(responsive.isMobile ? 8 : responsive.spacing),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        // Más columnas en pantallas grandes para ver más productos sin
+        // scroll. Mobile sigue en 1 (layout de fila compacta).
         crossAxisCount: responsive.getGridColumns(
           mobile: 1,
-          tablet: 2,
-          desktop: 3,
-          largeDesktop: 4,
+          tablet: 3,
+          desktop: 4,
+          largeDesktop: 5,
         ),
         crossAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
         mainAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
         childAspectRatio: responsive.getChildAspectRatio(
-          mobile: 1.8,  // Más ancho = menos altura en móvil
-          tablet: 0.75,
-          desktop: 0.8,
+          // Mobile: fila compacta (imagen 80px + padding ≈ 100px de alto).
+          // Antes 1.8 daba ~200px = el doble de lo necesario; se veían
+          // pocos productos. 3.4 muestra casi el doble por pantalla.
+          mobile: 3.4,
+          tablet: 0.82,
+          desktop: 0.85,
         ),
       ),
       itemCount: products.length,

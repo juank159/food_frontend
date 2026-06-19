@@ -9,6 +9,7 @@ import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/tab_session.dart';
 import '../controllers/tab_session_detail_controller.dart';
+import '../widgets/tab_payment_dialog.dart';
 import '../widgets/tab_ticket_card.dart';
 
 /// Pantalla principal de una cuenta abierta. Muestra:
@@ -540,10 +541,14 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   }
 
   void _onPayTab(TabSession s) {
-    Get.toNamed(
-      '/tab-sessions/${s.id}/pay',
-      arguments: {'session': s},
-    )?.then((_) => controller.load());
+    // Se cobra IGUAL que una orden: un dialog en contexto (no una
+    // pantalla aparte). Por debajo distribuye FIFO entre los tickets.
+    showDialog<bool>(
+      context: context,
+      builder: (_) => TabPaymentDialog(session: s),
+    ).then((paid) {
+      if (paid == true) controller.load();
+    });
   }
 
   Future<void> _confirmClose() async {

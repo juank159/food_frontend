@@ -736,6 +736,29 @@ Future<void> init() async {
             }
           }
 
+          // 429 (rate limit): si el server pide esperar poco, reintentamos
+          // UNA vez tras la espera — así un pico transitorio no se ve como
+          // error. Si la espera es larga, dejamos fallar (el watcher de
+          // polls lo traga; una acción puntual mostrará error, raro tras
+          // subir los límites por rol en el backend).
+          if (status == 429 && !alreadyRetried && !isAuthEndpoint) {
+            final retryAfterRaw =
+                error.response?.headers.value('retry-after');
+            final retryAfter = int.tryParse(retryAfterRaw ?? '');
+            if (retryAfter != null && retryAfter > 0 && retryAfter <= 2) {
+              await Future.delayed(Duration(seconds: retryAfter));
+              final retryOptions = error.requestOptions
+                ..extra['_retried'] = true;
+              try {
+                final response = await dio.fetch(retryOptions);
+                return handler.resolve(response);
+              } catch (e) {
+                return handler.next(e is DioException ? e : error);
+              }
+            }
+            return handler.next(error);
+          }
+
           if (!isUnauthorized || isAuthEndpoint || alreadyRetried) {
             return handler.next(error);
           }
