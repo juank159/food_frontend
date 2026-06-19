@@ -171,6 +171,19 @@ class OrderCard extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         _originChip(),
+        // Badge de cuenta abierta: deja claro que esta orden está dentro
+        // de una cuenta (se cobra consolidado desde "Cuentas abiertas").
+        // Sin esto, el usuario no entendía por qué la orden vivía en dos
+        // lugares.
+        if (order.belongsToTabSession)
+          _InfoChip(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Cuenta abierta',
+            accent: AppColors.info,
+            // Tap → salta directo a la cuenta (cobro consolidado). Si el
+            // card se usa sin el callback, queda como badge no-tappable.
+            onTap: onOpenTabSession,
+          ),
         // Cliente — pero NO si su nombre ya es el destino (ej. venta de
         // mostrador: "Mostrador" ya sale como chip de origen, no lo
         // repetimos).
@@ -419,31 +432,59 @@ class _StatusPill extends StatelessWidget {
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _InfoChip({required this.icon, required this.label});
+
+  /// Si viene, el chip se vuelve tappable (InkWell + chevron) — lo usa
+  /// el badge "Cuenta abierta" para saltar directo a la cuenta.
+  final VoidCallback? onTap;
+
+  /// Color de acento opcional (fondo tenue + texto/ícono) para destacar
+  /// el chip por sobre los neutrales.
+  final Color? accent;
+
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final fg = accent ?? AppColors.textPrimary;
+    final iconColor = accent ?? AppColors.textSecondary;
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: accent != null
+            ? accent!.withValues(alpha: 0.10)
+            : AppColors.background,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.textSecondary),
+          Icon(icon, size: 13, color: iconColor),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textPrimary,
+              color: fg,
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            Icon(Icons.chevron_right, size: 14, color: iconColor),
+          ],
         ],
       ),
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: chip,
     );
   }
 }

@@ -13,6 +13,7 @@ import '../../domain/entities/order.dart';
 import '../../domain/entities/selected_modifier.dart';
 import '../../domain/usecases/create_order_usecase.dart';
 import '../models/sell_mode.dart';
+import 'orders_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
 /// Cart Item Model
@@ -935,6 +936,11 @@ class OrderFormController extends GetxController {
           // hay impresora de cocina o no hay items para cocina.
           unawaited(PrintingOrchestrator.autoPrintKitchen(orderId: order.id));
 
+          // Avisar al listado de Órdenes para que la orden nueva aparezca
+          // al instante (sin esto, una orden de cuenta abierta / mesa /
+          // llevar quedaba invisible en "Órdenes" hasta un reload manual).
+          _registerInOrdersList(order);
+
           // En Venta Express NO mostramos snackbar de "Orden creada" ni
           // popeamos la pantalla — el caller se encarga del flujo (abrir
           // dialog de cobro, mostrar feedback final). Solo exponemos la
@@ -969,6 +975,15 @@ class OrderFormController extends GetxController {
       );
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Inserta la orden recién creada en `OrdersController` (si está
+  /// montado) para que el listado de Órdenes la muestre de inmediato,
+  /// sin esperar un reload manual.
+  void _registerInOrdersList(Order order) {
+    if (Get.isRegistered<OrdersController>()) {
+      Get.find<OrdersController>().registerCreatedOrder(order);
     }
   }
 

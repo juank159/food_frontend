@@ -239,6 +239,41 @@ class OrdersController extends GetxController {
     }
   }
 
+  /// Registra una orden RECIÉN CREADA en las listas en memoria para que
+  /// aparezca AL INSTANTE en el listado, sin esperar un reload manual.
+  ///
+  /// Resuelve el bug "creé una cuenta abierta / ticket y no aparece en
+  /// Órdenes": el form de venta hacía `Get.back` pero nadie le avisaba a
+  /// este controller, así que la lista quedaba vieja. Aplica a TODOS los
+  /// modos (mostrador, mesa, para llevar, domicilio y cuenta abierta) —
+  /// una orden de cuenta abierta es una orden como cualquier otra y debe
+  /// verse acá, no solo en "Cuentas abiertas".
+  void registerCreatedOrder(order_entity.Order order) {
+    // Ya presente (caso raro) → solo refrescar sus datos.
+    if (orders.any((o) => o.id == order.id)) {
+      applyOrderUpdate(order);
+      return;
+    }
+    // Si hay filtros server-side activos (estado/tipo), la orden nueva
+    // podría no cumplirlos → recargamos para no mostrar algo inconsistente.
+    if (filterStatus.value != null || filterOrderType.value != null) {
+      loadOrders();
+      return;
+    }
+    // Si el período de fechas visible NO incluye "ahora" (ej. estoy
+    // viendo "ayer"), la orden nueva no corresponde a esta vista — el
+    // filtro de fecha la excluye correctamente, no la insertamos.
+    final now = DateTime.now();
+    final afterStart =
+        startDate.value == null || !now.isBefore(startDate.value!);
+    final beforeEnd = endDate.value == null || !now.isAfter(endDate.value!);
+    if (!afterStart || !beforeEnd) return;
+
+    // Caso normal: insertar arriba (la lista va DESC por fecha de creación).
+    orders.insert(0, order);
+    if (order.isActive) activeOrders.insert(0, order);
+  }
+
   /// Hace un GET fresco de UNA orden y aplica el resultado a todos los
   /// lugares relevantes. Es la forma "robusta" de pedirle al sistema
   /// que se entere de cambios remotos — usada típicamente después de
