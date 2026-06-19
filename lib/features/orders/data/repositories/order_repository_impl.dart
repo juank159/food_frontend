@@ -185,6 +185,7 @@ class OrderRepositoryImpl implements OrderRepository {
     OrderSource orderSource = OrderSource.pos,
     String? tableId,
     String? tableElementId,
+    String? tableLabel,
     String? tabSessionId,
     String? customerId,
     String? customerName,
@@ -216,6 +217,7 @@ class OrderRepositoryImpl implements OrderRepository {
 
         if (tableId != null) orderData['table_id'] = tableId;
         if (tableElementId != null) orderData['table_element_id'] = tableElementId;
+        if (tableLabel != null) orderData['table_label'] = tableLabel;
         if (tabSessionId != null) orderData['tab_session_id'] = tabSessionId;
         if (customerId != null) orderData['customer_id'] = customerId;
         if (customerName != null) orderData['customer_name'] = customerName;

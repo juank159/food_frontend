@@ -159,20 +159,12 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
 
     if (!mounted) return;
 
-    // Reset del form para el siguiente pago.
-    _amountController.clear();
-    _receivedController.clear();
-    _notesController.clear();
-    setState(() {
-      _selectedMethod = PaymentMethod.cash;
-      _selectedTenantAccount = null;
-    });
-
-    // Si quedó completamente pagado, cerramos el dialog devolviendo
-    // los payments — el caller actualiza la orden.
-    if (_isFullyPaid) {
-      Navigator.pop(context, widget.controller.payments.toList());
-    }
+    // Cerramos el dialog devolviendo los payments al caller (el detalle
+    // de la orden), que refresca el saldo restante. El pago ya quedó
+    // PERSISTIDO en el backend —así sea un abono parcial— por
+    // `addPartialPayment`. Si el cajero quiere registrar otro abono,
+    // reabre "Procesar pago" y verá el restante ya descontado.
+    Navigator.pop(context, widget.controller.payments.toList());
   }
 
   void _useRemainingAsAmount() {

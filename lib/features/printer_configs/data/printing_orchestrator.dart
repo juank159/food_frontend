@@ -82,6 +82,9 @@ class PrintingOrchestrator {
           (tenant['settings'] as Map?)?.cast<String, dynamic>() ?? {};
       final contact =
           (settings['contact'] as Map?)?.cast<String, dynamic>() ?? {};
+      final receipt =
+          (settings['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
+      final logoUrl = (receipt['logo_url'] as String?)?.trim();
       final info = _TenantInfo(
         businessName:
             (tenant['business_name'] as String?)?.trim().isNotEmpty == true
@@ -90,6 +93,7 @@ class PrintingOrchestrator {
         address: (contact['address'] as String?)?.trim(),
         phone: (contact['phone'] as String?)?.trim(),
         taxId: (contact['tax_id'] as String?)?.trim(),
+        logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
       );
       _tenantCache = info;
       _tenantCachedAt = now;
@@ -111,6 +115,42 @@ class PrintingOrchestrator {
   static void invalidateTenantCache() {
     _tenantCache = null;
     _tenantCachedAt = null;
+    _logoBytesCache = null;
+    _logoUrlCache = null;
+  }
+
+  // ── Cache del logo (bytes descargados) ────────────────────────────
+  static Uint8List? _logoBytesCache;
+  static String? _logoUrlCache;
+
+  /// Descarga (una sola vez por URL) los bytes del logo del negocio y
+  /// los cachea, para no re-descargar en cada recibo. Usa un Dio LIMPIO
+  /// (sin baseUrl ni interceptors de la API) porque el logo vive en un
+  /// host externo — así no le filtramos el token ni el x-tenant-id.
+  /// Devuelve null si no hay URL o si la descarga falla: el recibo
+  /// simplemente sale sin logo, nunca se rompe.
+  static Future<Uint8List?> _getLogoBytes(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    if (_logoUrlCache == url && _logoBytesCache != null) {
+      return _logoBytesCache;
+    }
+    try {
+      final res = await Dio().get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 8),
+          sendTimeout: const Duration(seconds: 8),
+        ),
+      );
+      final data = res.data;
+      if (data == null || data.isEmpty) return null;
+      _logoBytesCache = Uint8List.fromList(data);
+      _logoUrlCache = url;
+      return _logoBytesCache;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Resolución de impresora ───────────────────────────────────────
@@ -383,11 +423,17 @@ class PrintingOrchestrator {
     PrintJobKind kind,
   ) async {
     final tenant = await _getTenantInfo();
+    // El logo solo se imprime en el RECIBO (la comanda de cocina es
+    // funcional, sin branding — ahorra papel y tiempo de impresión).
+    final logoBytes = kind == PrintJobKind.receipt
+        ? await _getLogoBytes(tenant.logoUrl)
+        : null;
     return TicketData(
       businessName: tenant.businessName,
       address: tenant.address,
       phone: tenant.phone,
       taxId: tenant.taxId,
+      logoBytes: logoBytes,
       orderNumber: order.orderNumber,
       createdAt: DateTime.tryParse(order.createdAt) ?? DateTime.now(),
       tableLabel: order.tableLabel ?? order.tableName,
@@ -497,10 +543,15 @@ class _TenantInfo {
   final String? phone;
   final String? taxId;
 
+  /// URL del logo del negocio (settings.receipt.logo_url). Se descarga
+  /// aparte y se cachea como bytes para imprimirlo en el recibo.
+  final String? logoUrl;
+
   const _TenantInfo({
     required this.businessName,
     required this.address,
     required this.phone,
     required this.taxId,
+    this.logoUrl,
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:image/image.dart' as img;
 
 import '../../../core/config/formatters/currency_formatter.dart';
 
@@ -13,6 +14,11 @@ class TicketData {
   final String? address;
   final String? phone;
   final String? taxId;
+
+  /// Bytes crudos del logo (PNG/JPG ya descargado). Solo se imprime en
+  /// el recibo, centrado arriba del nombre. `null` = sin logo. El
+  /// orquestador lo descarga (con cache) desde `settings.receipt.logo_url`.
+  final Uint8List? logoBytes;
 
   // ── Orden ──
   final String orderNumber;
@@ -44,6 +50,7 @@ class TicketData {
     required this.address,
     required this.phone,
     required this.taxId,
+    this.logoBytes,
     required this.orderNumber,
     required this.createdAt,
     required this.tableLabel,
@@ -223,8 +230,12 @@ class EscPosGenerator {
       );
     }
 
-    // ─── Cliente (si hay) ───
-    if (data.customerName != null && data.customerName!.isNotEmpty) {
+    // ─── Cliente (si hay y no es el mismo destino) ───
+    // En venta de mostrador el cliente es "Mostrador", que ya salió como
+    // destino arriba — no lo repetimos.
+    if (data.customerName != null &&
+        data.customerName!.isNotEmpty &&
+        data.customerName!.trim() != _destinationLabel(data)) {
       bytes.addAll(gen.feed(1));
       bytes.addAll(gen.text('Cliente: ${data.customerName}'));
       if (data.customerPhone != null && data.customerPhone!.isNotEmpty) {
@@ -302,6 +313,12 @@ class EscPosGenerator {
     final bytes = <int>[];
     bytes.addAll(gen.reset());
 
+    // ─── Logo (opcional, solo recibo) ───
+    // Si el negocio configuró un logo lo imprimimos centrado arriba del
+    // nombre. Envuelto en try/catch: un logo corrupto/raro NUNCA debe
+    // tumbar la impresión del recibo (el cobro ya pasó).
+    _writeLogo(gen, bytes, data, paperWidthMm);
+
     // ─── Header del negocio ───
     bytes.addAll(
       gen.text(
@@ -353,13 +370,16 @@ class EscPosGenerator {
           styles: const PosStyles(bold: true)),
     );
     bytes.addAll(gen.text('Fecha: ${_fullDate(data.createdAt)}'));
-    if (data.customerName != null && data.customerName!.isNotEmpty) {
+    if (data.customerName != null &&
+        data.customerName!.isNotEmpty &&
+        data.customerName!.trim() != _destinationLabel(data)) {
       bytes.addAll(gen.text('Cliente: ${data.customerName}'));
     }
-    if (data.tableLabel != null && data.tableLabel!.isNotEmpty) {
-      bytes.addAll(gen.text('Mesa: ${data.tableLabel}'));
-    }
-    bytes.addAll(gen.text('Tipo: ${_formatOrderType(data.orderType)}'));
+    // Referencia del pedido: etiqueta propia (mesa "Mesa 5" / cuenta
+    // libre "papa") o, si no hay, el tipo en coloquial. NO imprimimos
+    // "PARA LLEVAR" cuando la cuenta tiene nombre propio (era el bug:
+    // una cuenta libre salía como "para llevar" sin haberlo elegido).
+    bytes.addAll(gen.text('Atención: ${_destinationLabel(data)}'));
 
     bytes.addAll(gen.hr());
 
@@ -493,16 +513,31 @@ class EscPosGenerator {
 
   // ── Helpers ──────────────────────────────────────────────────────
 
-  static String _formatOrderType(String type) {
-    switch (type) {
-      case 'dine_in':
-        return 'EN MESA';
-      case 'takeaway':
-        return 'PARA LLEVAR';
-      case 'delivery':
-        return 'DOMICILIO';
-      default:
-        return type.toUpperCase();
+  /// Imprime el logo del negocio centrado (solo recibo). Decodifica los
+  /// bytes, lo escala al ancho del papel y lo manda como raster. Si algo
+  /// falla (bytes corruptos, formato raro), no imprime nada — el recibo
+  /// sigue saliendo igual de bien.
+  static void _writeLogo(
+    Generator gen,
+    List<int> bytes,
+    TicketData data,
+    int paperWidthMm,
+  ) {
+    final raw = data.logoBytes;
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = img.decodeImage(raw);
+      if (decoded == null) return;
+      // Ancho útil del papel en puntos: 58mm≈384, 80mm≈576. Topamos para
+      // que el logo no se desborde ni desperdicie papel.
+      final maxWidth = paperWidthMm == 58 ? 360 : 500;
+      final resized = decoded.width > maxWidth
+          ? img.copyResize(decoded, width: maxWidth)
+          : decoded;
+      bytes.addAll(gen.image(resized));
+      bytes.addAll(gen.feed(1));
+    } catch (_) {
+      // Logo inválido → lo ignoramos.
     }
   }
 

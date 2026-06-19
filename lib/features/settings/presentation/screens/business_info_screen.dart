@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -5,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 
 /// Información del negocio (tenant): nombre, dirección, teléfono, email.
 ///
@@ -37,6 +39,9 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
   // por costumbre LATAM lo llamamos NIT. Va al campo settings.contact
   // como `tax_id`.
   final _nitCtrl = TextEditingController();
+  // URL del logo que se imprime arriba del recibo. Vive en
+  // settings.receipt.logo_url.
+  final _logoUrlCtrl = TextEditingController();
 
   // Settings completos cargados — los preservamos al guardar para no
   // pisar otros campos (impuestos, propinas, etc.).
@@ -56,6 +61,7 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
     _emailCtrl.dispose();
     _addressCtrl.dispose();
     _nitCtrl.dispose();
+    _logoUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -80,6 +86,10 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
       _emailCtrl.text = (contact['email'] as String?) ?? '';
       _addressCtrl.text = (contact['address'] as String?) ?? '';
       _nitCtrl.text = (contact['tax_id'] as String?) ?? '';
+      final receipt =
+          (settings['receipt'] as Map?)?.cast<String, dynamic>() ??
+              <String, dynamic>{};
+      _logoUrlCtrl.text = (receipt['logo_url'] as String?) ?? '';
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -114,10 +124,26 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
         if (_nitCtrl.text.trim().isNotEmpty) 'tax_id': _nitCtrl.text.trim(),
       };
 
+      // Logo del recibo. Si el campo queda vacío mandamos `logo_url: null`
+      // para limpiarlo; el orquestador trata null/'' como "sin logo".
+      final existingReceipt =
+          (newSettings['receipt'] as Map?)?.cast<String, dynamic>() ??
+              <String, dynamic>{};
+      final logo = _logoUrlCtrl.text.trim();
+      newSettings['receipt'] = {
+        ...existingReceipt,
+        'logo_url': logo.isNotEmpty ? logo : null,
+      };
+
       await _dio.patch('/tenants/me', data: {
         'business_name': name,
         'settings': newSettings,
       });
+
+      // El orquestador de impresión cachea la info del negocio (incluido
+      // el logo) por 10 min. Invalidamos para que el próximo recibo use
+      // el logo recién guardado de una.
+      PrintingOrchestrator.invalidateTenantCache();
 
       AppSnackbar.show(
         'Información actualizada',
@@ -221,7 +247,91 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
           icon: Icons.badge_outlined,
           hint: 'Ej: 900.123.456-7',
         ),
+        const SizedBox(height: 24),
+        _sectionTitle('Logo del recibo'),
+        _field(
+          controller: _logoUrlCtrl,
+          label: 'URL del logo (opcional)',
+          icon: Icons.image_outlined,
+          hint: 'https://tu-sitio.com/logo.png',
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Pegá el enlace público de tu logo (PNG o JPG). Aparecerá '
+          'centrado arriba del nombre en cada recibo. Para que se vea '
+          'bien en la térmica, usá un logo simple y con buen contraste.',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        _buildLogoPreview(),
       ],
+    );
+  }
+
+  Widget _buildLogoPreview() {
+    final url = _logoUrlCtrl.text.trim();
+    if (!url.startsWith('http')) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Vista previa',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: CachedNetworkImage(
+                imageUrl: url,
+                height: 80,
+                fit: BoxFit.contain,
+                placeholder: (_, __) => const SizedBox(
+                  height: 80,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                errorWidget: (_, __, ___) => Column(
+                  children: [
+                    Icon(Icons.broken_image_outlined,
+                        color: AppColors.error, size: 32),
+                    const SizedBox(height: 4),
+                    Text(
+                      'No se pudo cargar la imagen.\nRevisá que el enlace sea '
+                      'público y directo a la imagen.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

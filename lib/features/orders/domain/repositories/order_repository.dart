@@ -42,6 +42,7 @@ abstract class OrderRepository {
     OrderSource orderSource = OrderSource.pos,
     String? tableId,
     String? tableElementId, // Floor Plan Table Element ID
+    String? tableLabel, // Etiqueta legible del destino ("Mostrador", etc.)
     String? tabSessionId,
     String? customerId,
     String? customerName,

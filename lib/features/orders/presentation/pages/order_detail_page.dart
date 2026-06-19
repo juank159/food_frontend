@@ -159,9 +159,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       bottomNavigationBar: Obx(() {
         if (!controller.canProcessPayment) return const SizedBox.shrink();
         final order = controller.currentOrder;
+        // Si ya hubo un abono parcial, el botón cobra el SALDO restante
+        // (no el total). Antes mostraba el total completo aunque el
+        // cliente ya hubiera abonado, confundiendo al cajero.
+        final hasPartial =
+            order != null && order.paidAmount > 0.01 && !order.isPaymentCompleted;
+        final amountToCharge =
+            order != null ? (hasPartial ? order.balance : order.totalAmount) : 0.0;
         final totalLabel = order != null
-            ? ' · ${CurrencyFormatter.format(order.totalAmount)}'
+            ? ' · ${CurrencyFormatter.format(amountToCharge)}'
             : '';
+        final buttonText = hasPartial ? 'Cobrar restante' : 'Procesar pago';
         return SafeArea(
           top: false,
           child: Container(
@@ -182,7 +190,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               child: FilledButton.icon(
                 onPressed: () => _showPaymentDialog(context),
                 icon: const Icon(Icons.payment, size: 20),
-                label: Text('Procesar pago$totalLabel'),
+                label: Text('$buttonText$totalLabel'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

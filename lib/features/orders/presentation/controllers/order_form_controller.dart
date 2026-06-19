@@ -882,6 +882,11 @@ class OrderFormController extends GetxController {
         orderType: orderType.value,
         tableId: selectedTableId.value,
         tableElementId: selectedTableElementId.value,
+        // Venta de mostrador: etiquetamos el destino como "Mostrador" para
+        // que la comanda/recibo/card NO digan "Para llevar" (no se eligió
+        // para llevar). El resto de modos dejan que el backend derive la
+        // etiqueta (mesa / nombre de cuenta libre) o caiga al tipo.
+        tableLabel: isQuickSale.value ? 'Mostrador' : null,
         tabSessionId: activeTabSessionId.value,
         customerId: customerId.value,
         customerName: effectiveCustomerName,

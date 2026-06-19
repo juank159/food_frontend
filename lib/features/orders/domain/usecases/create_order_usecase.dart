@@ -16,6 +16,7 @@ class CreateOrderUseCase {
     OrderSource orderSource = OrderSource.pos,
     String? tableId,
     String? tableElementId, // Floor Plan Table Element ID
+    String? tableLabel, // Etiqueta legible del destino ("Mostrador", etc.)
     /// ID de cuenta abierta. Si viene, el backend une el ticket a esa
     /// cuenta (en vez de buscar por mesa o crear una nueva), y relaja
     /// los requisitos de cliente — la cuenta es la unidad de pago.
@@ -42,6 +43,7 @@ class CreateOrderUseCase {
       orderSource: orderSource,
       tableId: tableId,
       tableElementId: tableElementId,
+      tableLabel: tableLabel,
       tabSessionId: tabSessionId,
       customerId: customerId,
       customerName: customerName,

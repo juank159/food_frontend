@@ -141,7 +141,7 @@ class OrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                order.orderType.displayName,
+                _destinationText(),
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
@@ -165,14 +165,17 @@ class OrderCard extends StatelessWidget {
   /// El primer chip siempre indica DÓNDE se entrega la orden — clave
   /// para el flujo "lista para entregar, ¿a quién?".
   Widget _buildContextRow() {
-    final origin = _originChip();
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (origin != null) origin,
-        if (order.hasCustomer)
+        _originChip(),
+        // Cliente — pero NO si su nombre ya es el destino (ej. venta de
+        // mostrador: "Mostrador" ya sale como chip de origen, no lo
+        // repetimos).
+        if (order.hasCustomer &&
+            (order.customerName?.trim() ?? '') != _destinationText())
           _InfoChip(
             icon: Icons.person_outline,
             label: order.customerName ?? 'Cliente',
@@ -191,35 +194,47 @@ class OrderCard extends StatelessWidget {
   }
 
   /// Chip de origen de la orden, prioritario y siempre visible:
-  ///   - dine-in con mesa → "Mesa 7"
-  ///   - dine-in sin mesa → "Sin mesa"
+  ///   - con etiqueta propia (mesa "Mesa 7" o cuenta libre "papa") → la etiqueta
   ///   - takeaway → "Para llevar"
   ///   - delivery → "Domicilio"
-  _InfoChip? _originChip() {
-    if (order.hasTable) {
-      // `displayTableLabel` prioriza el snapshot legible
-      // (ej "Mesa 1 · Areas verdes" para self-orders por QR).
-      return _InfoChip(
-        icon: Icons.table_restaurant_outlined,
-        label: order.displayTableLabel,
-      );
-    }
+  ///   - dine-in sin mesa → "Sin mesa"
+  _InfoChip _originChip() =>
+      _InfoChip(icon: _originIcon(), label: _destinationText());
+
+  /// `true` si la orden tiene una etiqueta propia: una mesa o una cuenta
+  /// libre con nombre (`tableLabel`, ej. "papa"). Las cuentas libres NO
+  /// tienen `tableElementId`, así que `hasTable` no las detecta — por eso
+  /// miramos también `tableLabel`.
+  bool get _hasOwnLabel {
+    final label = order.tableLabel?.trim();
+    return (label != null && label.isNotEmpty) || order.hasTable;
+  }
+
+  /// Texto de destino: etiqueta propia o, si no hay, el tipo coloquial.
+  /// Evita mostrar "Para llevar" en cuentas libres que NUNCA fueron para
+  /// llevar (el bug que reportó el usuario).
+  String _destinationText() {
+    if (_hasOwnLabel) return order.displayTableLabel;
     switch (order.orderType) {
       case OrderType.takeaway:
-        return const _InfoChip(
-          icon: Icons.takeout_dining_outlined,
-          label: 'Para llevar',
-        );
+        return 'Para llevar';
       case OrderType.delivery:
-        return const _InfoChip(
-          icon: Icons.delivery_dining_outlined,
-          label: 'Domicilio',
-        );
+        return 'Domicilio';
       case OrderType.dineIn:
-        return const _InfoChip(
-          icon: Icons.table_restaurant_outlined,
-          label: 'Sin mesa',
-        );
+        return 'Sin mesa';
+    }
+  }
+
+  IconData _originIcon() {
+    if (order.hasTable) return Icons.table_restaurant_outlined;
+    if (_hasOwnLabel) return Icons.receipt_long_outlined; // cuenta libre
+    switch (order.orderType) {
+      case OrderType.takeaway:
+        return Icons.takeout_dining_outlined;
+      case OrderType.delivery:
+        return Icons.delivery_dining_outlined;
+      case OrderType.dineIn:
+        return Icons.table_restaurant_outlined;
     }
   }
 

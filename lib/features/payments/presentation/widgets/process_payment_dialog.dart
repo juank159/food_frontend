@@ -443,17 +443,13 @@ class ProcessPaymentDialog extends StatelessWidget {
       ),
     );
 
-    // Sumamos los pagos nuevos del split (ya vienen del backend con
-    // sus amounts reales). Para decidir si la orden quedó completa,
-    // comparamos contra el saldo PENDIENTE — si entré con $3000 de
-    // saldo y cobré $3000 en el split, eso completa la orden, aunque
-    // el total fuese $10000 con pagos previos.
-    final paidSumNow = (result ?? const <Payment>[])
-        .where((p) => p.status == PaymentStatus.completed)
-        .fold<double>(0, (sum, p) => sum + p.amount);
-    final fullyPaid = paidSumNow >= _effectiveAmount - 0.01;
-
-    if (fullyPaid && outerContext.mounted) {
+    // Cuando el split se cierra (registró un abono parcial o el cobro
+    // total), cerramos también el chooser y volvemos al detalle de la
+    // orden. El detalle ya se refresca solo vía `_notifyOrderChanged`
+    // del PaymentController, así que el botón "Procesar pago" mostrará
+    // el saldo restante actualizado. Antes, tras un abono parcial, el
+    // cajero quedaba atrapado en este dialog sin forma clara de salir.
+    if (outerContext.mounted) {
       Navigator.pop(outerContext, result);
     }
   }

@@ -93,6 +93,11 @@ dependencies:
   # desperdicien rollo de papel.
   esc_pos_utils_plus: ^2.0.4
 
+  # Decodificar/redimensionar el logo del negocio para rasterizarlo en
+  # el recibo térmico (gen.image espera un Image del paquete `image`).
+  # Ya venía transitivo via esc_pos_utils_plus; lo declaramos directo.
+  image: ^4.8.0
+
   # Abrir URL externa para fallback (ej. abrir PDF en navegador si la
   # plataforma no soporta `printing` directamente).
   url_launcher: ^6.3.0
