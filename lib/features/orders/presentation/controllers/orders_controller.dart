@@ -8,6 +8,7 @@ import '../../domain/usecases/get_orders_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/date_period.dart';
+import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import 'order_detail_controller.dart';
 
 /// Orders Controller
@@ -48,6 +49,27 @@ class OrdersController extends GetxController {
   // View states
   final RxBool showOnlyActive = false.obs;
   final RxInt selectedTabIndex = 0.obs;
+
+  /// Vista principal de la pantalla: 0 = "Órdenes" (lista de tickets),
+  /// 1 = "Cuentas abiertas" (segmento embebido). Unifica las dos
+  /// pantallas que antes estaban separadas en un solo lugar.
+  final RxInt mainView = 0.obs;
+
+  /// Cambia entre "Órdenes" y "Cuentas abiertas". Al entrar a cuentas
+  /// refresca la lista de cuentas (el controller embebido es el mismo
+  /// `OpenTabsController` global). Al volver a órdenes refresca la lista
+  /// por si se cobró/cerró una cuenta desde el otro segmento.
+  void switchMainView(int view) {
+    if (mainView.value == view) return;
+    mainView.value = view;
+    if (view == 1) {
+      if (Get.isRegistered<OpenTabsController>()) {
+        Get.find<OpenTabsController>().load();
+      }
+    } else {
+      loadOrders();
+    }
+  }
 
   @override
   void onInit() {

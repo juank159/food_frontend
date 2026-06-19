@@ -9,6 +9,8 @@ import '../../../../core/utils/date_period.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
+import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
+import '../../../tab_sessions/presentation/widgets/open_tabs_view.dart';
 import '../controllers/orders_controller.dart';
 import '../widgets/order_card.dart';
 
@@ -37,9 +39,23 @@ class OrdersPage extends GetView<OrdersController> {
         child: Column(
           children: [
             _Header(controller: controller),
-            _OrdersFilterBar(controller: controller),
-            const SizedBox(height: 8),
-            Expanded(child: _OrdersList(controller: controller)),
+            _ViewToggle(controller: controller),
+            Expanded(
+              child: Obx(() {
+                // Segmento "Cuentas abiertas" — embebe la MISMA vista que
+                // la pantalla dedicada, así no hay que saltar de pantalla.
+                if (controller.mainView.value == 1) {
+                  return const OpenTabsView();
+                }
+                return Column(
+                  children: [
+                    _OrdersFilterBar(controller: controller),
+                    const SizedBox(height: 8),
+                    Expanded(child: _OrdersList(controller: controller)),
+                  ],
+                );
+              }),
+            ),
           ],
         ),
       ),
@@ -49,6 +65,9 @@ class OrdersPage extends GetView<OrdersController> {
       // el bottomNavigationBar — más prominente y sin riesgo de
       // overflow del label.
       floatingActionButton: Obx(() {
+        // En el segmento "Cuentas abiertas" el FAB de "Nueva orden" no
+        // aplica — esa vista tiene su propio botón "Abrir cuenta libre".
+        if (controller.mainView.value == 1) return const SizedBox.shrink();
         if (!controller.hasOrders) return const SizedBox.shrink();
         return FloatingActionButton(
           // heroTag único — el HomeScreen monta varias pantallas con FAB
@@ -65,6 +84,8 @@ class OrdersPage extends GetView<OrdersController> {
         );
       }),
       bottomNavigationBar: Obx(() {
+        // Solo en el segmento de Órdenes y cuando no hay órdenes.
+        if (controller.mainView.value == 1) return const SizedBox.shrink();
         if (controller.hasOrders || controller.isLoading.value) {
           return const SizedBox.shrink();
         }
@@ -74,6 +95,101 @@ class OrdersPage extends GetView<OrdersController> {
           onPressed: () => NavigationService.toCreateOrder(),
         );
       }),
+    );
+  }
+}
+
+// ─────────────────────────── View toggle ──────────────────────────────
+
+/// Segmentado "Órdenes | Cuentas abiertas" — unifica las dos vistas en
+/// una sola pantalla. El segundo segmento muestra el conteo de cuentas
+/// abiertas en vivo para que el operario sepa cuántas hay sin entrar.
+class _ViewToggle extends StatelessWidget {
+  final OrdersController controller;
+  const _ViewToggle({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Obx(() {
+        final view = controller.mainView.value;
+        // Conteo reactivo de cuentas abiertas (instancia el controller si
+        // hace falta — su onInit dispara el load).
+        final openCount = Get.isRegistered<OpenTabsController>()
+            ? Get.find<OpenTabsController>().sessions.length
+            : 0;
+        return Row(
+          children: [
+            Expanded(
+              child: _segment(
+                label: 'Órdenes',
+                icon: Icons.receipt_long_outlined,
+                selected: view == 0,
+                onTap: () => controller.switchMainView(0),
+              ),
+            ),
+            Expanded(
+              child: _segment(
+                label: openCount > 0
+                    ? 'Cuentas abiertas ($openCount)'
+                    : 'Cuentas abiertas',
+                icon: Icons.account_balance_wallet_outlined,
+                selected: view == 1,
+                onTap: () => controller.switchMainView(1),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _segment({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppColors.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

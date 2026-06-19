@@ -18,6 +18,8 @@ import '../../../orders/domain/usecases/update_order_status_usecase.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../products/presentation/controllers/modifiers_controller.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
+import '../../../tab_sessions/domain/usecases/tab_session_usecases.dart';
+import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import '../../../tables/presentation/bindings/floor_plans_list_binding.dart';
 import '../controllers/home_controller.dart';
 
@@ -70,6 +72,13 @@ class HomeBinding extends Bindings {
         createOrderUseCase: sl<CreateOrderUseCase>(),
         updateOrderStatusUseCase: sl<UpdateOrderStatusUseCase>(),
       ),
+    );
+
+    // Open Tabs Controller — el tab "Órdenes" embebe el segmento
+    // "Cuentas abiertas" (OpenTabsView), así que necesita este controller
+    // disponible desde el Home, igual que OrdersController.
+    Get.lazyPut<OpenTabsController>(
+      () => OpenTabsController(useCases: sl<TabSessionUseCases>()),
     );
 
     // Floor plans list — para los roles waiter/cashier el tab "Mesas"
