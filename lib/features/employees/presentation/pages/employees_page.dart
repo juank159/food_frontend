@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/role_labels.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
@@ -254,7 +255,7 @@ class EmployeesPage extends GetView<EmployeesController> {
               ),
               for (final role in roles)
                 AppFilterChip(
-                  label: role.name,
+                  label: roleLabelEs(role.code, fallback: role.name),
                   selected: selected == role.id,
                   onTap: () => controller.setRoleFilter(role.id),
                 ),

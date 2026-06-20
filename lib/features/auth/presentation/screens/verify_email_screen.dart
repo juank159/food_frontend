@@ -333,7 +333,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Email verificado',
+            'Correo verificado',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,

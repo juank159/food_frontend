@@ -282,7 +282,7 @@ class DashboardTab extends GetView<HomeController> {
         _QuickActionTile(
           icon: FontAwesomeIcons.calendarCheck,
           title: 'Menú del día',
-          subtitle: 'Programar qué ven los clientes en self-order',
+          subtitle: 'Programar qué ven los clientes en el autopedido',
           accent: AppColors.accent,
           onTap: () => Get.toNamed(AppRoutes.menuSchedules),
         ),

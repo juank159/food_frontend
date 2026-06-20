@@ -7,7 +7,7 @@ library;
 enum OrderType {
   dineIn('dine_in', 'En el Local'),
   takeaway('takeaway', 'Para Llevar'),
-  delivery('delivery', 'Delivery');
+  delivery('delivery', 'Domicilio');
 
   final String value;
   final String displayName;

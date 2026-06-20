@@ -173,7 +173,7 @@ class PaymentMethodSelector extends StatelessWidget {
       case PaymentMethod.transfer:
         return 'Transferencia bancaria';
       case PaymentMethod.digitalWallet:
-        return 'PayPal, Venmo, etc.';
+        return 'Nequi, Daviplata, etc.';
     }
   }
 }

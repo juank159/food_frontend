@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/role_labels.dart';
 import '../../domain/entities/employee.dart';
 
 /// Acciones disponibles desde el menú contextual de la card.
@@ -132,7 +133,12 @@ class EmployeeCard extends StatelessWidget {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  _RoleChip(roleName: employee.role?.name ?? 'Sin rol'),
+                  _RoleChip(
+                    roleName: roleLabelEs(
+                      employee.role?.code,
+                      fallback: employee.role?.name,
+                    ),
+                  ),
                   _StatusPill(
                     status: employee.status,
                     color: statusColor,

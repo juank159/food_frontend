@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/role_labels.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/employee.dart';
 import '../controllers/employee_detail_controller.dart';
@@ -77,7 +78,7 @@ class EmployeeDetailPage extends GetView<EmployeeDetailController> {
   Widget _buildHeader(Employee emp) {
     return AppGradientHeader(
       title: emp.fullName,
-      subtitle: emp.role?.name ?? 'Sin rol asignado',
+      subtitle: roleLabelEs(emp.role?.code, fallback: emp.role?.name),
       leading: _BackButton(),
       trailing: _StatusPillLight(status: emp.status),
       hero: _AvatarHero(employee: emp),
@@ -411,7 +412,10 @@ class _AvatarHero extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        employee.role?.name ?? 'Sin rol',
+                        roleLabelEs(
+                          employee.role?.code,
+                          fallback: employee.role?.name,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

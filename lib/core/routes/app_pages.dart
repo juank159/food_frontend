@@ -614,14 +614,10 @@ class AppPages {
       middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
       transition: Transition.cupertino,
     ),
-    GetPage(
-      name: AppRoutes.employeeDetail,
-      page: () => const EmployeeDetailPage(),
-      binding: EmployeeDetailBinding(),
-      middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
-      transition: Transition.cupertino,
-      transitionDuration: const Duration(milliseconds: 300),
-    ),
+    // IMPORTANTE: la ruta ESTÁTICA `/employees/create` debe ir ANTES que la
+    // DINÁMICA `/employees/:id`. GetX matchea en orden de registro; si `:id`
+    // va primero, `/employees/create` cae ahí con id="create" y dispara
+    // getEmployeeById("create") → 400 "uuid is expected".
     GetPage(
       name: AppRoutes.createEmployee,
       page: () => const EmployeeFormPage(),
@@ -630,6 +626,14 @@ class AppPages {
       // POST /users). El manager puede editar pero no crear.
       middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin"])],
       transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.employeeDetail,
+      page: () => const EmployeeDetailPage(),
+      binding: EmployeeDetailBinding(),
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: AppRoutes.editEmployee,

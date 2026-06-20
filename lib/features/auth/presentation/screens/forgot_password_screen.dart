@@ -260,7 +260,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Email enviado',
+            'Correo enviado',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,
@@ -298,7 +298,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             icon: const Icon(Icons.refresh, size: 18),
             label: const Text(
-              'Reenviar email',
+              'Reenviar correo',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),

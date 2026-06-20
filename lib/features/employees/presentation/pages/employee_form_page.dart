@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/role_labels.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/employee_role.dart';
 import '../controllers/employee_form_controller.dart';
@@ -195,7 +196,7 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
               for (final EmployeeRole role in roles)
                 DropdownMenuItem<String>(
                   value: role.id,
-                  child: Text(role.name),
+                  child: Text(roleLabelEs(role.code, fallback: role.name)),
                 ),
             ],
             onChanged: roles.isEmpty

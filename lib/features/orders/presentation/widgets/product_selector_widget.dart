@@ -396,7 +396,7 @@ class ProductSelectorWidget extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
-                        'N/D',
+                        'Agotado',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 9,
