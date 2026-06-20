@@ -21,80 +21,22 @@ class QrTokensPage extends GetView<QrTokensController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Códigos QR'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          Obx(() => IconButton(
-                tooltip: controller.showInactive.value
-                    ? 'Ocultar inactivos'
-                    : 'Ver inactivos',
-                icon: Icon(controller.showInactive.value
-                    ? Icons.visibility_off
-                    : Icons.visibility),
-                onPressed: () =>
-                    controller.showInactive.toggle(),
-              )),
-          PopupMenuButton<String>(
-            tooltip: 'Más acciones',
-            onSelected: (v) => _handleAction(context, v),
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'from-tables',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.table_restaurant),
-                  title: Text('Generar QRs desde planos'),
-                  subtitle: Text('Selecciona mesas reales del tenant'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'bulk',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.dynamic_feed),
-                  title: Text('Crear QRs por rango'),
-                  subtitle: Text('Ej: "Mesa 1 a 30" (sin asociar a plano)'),
-                ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'sheet-4',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.grid_view),
-                  title: Text('Imprimir todos los QRs'),
-                  subtitle: Text('Hoja A4 · 4 por hoja (medianos)'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'sheet-8',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.grid_on),
-                  title: Text('Imprimir todos los QRs'),
-                  subtitle: Text('Hoja A4 · 8 por hoja (compactos)'),
-                ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'refresh',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.refresh),
-                  title: Text('Refrescar'),
-                ),
-              ),
-            ],
-          ),
-        ],
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Obx(() => controller.selectionMode.value
+            ? _selectionAppBar(context)
+            : _normalAppBar(context)),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: () => _openCreateDialog(context),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: Obx(() => controller.selectionMode.value
+          ? const SizedBox.shrink()
+          : FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              onPressed: () => _openCreateDialog(context),
+              child: const Icon(Icons.add, color: Colors.white),
+            )),
+      bottomNavigationBar: Obx(() => controller.selectionMode.value
+          ? _printSelectedBar(context)
+          : const SizedBox.shrink()),
       body: SafeArea(
         child: Obx(() {
           if (controller.loading.value && controller.tokens.isEmpty) {
@@ -124,6 +66,166 @@ class QrTokensPage extends GetView<QrTokensController> {
     );
   }
 
+  // ─────────────────────────── AppBars ───────────────────────────
+
+  AppBar _normalAppBar(BuildContext context) {
+    return AppBar(
+      title: const Text('Códigos QR'),
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      actions: [
+        Obx(() => IconButton(
+              tooltip: controller.showInactive.value
+                  ? 'Ocultar inactivos'
+                  : 'Ver inactivos',
+              icon: Icon(controller.showInactive.value
+                  ? Icons.visibility_off
+                  : Icons.visibility),
+              onPressed: () => controller.showInactive.toggle(),
+            )),
+        PopupMenuButton<String>(
+          tooltip: 'Más acciones',
+          onSelected: (v) => _handleAction(context, v),
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'from-tables',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.table_restaurant),
+                title: Text('Generar QRs desde planos'),
+                subtitle: Text('Selecciona mesas reales del tenant'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'bulk',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.dynamic_feed),
+                title: Text('Crear QRs por rango'),
+                subtitle: Text('Ej: "Mesa 1 a 30" (sin asociar a plano)'),
+              ),
+            ),
+            PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'select',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.checklist),
+                title: Text('Elegir cuáles imprimir'),
+                subtitle: Text('Seleccionás los QR que quieras'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sheet-6',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.grid_view),
+                title: Text('Imprimir todos los QRs'),
+                subtitle: Text('Hoja carta · 6 por hoja (para laminar)'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sheet-4',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.crop_square),
+                title: Text('Imprimir todos los QRs'),
+                subtitle: Text('Hoja carta · 4 por hoja (grandes)'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sheet-8',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.grid_on),
+                title: Text('Imprimir todos los QRs'),
+                subtitle: Text('Hoja carta · 8 por hoja (compactos)'),
+              ),
+            ),
+            PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'refresh',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.refresh),
+                title: Text('Refrescar'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  AppBar _selectionAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        tooltip: 'Cancelar selección',
+        onPressed: controller.exitSelection,
+      ),
+      title: Obx(() => Text('${controller.selectedCount} seleccionados')),
+      actions: [
+        Obx(() => TextButton.icon(
+              onPressed: controller.toggleSelectAllVisible,
+              icon: Icon(
+                controller.allVisibleSelected
+                    ? Icons.deselect
+                    : Icons.select_all,
+                color: Colors.white,
+                size: 20,
+              ),
+              label: Text(
+                controller.allVisibleSelected ? 'Ninguno' : 'Todos',
+                style: const TextStyle(color: Colors.white),
+              ),
+            )),
+      ],
+    );
+  }
+
+  /// Barra inferior en modo selección: imprimir los QR elegidos.
+  Widget _printSelectedBar(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Obx(() {
+          final n = controller.selectedCount;
+          return FilledButton.icon(
+            onPressed: n == 0 ? null : () => _printSelected(context),
+            icon: const Icon(Icons.print),
+            label: Text(n == 0 ? 'Elegí al menos un QR' : 'Imprimir $n QR(s)'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  /// Abre la vista previa con SOLO los QR seleccionados (6 por hoja carta;
+  /// el layout se puede cambiar en la preview).
+  Future<void> _printSelected(BuildContext context) async {
+    final codes = controller.selectedCodes;
+    if (codes.isEmpty) return;
+    final count = codes.length;
+    controller.exitSelection();
+    await Get.toNamed(
+      '/qr-tokens/preview',
+      arguments: QrPreviewArgs(
+        codes: codes,
+        title: 'Imprimir $count QRs',
+        subtitle: '6 por hoja carta',
+        initialPerPage: 6,
+      ),
+    );
+  }
+
   Future<void> _openCreateDialog(BuildContext context) async {
     await AppDialog.show(
       context: context,
@@ -145,9 +247,17 @@ class QrTokensPage extends GetView<QrTokensController> {
           const _BulkCreateQrDialog(),
         );
         break;
+      case 'select':
+        controller.enterSelection();
+        break;
+      case 'sheet-6':
       case 'sheet-4':
       case 'sheet-8':
-        final perPage = value == 'sheet-4' ? 4 : 8;
+        final perPage = value == 'sheet-6'
+            ? 6
+            : value == 'sheet-4'
+                ? 4
+                : 8;
         final codes = controller.visible
             .where((t) => t.isActive)
             .map((t) => t.code)
@@ -160,7 +270,7 @@ class QrTokensPage extends GetView<QrTokensController> {
           arguments: QrPreviewArgs(
             codes: codes,
             title: 'Imprimir ${codes.length} QRs',
-            subtitle: '$perPage por hoja A4',
+            subtitle: '$perPage por hoja carta',
             initialPerPage: perPage,
           ),
         );
@@ -185,11 +295,34 @@ class _QrCard extends StatelessWidget {
 
     return Obx(() {
       final isPrinting = controller.printingIds.contains(token.id);
-      return Material(
-        color: AppColors.surface,
-        elevation: 1.5,
-        shadowColor: Colors.black12,
-        borderRadius: BorderRadius.circular(14),
+      final selectionMode = controller.selectionMode.value;
+      final selected = controller.isSelected(token.id);
+      return GestureDetector(
+        // Mantener presionado entra al modo selección; en modo selección,
+        // un tap marca/desmarca el QR. Fuera de selección, los botones
+        // internos del card funcionan normal.
+        onLongPress: () => controller.enterSelection(token.id),
+        onTap: selectionMode
+            ? () => controller.toggleSelected(token.id)
+            : null,
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: selected
+                    ? Border.all(color: AppColors.primary, width: 2)
+                    : null,
+              ),
+              child: IgnorePointer(
+                // En modo selección, los botones internos no reciben taps
+                // (el tap del card maneja la selección).
+                ignoring: selectionMode,
+                child: Material(
+                  color: AppColors.surface,
+                  elevation: 1.5,
+                  shadowColor: Colors.black12,
+                  borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -331,6 +464,22 @@ class _QrCard extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+                ),
+              ),
+            ),
+            if (selectionMode)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Icon(
+                  selected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: selected ? AppColors.primary : Colors.grey,
+                ),
+              ),
+          ],
         ),
       );
     });

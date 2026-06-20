@@ -287,6 +287,7 @@ class _LayoutSelector extends StatelessWidget {
         : <_LayoutOption>[
             const _LayoutOption(1, 'XL', '1 por hoja'),
             const _LayoutOption(4, 'M', '4 por hoja'),
+            const _LayoutOption(6, 'L', '6 por hoja'),
             const _LayoutOption(8, 'S', '8 por hoja'),
             const _LayoutOption(12, 'XS', '12 por hoja'),
           ];

@@ -35,6 +35,54 @@ class QrTokensController extends GetxController {
     return tokens.where((t) => t.isActive).toList();
   }
 
+  // ─────────────────────── Modo selección (imprimir varios) ───────────
+  final RxBool selectionMode = false.obs;
+  final RxSet<String> selectedIds = <String>{}.obs;
+
+  int get selectedCount => selectedIds.length;
+
+  /// Códigos (string) de los QR seleccionados, respetando el orden visible.
+  List<String> get selectedCodes => visible
+      .where((t) => selectedIds.contains(t.id))
+      .map((t) => t.code)
+      .toList();
+
+  void enterSelection([String? firstId]) {
+    selectionMode.value = true;
+    if (firstId != null) selectedIds.add(firstId);
+  }
+
+  void exitSelection() {
+    selectionMode.value = false;
+    selectedIds.clear();
+  }
+
+  void toggleSelected(String id) {
+    if (selectedIds.contains(id)) {
+      selectedIds.remove(id);
+    } else {
+      selectedIds.add(id);
+    }
+    // Si quedó vacío, salimos del modo selección automáticamente.
+    if (selectedIds.isEmpty) selectionMode.value = false;
+  }
+
+  bool isSelected(String id) => selectedIds.contains(id);
+
+  /// True si todos los QR visibles están seleccionados.
+  bool get allVisibleSelected =>
+      visible.isNotEmpty && visible.every((t) => selectedIds.contains(t.id));
+
+  void toggleSelectAllVisible() {
+    if (allVisibleSelected) {
+      selectedIds.clear();
+      selectionMode.value = false;
+    } else {
+      selectedIds.addAll(visible.map((t) => t.id));
+      selectionMode.value = true;
+    }
+  }
+
   @override
   void onInit() {
     super.onInit();

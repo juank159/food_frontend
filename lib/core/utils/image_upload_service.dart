@@ -1,35 +1,30 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../config/cloudinary_config.dart';
 import '../config/theme/app_colors.dart';
+import 'api_response_utils.dart';
 import 'app_snackbar.dart';
 
-/// Sube fotos de productos a Cloudinary (subida UNSIGNED directa).
+/// Sube fotos de productos a través del BACKEND (`POST /uploads/image`),
+/// que a su vez las sube a Cloudinary con las credenciales del servidor
+/// (variables CLOUDINARY_* en Dokploy). Las claves NUNCA viven en la app.
 ///
-/// Flujo: el usuario elige Galería o Cámara → se selecciona/comprime la
-/// imagen → se sube a Cloudinary → devuelve la URL segura (`secure_url`)
-/// que se guarda en `product.image_url`.
+/// Flujo: el usuario elige Galería o Cámara → se comprime → se manda al
+/// backend → devuelve la URL (`secure_url`) que se guarda en
+/// `product.image_url`.
 class ImageUploadService {
   static final ImagePicker _picker = ImagePicker();
 
   /// Muestra el selector (galería/cámara), sube la imagen y devuelve la URL.
-  /// Devuelve `null` si el usuario cancela o si falla (ya avisa por snackbar).
+  /// `null` si el usuario cancela o si falla (ya avisa por snackbar).
   static Future<String?> pickAndUpload(BuildContext context) async {
-    if (!CloudinaryConfig.isConfigured) {
-      AppSnackbar.show(
-        'Fotos no configuradas',
-        'Falta configurar Cloudinary (cloud name + upload preset).',
-      );
-      return null;
-    }
-
     final source = await _chooseSource(context);
     if (source == null) return null;
 
     try {
-      // Comprimimos al elegir (maxWidth/Quality) para subir liviano.
+      // Comprimimos al elegir para subir liviano.
       final XFile? file = await _picker.pickImage(
         source: source,
         maxWidth: 1280,
@@ -41,24 +36,22 @@ class ImageUploadService {
       final bytes = await file.readAsBytes();
       final form = FormData.fromMap({
         'file': MultipartFile.fromBytes(bytes, filename: file.name),
-        'upload_preset': CloudinaryConfig.uploadPreset,
       });
 
-      // Dio LIMPIO (sin interceptores de auth): no mandamos el JWT/tenant
-      // a un servicio externo.
-      final dio = Dio();
-      final res = await dio.post(CloudinaryConfig.uploadUrl, data: form);
-      final data = res.data;
-      final url = data is Map ? data['secure_url'] as String? : null;
+      // Dio de la app (autenticado: manda JWT + x-tenant-id). El backend
+      // exige rol admin/manager en /uploads/image.
+      final dio = GetIt.I<Dio>();
+      final res = await dio.post('/uploads/image', data: form);
+      final url = ApiResponseUtils.object(res)['url'] as String?;
       if (url == null || url.isEmpty) {
-        AppSnackbar.show('No se pudo subir', 'Respuesta inesperada de Cloudinary.');
+        AppSnackbar.show('No se pudo subir', 'Respuesta inesperada del servidor.');
         return null;
       }
       return url;
     } catch (e) {
       AppSnackbar.show(
         'No se pudo subir la foto',
-        'Revisá tu conexión e intentá de nuevo.',
+        ApiResponseUtils.errorMessage(e) ?? 'Revisá tu conexión e intentá de nuevo.',
       );
       return null;
     }
