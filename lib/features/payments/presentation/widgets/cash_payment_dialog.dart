@@ -198,7 +198,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                           style: theme.textTheme.bodyLarge,
                         ),
                         Text(
-                          '${CurrencyFormatter.format(_receivedAmount)}',
+                          CurrencyFormatter.format(_receivedAmount),
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -214,7 +214,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                           style: theme.textTheme.bodyLarge,
                         ),
                         Text(
-                          '${CurrencyFormatter.format(widget.totalAmount)}',
+                          CurrencyFormatter.format(widget.totalAmount),
                           style: theme.textTheme.titleMedium,
                         ),
                       ],
@@ -231,7 +231,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                         ),
                         Text(
                           _change >= 0
-                              ? '${CurrencyFormatter.format(_change)}'
+                              ? CurrencyFormatter.format(_change)
                               : 'Falta: ${CurrencyFormatter.format((-_change))}',
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,

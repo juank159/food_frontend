@@ -260,7 +260,7 @@ class VariantFormWidget extends StatelessWidget {
     } else if (isNegative) {
       color = Colors.green;
       icon = Icons.arrow_downward;
-      text = '${CurrencyFormatter.format(modifier)}';
+      text = CurrencyFormatter.format(modifier);
     } else {
       color = theme.colorScheme.onSurface.withValues(alpha: 0.6);
       icon = Icons.remove;

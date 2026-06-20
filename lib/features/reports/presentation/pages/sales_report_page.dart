@@ -310,7 +310,7 @@ class _OrderTile extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${order.orderType.displayName} • ${fmt.format(order.createdAt.toLocal())}',
+                                '${order.displayDestination} • ${fmt.format(order.createdAt.toLocal())}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,

@@ -115,7 +115,7 @@ class CategoryFormPage extends GetView<CategoryFormController> {
         ),
         const SizedBox(height: 12),
         Obx(() => DropdownButtonFormField<String>(
-              value: controller.selectedParentId.value,
+              initialValue: controller.selectedParentId.value,
               isExpanded: true,
               decoration: appInputDecoration(
                 label: 'Categoría padre (opcional)',
@@ -260,7 +260,7 @@ class CategoryFormPage extends GetView<CategoryFormController> {
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SwitchListTile.adaptive(
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               contentPadding: EdgeInsets.zero,
               title: Text(
                 active ? 'Categoría activa' : 'Categoría inactiva',
@@ -305,7 +305,7 @@ class CategoryFormPage extends GetView<CategoryFormController> {
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SwitchListTile.adaptive(
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               contentPadding: EdgeInsets.zero,
               title: Text(
                 prints ? 'Imprime comanda en cocina' : 'No imprime comanda',

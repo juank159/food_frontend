@@ -212,7 +212,7 @@ class _FlavorsPageState extends State<FlavorsPage> {
           children: [
             Switch.adaptive(
               value: f.isAvailable,
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               onChanged: (_) => flavors.toggleAvailable(f),
             ),
             IconButton(

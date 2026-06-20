@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/widgets/barcode_scanner_page.dart';
 import '../../../../core/widgets/app_form_section.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../categories/presentation/bindings/categories_binding.dart';
@@ -55,7 +56,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                     children: [
                       _buildErrorBanner(),
                       _buildJustCreatedBanner(),
-                      _buildBasicSection(),
+                      _buildBasicSection(context),
                       const SizedBox(height: 14),
                       _buildPricingSection(),
                       const SizedBox(height: 14),
@@ -217,7 +218,7 @@ class ProductFormPage extends GetView<ProductFormController> {
     });
   }
 
-  Widget _buildBasicSection() {
+  Widget _buildBasicSection(BuildContext context) {
     // Garantizar el controller — el form se puede abrir directamente
     // sin pasar por la pantalla de categorías, en cuyo caso GetX no
     // lo tiene registrado aún. Llamamos el binding como fallback.
@@ -292,7 +293,7 @@ class ProductFormPage extends GetView<ProductFormController> {
         const SizedBox(height: 12),
         Obx(() {
           return DropdownButtonFormField<String>(
-            value: controller.selectedCategoryId.value,
+            initialValue: controller.selectedCategoryId.value,
             decoration: appInputDecoration(
               label: 'Categoría *',
               hint: 'Seleccionar categoría',
@@ -348,6 +349,21 @@ class ProductFormPage extends GetView<ProductFormController> {
             label: 'Código de barras (opcional)',
             hint: '1234567890',
             prefixIcon: Icons.barcode_reader,
+          ).copyWith(
+            // Botón de escanear con la cámara — solo en mobile/tablet
+            // (en desktop no hay cámara y se escribe a mano).
+            suffixIcon: MediaQuery.of(context).size.width >= 900
+                ? null
+                : IconButton(
+                    tooltip: 'Escanear con la cámara',
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: () async {
+                      final code = await scanBarcode(context);
+                      if (code != null && code.isNotEmpty) {
+                        controller.barcodeController.text = code;
+                      }
+                    },
+                  ),
           ),
         ),
         const SizedBox(height: 12),
@@ -675,7 +691,7 @@ class _ToggleTile extends StatelessWidget {
               ),
               Switch.adaptive(
                 value: value,
-                activeColor: accent,
+                activeThumbColor: accent,
                 onChanged: onChanged,
               ),
             ],

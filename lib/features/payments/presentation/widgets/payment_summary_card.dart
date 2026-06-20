@@ -188,7 +188,7 @@ class PaymentSummaryCard extends StatelessWidget {
           ),
         ),
         Text(
-          '${CurrencyFormatter.format(amount)}',
+          CurrencyFormatter.format(amount),
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
             color: _isFullyPaid
@@ -235,7 +235,7 @@ class PaymentSummaryCard extends StatelessWidget {
               ),
             ),
             Text(
-              '${CurrencyFormatter.format(entry.value)}',
+              CurrencyFormatter.format(entry.value),
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: _isFullyPaid ? Colors.white : null,

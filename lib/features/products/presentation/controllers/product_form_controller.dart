@@ -302,6 +302,7 @@ class ProductFormController extends GetxController {
     final product = productToEdit!;
     nameController.text = product.name;
     skuController.text = product.sku ?? '';
+    barcodeController.text = product.barcode ?? '';
     descriptionController.text = product.description;
     // Pre-formatear los campos numéricos en formato es_CO con
     // separadores de miles. Si dejáramos `basePrice.toString()` →

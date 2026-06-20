@@ -110,9 +110,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               padding: const EdgeInsets.only(bottom: 120),
               children: [
                 _OrderHeader(order: order, onRefresh: controller.refresh),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _StatusTimeline(order: order),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
@@ -125,19 +125,19 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       // mismo efecto).
                       if (controller.isPendingReviewSelfOrder) ...[
                         _PendingReviewBanner(controller: controller),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                       ],
                       OrderItemsList(order: order, controller: controller),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       _buildPaymentSection(context, order),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       // El card genérico de "Cambiar Estado" NO se muestra
                       // para self-orders pending_review — usan el banner
                       // dedicado de arriba.
                       if (!controller.isPendingReviewSelfOrder)
                         OrderStatusActions(controller: controller),
                       if (order.hasSpecialInstructions) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         _SpecialInstructionsCard(
                           instructions: order.specialInstructions!,
                         ),
@@ -190,7 +190,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               child: FilledButton.icon(
                 onPressed: () => _showPaymentDialog(context),
                 icon: const Icon(Icons.payment, size: 20),
-                label: Text('$buttonText$totalLabel'),
+                // FittedBox: montos largos ("$146.500") no deben desbordar
+                // ni envolver el botón en pantallas chicas.
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('$buttonText$totalLabel', maxLines: 1),
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -490,7 +495,7 @@ class _OrderHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${order.orderType.displayName} · ${DateFormat('dd MMM, HH:mm').format(order.createdAt)}',
+                  '${order.displayDestination} · ${DateFormat('dd MMM, HH:mm').format(order.createdAt)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -914,19 +919,26 @@ class _TimelineNode extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: state == _StepState.current
-                ? FontWeight.w800
-                : FontWeight.w500,
-            color: state == _StepState.upcoming
-                ? AppColors.textHint
-                : AppColors.textPrimary,
+        // Altura fija para el label: así todos los nodos miden lo mismo
+        // aunque un texto envuelva a 2 líneas y otro no → la fila de
+        // progreso queda pareja, sin "distorsión".
+        SizedBox(
+          height: 26,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 9.5,
+              height: 1.15,
+              fontWeight: state == _StepState.current
+                  ? FontWeight.w800
+                  : FontWeight.w500,
+              color: state == _StepState.upcoming
+                  ? AppColors.textHint
+                  : AppColors.textPrimary,
+            ),
           ),
         ),
       ],

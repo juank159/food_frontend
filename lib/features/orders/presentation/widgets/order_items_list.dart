@@ -129,28 +129,34 @@ class OrderItemsList extends StatelessWidget {
         Icon(
           Icons.restaurant_menu,
           color: theme.colorScheme.primary,
-          size: 24,
+          size: 20,
         ),
-        const SizedBox(width: 12),
-        Text(
-          'Items de la Orden',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
+        const SizedBox(width: 8),
+        // Expanded (no Spacer) para que el título se achique con ellipsis
+        // en pantallas chicas en vez de empujar el chip y desbordar.
+        Expanded(
+          child: Text(
+            'Items de la orden',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 6,
+            horizontal: 10,
+            vertical: 5,
           ),
           decoration: BoxDecoration(
             color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Text(
             '${order.totalItems} items',
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onPrimaryContainer,
             ),
@@ -686,12 +692,18 @@ class _StatusBadge extends StatelessWidget {
         children: [
           Icon(visuals.icon, size: 12, color: visuals.color),
           const SizedBox(width: 4),
-          Text(
-            visuals.label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: visuals.color,
+          // Flexible + ellipsis: labels largos ("Sin preparación", "Listo
+          // para entregar") no deben desbordar en pantallas chicas.
+          Flexible(
+            child: Text(
+              visuals.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: visuals.color,
+              ),
             ),
           ),
         ],

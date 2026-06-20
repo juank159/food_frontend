@@ -9,6 +9,7 @@ import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
 import '../../../products/presentation/pages/products_page.dart';
 import '../../../tables/presentation/pages/floor_plans_list_page.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../controllers/home_controller.dart';
 import 'dashboard_tab.dart';
 import 'delivery_dashboard.dart';
@@ -222,6 +223,13 @@ class HomeScreen extends GetView<HomeController> {
               title: 'Inventario',
               subtitle: 'Control de stock',
               onTap: () => NavigationService.toInventory(),
+            ),
+          if (access.canSeeChecklist)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.listCheck,
+              title: 'Lista de compras',
+              subtitle: 'Lo que hace falta comprar',
+              onTap: () => Get.toNamed(AppRoutes.checklist),
             ),
           if (access.canSeeReservations)
             _buildMenuItem(

@@ -169,7 +169,7 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -431,21 +431,16 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
         AppSnackbar.show('Error al cobrar', failure.message);
       },
       (payments) {
-        setState(() {
-          _registered.add(_TabReg(_selectedMethod, amount, notes));
-          _amountCtrl.clear();
-          _receivedCtrl.clear();
-          _notesCtrl.clear();
-          _selectedMethod = PaymentMethod.cash;
-          _selectedAccount = null;
-        });
+        _registered.add(_TabReg(_selectedMethod, amount, notes));
         AppSnackbar.show(
           'Pago registrado',
-          '${_registered.last.method.displayName} · ${CurrencyFormatter.format(amount)}',
+          '${_selectedMethod.displayName} · ${CurrencyFormatter.format(amount)}',
         );
-        // Si quedó saldado, cerramos. Si no, seguimos abierto para
-        // registrar el siguiente pago (dividir en varios).
-        if (_isFullyPaid && mounted) Navigator.of(context).pop(true);
+        // Igual que el "Dividir" de una orden: el pago ya quedó PERSISTIDO
+        // (FIFO), así que cerramos devolviendo true. El caller recarga la
+        // cuenta; si fue parcial, al reabrir "Cobrar" se ve el saldo
+        // restante y se cobra el resto (incluso con otro método).
+        if (mounted) Navigator.of(context).pop(true);
       },
     );
   }
@@ -480,7 +475,7 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -733,7 +728,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),

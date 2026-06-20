@@ -183,7 +183,7 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
         Obx(() {
           final roles = controller.availableRoles;
           return DropdownButtonFormField<String>(
-            value: controller.selectedRoleId.value,
+            initialValue: controller.selectedRoleId.value,
             decoration: appInputDecoration(
               label: 'Rol *',
               hint: roles.isEmpty
@@ -243,7 +243,7 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
         Obx(() {
           final active = controller.isActive.value;
           return SwitchListTile.adaptive(
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             contentPadding: EdgeInsets.zero,
             title: Text(
               active ? 'Empleado activo' : 'Empleado inactivo',

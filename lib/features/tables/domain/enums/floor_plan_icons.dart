@@ -91,6 +91,34 @@ enum BathroomIconType {
   const BathroomIconType(this.value, this.displayName, this.icon);
 }
 
+/// Reconstruye un `IconData` a partir del `codePoint` guardado en JSON
+/// SIN usar `IconData(dynamicCodePoint)`.
+///
+/// **Por qué:** `flutter build apk --release` hace tree-shaking de la
+/// fuente de íconos y FALLA si encuentra `IconData` no-constantes (como
+/// `IconData(json['icon'])`). Acá mapeamos el codePoint a las instancias
+/// `const Icons.x` del set curado del editor — todas constantes, así el
+/// tree-shaker incluye solo esas y el build pasa. Lo no reconocido cae a
+/// un default const (`Icons.place`).
+final Map<int, IconData> _floorPlanIconByCodePoint = {
+  for (final e in KitchenIconType.values) e.icon.codePoint: e.icon,
+  for (final e in DecorationIconType.values) e.icon.codePoint: e.icon,
+  for (final e in DoorIconType.values) e.icon.codePoint: e.icon,
+  for (final e in BarIconType.values) e.icon.codePoint: e.icon,
+  for (final e in BathroomIconType.values) e.icon.codePoint: e.icon,
+  // Defaults que el editor usa para mesas / escaleras.
+  Icons.table_restaurant.codePoint: Icons.table_restaurant,
+  Icons.stairs.codePoint: Icons.stairs,
+  Icons.place.codePoint: Icons.place,
+};
+
+/// Icono const correspondiente al codePoint guardado, o `Icons.place` si
+/// no está en el set conocido. Usar SIEMPRE esto al deserializar íconos
+/// (nunca `IconData(intDinamico)` — rompe el build release).
+IconData floorPlanIconFromCodePoint(int? codePoint) => codePoint == null
+    ? Icons.place
+    : (_floorPlanIconByCodePoint[codePoint] ?? Icons.place);
+
 /// Modelo para almacenar información completa del icono
 class FloorPlanIconData {
   final String category;
@@ -120,10 +148,7 @@ class FloorPlanIconData {
       category: json['category'] as String,
       subType: json['subType'] as String,
       displayName: json['displayName'] as String,
-      icon: IconData(
-        json['iconCodePoint'] as int,
-        fontFamily: json['iconFontFamily'] as String?,
-      ),
+      icon: floorPlanIconFromCodePoint(json['iconCodePoint'] as int?),
     );
   }
 }

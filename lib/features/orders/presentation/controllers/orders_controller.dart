@@ -71,6 +71,49 @@ class OrdersController extends GetxController {
     }
   }
 
+  // ── "Por cobrar" (órdenes con saldo pendiente, SIN filtro de fecha) ──
+  // Para el caso "el cliente pide y paga después". Reusa el cobro normal.
+  final RxList<order_entity.Order> unpaidOrders = <order_entity.Order>[].obs;
+  final RxString unpaidSearchQuery = ''.obs;
+
+  /// Conteo de órdenes por cobrar — alimenta el badge del appbar.
+  int get unpaidCount => unpaidOrders.length;
+
+  /// Total pendiente de cobro (suma de saldos).
+  double get unpaidTotal =>
+      unpaidOrders.fold<double>(0, (s, o) => s + o.balance);
+
+  /// Lista por cobrar filtrada por el buscador (cliente, #, mesa, tel).
+  List<order_entity.Order> get filteredUnpaid {
+    final q = unpaidSearchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return unpaidOrders;
+    return unpaidOrders.where((o) {
+      return o.orderNumber.toLowerCase().contains(q) ||
+          (o.customerName?.toLowerCase().contains(q) ?? false) ||
+          (o.customerPhone?.toLowerCase().contains(q) ?? false) ||
+          o.displayDestination.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void setUnpaidSearchQuery(String q) => unpaidSearchQuery.value = q;
+
+  /// Trae las órdenes por cobrar SIN límite de fecha: no canceladas y con
+  /// pago no completado (saldo > 0). Límite alto porque son pocas (la
+  /// gente suele pagar el mismo día) pero pueden venir de cualquier fecha.
+  Future<void> loadUnpaidOrders() async {
+    final result = await getOrdersUseCase(
+      startDate: null,
+      endDate: null,
+      limit: 200,
+    );
+    result.fold((_) {}, (list) {
+      unpaidOrders.value = list
+          .where((o) =>
+              !o.isCancelled && !o.isPaymentCompleted && o.balance > 0.01)
+          .toList();
+    });
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -80,6 +123,8 @@ class OrdersController extends GetxController {
     // filtro de fecha.
     _applyPeriodDates(DatePeriod.today);
     loadOrders();
+    // Badge de "por cobrar" (independiente de la fecha visible).
+    loadUnpaidOrders();
   }
 
   /// Carga todas las órdenes con filtros
@@ -249,7 +294,24 @@ class OrdersController extends GetxController {
       selectedOrder.value = updated;
     }
 
-    // 4. OrderDetailController si está abierto en esta orden — así
+    // 4. Lista "Por cobrar": si la orden ya quedó pagada o cancelada,
+    //    sale; si sigue con saldo, se actualiza/agrega. Mantiene el badge
+    //    del appbar al día tras un cobro.
+    final unpaidIdx = unpaidOrders.indexWhere((o) => o.id == updated.id);
+    final stillUnpaid =
+        !updated.isCancelled && !updated.isPaymentCompleted && updated.balance > 0.01;
+    if (unpaidIdx != -1) {
+      if (stillUnpaid) {
+        unpaidOrders[unpaidIdx] = updated;
+      } else {
+        unpaidOrders.removeAt(unpaidIdx);
+      }
+      unpaidOrders.refresh();
+    } else if (stillUnpaid) {
+      unpaidOrders.insert(0, updated);
+    }
+
+    // 5. OrderDetailController si está abierto en esta orden — así
     //    el detail se sincroniza sin que el caller tenga que llamarlo
     //    manualmente (era una fuente clásica de "data vieja" si el
     //    detail se quedaba abierto tras el cambio).

@@ -4,6 +4,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/responsive_config.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
+import '../../../../core/widgets/barcode_scanner_page.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../flavors/data/datasources/flavor_remote_datasource.dart';
 import '../../../flavors/domain/entities/flavor.dart';
@@ -129,6 +130,26 @@ class ProductSelectorWidget extends StatelessWidget {
             onChanged: (value) => controller.searchProducts(value),
           ),
         ),
+        // Escanear código de barras (mobile/tablet) → filtra el catálogo
+        // por el código leído (busca por barcode/sku).
+        if (!responsive.isDesktop) ...[
+          SizedBox(width: responsive.isMobile ? 6 : responsive.spacing),
+          IconButton.filledTonal(
+            icon: Icon(Icons.qr_code_scanner,
+                size: responsive.isMobile ? 18 : 20),
+            tooltip: 'Escanear código',
+            padding: responsive.isMobile ? EdgeInsets.zero : null,
+            constraints: responsive.isMobile
+                ? const BoxConstraints(minWidth: 40, minHeight: 40)
+                : null,
+            onPressed: () async {
+              final code = await scanBarcode(context);
+              if (code != null && code.isNotEmpty) {
+                controller.searchProducts(code);
+              }
+            },
+          ),
+        ],
         SizedBox(width: responsive.isMobile ? 6 : responsive.spacing),
         IconButton.filledTonal(
           icon: Icon(Icons.filter_list, size: responsive.isMobile ? 18 : 20),

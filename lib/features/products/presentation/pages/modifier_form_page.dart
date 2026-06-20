@@ -208,7 +208,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
         Obx(() {
           final available = controller.isAvailable.value;
           return SwitchListTile.adaptive(
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             contentPadding: EdgeInsets.zero,
             title: Text(
               available ? 'Disponible' : 'No disponible',

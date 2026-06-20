@@ -1058,7 +1058,7 @@ class _AddAddressSheetState extends State<_AddAddressSheet> {
                     ),
                     const SizedBox(height: 4),
                     SwitchListTile.adaptive(
-                      activeColor: AppColors.primary,
+                      activeThumbColor: AppColors.primary,
                       contentPadding: EdgeInsets.zero,
                       value: _isDefault,
                       onChanged: (v) => setState(() => _isDefault = v),

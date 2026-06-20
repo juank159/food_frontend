@@ -159,7 +159,8 @@ class ProductsController extends GetxController {
       result = result.where((p) {
         return p.name.toLowerCase().contains(q) ||
             p.description.toLowerCase().contains(q) ||
-            (p.sku?.toLowerCase().contains(q) ?? false);
+            (p.sku?.toLowerCase().contains(q) ?? false) ||
+            (p.barcode?.toLowerCase().contains(q) ?? false);
       });
     }
 

@@ -111,7 +111,11 @@ class TabTicketCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       [
-                        typeMeta.label,
+                        // Destino: etiqueta propia del ticket ("mama",
+                        // "Mesa 5") si la tiene; si no, el tipo coloquial.
+                        // NO mostramos "Para llevar" en cuentas que nunca
+                        // fueron para llevar.
+                        _destination(typeMeta.label),
                         '$totalItems items',
                         if (createdAt != null)
                           DateFormat('HH:mm')
@@ -167,6 +171,15 @@ class TabTicketCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Destino visible del ticket: la etiqueta propia (`table_label`, ej.
+  /// "mama" / "Mesa 5") si existe; si no, el tipo coloquial. Así una
+  /// cuenta libre no muestra "Para llevar".
+  String _destination(String typeLabel) {
+    final label = (rawOrder['table_label'] as String?)?.trim();
+    if (label != null && label.isNotEmpty) return label;
+    return typeLabel;
   }
 
   _TypeMeta _typeMeta(String type) {

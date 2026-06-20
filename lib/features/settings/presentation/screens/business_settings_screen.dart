@@ -393,32 +393,33 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                         ),
                       ),
                       const Divider(height: 1),
-                      RadioListTile<bool>(
-                        title: const Text('Los precios YA incluyen IVA'),
-                        subtitle: const Text(
-                          'Recomendado para Colombia, México, Argentina y la mayoría de LATAM. '
-                          'Si cargas un producto a \$10.000, el cliente paga \$10.000 — '
-                          'el IVA se desglosa solo para la factura.',
-                        ),
-                        value: true,
+                      RadioGroup<bool>(
                         groupValue: _taxIncludedInPrice,
-                        onChanged: !_taxEnabled || _saving
-                            ? null
-                            : (v) =>
-                                setState(() => _taxIncludedInPrice = v ?? true),
-                      ),
-                      RadioListTile<bool>(
-                        title: const Text('El IVA se suma al precio'),
-                        subtitle: const Text(
-                          'Estilo USA / facturación B2B. Si cargas un producto a \$10.000, '
-                          'el cliente paga \$10.000 + IVA = \$11.900 (con 19%).',
+                        onChanged: (v) => setState(
+                            () => _taxIncludedInPrice = v ?? true),
+                        child: Column(
+                          children: [
+                            RadioListTile<bool>(
+                              title: const Text('Los precios YA incluyen IVA'),
+                              subtitle: const Text(
+                                'Recomendado para Colombia, México, Argentina y la mayoría de LATAM. '
+                                'Si cargas un producto a \$10.000, el cliente paga \$10.000 — '
+                                'el IVA se desglosa solo para la factura.',
+                              ),
+                              value: true,
+                              enabled: _taxEnabled && !_saving,
+                            ),
+                            RadioListTile<bool>(
+                              title: const Text('El IVA se suma al precio'),
+                              subtitle: const Text(
+                                'Estilo USA / facturación B2B. Si cargas un producto a \$10.000, '
+                                'el cliente paga \$10.000 + IVA = \$11.900 (con 19%).',
+                              ),
+                              value: false,
+                              enabled: _taxEnabled && !_saving,
+                            ),
+                          ],
                         ),
-                        value: false,
-                        groupValue: _taxIncludedInPrice,
-                        onChanged: !_taxEnabled || _saving
-                            ? null
-                            : (v) =>
-                                setState(() => _taxIncludedInPrice = v ?? false),
                       ),
                     ],
                   ),
@@ -505,40 +506,39 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
             ],
           ),
         ),
-        RadioListTile<String>(
-          title: const Text('Sugerida'),
-          subtitle: const Text(
-            'El operario elige uno de los porcentajes propuestos o ingresa otro.',
-          ),
-          value: 'suggested',
+        RadioGroup<String>(
           groupValue: _tipMode,
-          onChanged: !_tipEnabled || _saving
-              ? null
-              : (v) => setState(() => _tipMode = v ?? 'suggested'),
-        ),
-        RadioListTile<String>(
-          title: const Text('Obligatoria'),
-          subtitle: const Text(
-            'Si el operario no elige, se aplica el porcentaje por defecto. '
-            'Útil para servicios con propina incluida.',
+          onChanged: (v) => setState(() => _tipMode = v ?? 'suggested'),
+          child: Column(
+            children: [
+              RadioListTile<String>(
+                title: const Text('Sugerida'),
+                subtitle: const Text(
+                  'El operario elige uno de los porcentajes propuestos o ingresa otro.',
+                ),
+                value: 'suggested',
+                enabled: _tipEnabled && !_saving,
+              ),
+              RadioListTile<String>(
+                title: const Text('Obligatoria'),
+                subtitle: const Text(
+                  'Si el operario no elige, se aplica el porcentaje por defecto. '
+                  'Útil para servicios con propina incluida.',
+                ),
+                value: 'mandatory',
+                enabled: _tipEnabled && !_saving,
+              ),
+              RadioListTile<String>(
+                title: const Text('Desactivada'),
+                subtitle: const Text(
+                  'Equivalente al switch de arriba. Mantenelo si querés desactivar '
+                  'sin perder los porcentajes ya configurados.',
+                ),
+                value: 'disabled',
+                enabled: _tipEnabled && !_saving,
+              ),
+            ],
           ),
-          value: 'mandatory',
-          groupValue: _tipMode,
-          onChanged: !_tipEnabled || _saving
-              ? null
-              : (v) => setState(() => _tipMode = v ?? 'mandatory'),
-        ),
-        RadioListTile<String>(
-          title: const Text('Desactivada'),
-          subtitle: const Text(
-            'Equivalente al switch de arriba. Mantenelo si querés desactivar '
-            'sin perder los porcentajes ya configurados.',
-          ),
-          value: 'disabled',
-          groupValue: _tipMode,
-          onChanged: !_tipEnabled || _saving
-              ? null
-              : (v) => setState(() => _tipMode = v ?? 'disabled'),
         ),
         const Divider(height: 1),
         Padding(
@@ -674,43 +674,38 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
             ],
           ),
         ),
-        RadioListTile<String>(
-          title: const Text('Subtotal con descuento aplicado'),
-          subtitle: const Text(
-            'Recomendado. La propina se calcula sobre lo que efectivamente paga el cliente, sin IVA.',
-          ),
-          value: 'subtotal_after_discount',
+        RadioGroup<String>(
           groupValue: _tipCalculationBase,
-          onChanged: disabled
-              ? null
-              : (v) => setState(
-                    () => _tipCalculationBase = v ?? 'subtotal_after_discount',
-                  ),
-        ),
-        RadioListTile<String>(
-          title: const Text('Subtotal'),
-          subtitle: const Text(
-            'No descuenta promociones — la propina sale sobre el bruto.',
+          onChanged: (v) => setState(
+              () => _tipCalculationBase = v ?? 'subtotal_after_discount'),
+          child: Column(
+            children: [
+              RadioListTile<String>(
+                title: const Text('Subtotal con descuento aplicado'),
+                subtitle: const Text(
+                  'Recomendado. La propina se calcula sobre lo que efectivamente paga el cliente, sin IVA.',
+                ),
+                value: 'subtotal_after_discount',
+                enabled: !disabled,
+              ),
+              RadioListTile<String>(
+                title: const Text('Subtotal'),
+                subtitle: const Text(
+                  'No descuenta promociones — la propina sale sobre el bruto.',
+                ),
+                value: 'subtotal',
+                enabled: !disabled,
+              ),
+              RadioListTile<String>(
+                title: const Text('Subtotal + IVA'),
+                subtitle: const Text(
+                  'La propina incluye el impuesto. Estilo USA.',
+                ),
+                value: 'subtotal_with_tax',
+                enabled: !disabled,
+              ),
+            ],
           ),
-          value: 'subtotal',
-          groupValue: _tipCalculationBase,
-          onChanged: disabled
-              ? null
-              : (v) =>
-                  setState(() => _tipCalculationBase = v ?? 'subtotal'),
-        ),
-        RadioListTile<String>(
-          title: const Text('Subtotal + IVA'),
-          subtitle: const Text(
-            'La propina incluye el impuesto. Estilo USA.',
-          ),
-          value: 'subtotal_with_tax',
-          groupValue: _tipCalculationBase,
-          onChanged: disabled
-              ? null
-              : (v) => setState(
-                    () => _tipCalculationBase = v ?? 'subtotal_with_tax',
-                  ),
         ),
         const Divider(height: 1),
         Padding(
@@ -941,7 +936,7 @@ class _PreviewCard extends StatelessWidget {
         children: [
           Text(label, style: style),
           Text(
-            '${CurrencyFormatter.format(value)}',
+            CurrencyFormatter.format(value),
             style: style,
           ),
         ],

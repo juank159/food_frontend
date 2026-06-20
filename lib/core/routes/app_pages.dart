@@ -46,6 +46,8 @@ import '../../features/tab_sessions/presentation/pages/open_tabs_page.dart';
 import '../../features/tab_sessions/presentation/pages/tab_session_detail_page.dart';
 import '../../features/tab_sessions/presentation/pages/tab_session_pay_page.dart';
 import '../../features/orders/presentation/pages/orders_page.dart';
+import '../../features/orders/presentation/pages/unpaid_orders_page.dart';
+import '../../features/checklist/presentation/screens/checklist_screen.dart';
 import '../../features/orders/presentation/pages/pending_review_page.dart';
 import '../../features/orders/presentation/bindings/pending_review_binding.dart';
 import '../../features/qr_tokens/presentation/pages/qr_tokens_page.dart';
@@ -203,6 +205,19 @@ class AppPages {
       name: AppRoutes.ordersList,
       page: () => const OrdersPage(),
       binding: OrdersBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.unpaidOrders,
+      page: () => const UnpaidOrdersPage(),
+      binding: OrdersBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.checklist,
+      page: () => const ChecklistScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

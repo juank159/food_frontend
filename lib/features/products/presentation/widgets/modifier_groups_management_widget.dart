@@ -1091,7 +1091,7 @@ class _RequiredToggle extends StatelessWidget {
               ),
               Switch.adaptive(
                 value: value,
-                activeColor: AppColors.error,
+                activeThumbColor: AppColors.error,
                 onChanged: onChanged,
               ),
             ],

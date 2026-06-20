@@ -194,7 +194,7 @@ class CustomerFormPage extends GetView<CustomerFormController> {
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SwitchListTile.adaptive(
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               contentPadding: EdgeInsets.zero,
               title: Text(
                 active ? 'Cliente activo' : 'Cliente inactivo',

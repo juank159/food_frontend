@@ -306,7 +306,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               _buildDetailRow(
                 theme,
                 'Monto',
-                '${CurrencyFormatter.format(payment.amount)}',
+                CurrencyFormatter.format(payment.amount),
                 isBold: true,
               ),
 
@@ -315,13 +315,13 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                 _buildDetailRow(
                   theme,
                   'Recibido',
-                  '${CurrencyFormatter.format(payment.receivedAmount!)}',
+                  CurrencyFormatter.format(payment.receivedAmount!),
                 ),
                 if (payment.hasChange)
                   _buildDetailRow(
                     theme,
                     'Cambio',
-                    '${CurrencyFormatter.format(payment.changeAmount!)}',
+                    CurrencyFormatter.format(payment.changeAmount!),
                     color: Colors.green,
                   ),
               ],
@@ -528,7 +528,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
             _buildDetailRow(
               theme,
               'Monto',
-              '${CurrencyFormatter.format(payment.amount)}',
+              CurrencyFormatter.format(payment.amount),
               isBold: true,
             ),
 
@@ -537,7 +537,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               _buildDetailRow(
                 theme,
                 'Recibido',
-                '${CurrencyFormatter.format(payment.receivedAmount!)}',
+                CurrencyFormatter.format(payment.receivedAmount!),
               ),
             ],
 
@@ -546,7 +546,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
               _buildDetailRow(
                 theme,
                 'Cambio',
-                '${CurrencyFormatter.format(payment.changeAmount!)}',
+                CurrencyFormatter.format(payment.changeAmount!),
                 color: Colors.green,
               ),
             ],

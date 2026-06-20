@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../enums/floor_plan_icons.dart';
+
 /// Tipo de elemento en el plano
 enum ElementType {
   // Estructurales
@@ -351,10 +353,9 @@ class IconElement extends FloorPlanElement {
       isLocked: json['isLocked'] as bool? ?? false,
       isVisible: json['isVisible'] as bool? ?? true,
       zIndex: json['zIndex'] as int? ?? 0,
-      icon: IconData(
-        json['icon'] as int,
-        fontFamily: 'MaterialIcons',
-      ),
+      // Reconstruimos el ícono desde un set const (no `IconData(dynamic)`)
+      // para que el tree-shake de íconos del build release no falle.
+      icon: floorPlanIconFromCodePoint(json['icon'] as int?),
       size: (json['size'] as num?)?.toDouble() ?? 48.0,
       color: Color(json['color'] as int),
       label: json['label'] as String?,
@@ -699,6 +700,11 @@ class TextElement extends FloorPlanElement {
       'text': text,
       'fontSize': fontSize,
       'color': color.toARGB32(),
+      // Guardamos el ÍNDICE del enum (0-8), no `.value` (100-900): el
+      // fromJson lee `FontWeight.values[index]`. Cambiar a `.value`
+      // rompería los planos ya guardados. Por eso ignoramos la
+      // deprecación acá a propósito.
+      // ignore: deprecated_member_use
       'fontWeight': fontWeight.index,
       'metadata': metadata,
     };

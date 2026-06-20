@@ -24,6 +24,7 @@ class ProductModel {
   final int preparationTime;
   final String? imageUrl;
   final String? sku;
+  final String? barcode;
   final bool isAvailable;
   final List<String> tags;
   final List<String> allergens;
@@ -52,6 +53,7 @@ class ProductModel {
     required this.preparationTime,
     this.imageUrl,
     this.sku,
+    this.barcode,
     required this.isAvailable,
     required this.tags,
     required this.allergens,
@@ -139,6 +141,7 @@ class ProductModel {
         preparationTime: _parseInt(json['preparation_time']) ?? 0,
         imageUrl: json['image_url'] as String?,
         sku: json['sku'] as String?,
+        barcode: json['barcode'] as String?,
         isAvailable: json['is_available'] as bool? ?? true,
         tags: _parseStringList(json['tags']),
         allergens: _parseStringList(json['allergens']),
@@ -213,6 +216,7 @@ class ProductModel {
       'preparation_time': preparationTime,
       'image_url': imageUrl,
       'sku': sku,
+      'barcode': barcode,
       'is_available': isAvailable,
       'tags': tags,
       'allergens': allergens,
@@ -242,6 +246,7 @@ class ProductModel {
       preparationTime: preparationTime,
       imageUrl: imageUrl,
       sku: sku,
+      barcode: barcode,
       isAvailable: isAvailable,
       tags: tags,
       allergens: allergens,
@@ -271,6 +276,7 @@ class ProductModel {
       preparationTime: product.preparationTime,
       imageUrl: product.imageUrl,
       sku: product.sku,
+      barcode: product.barcode,
       isAvailable: product.isAvailable,
       tags: product.tags,
       allergens: product.allergens,

@@ -63,6 +63,9 @@ class UiAccess {
   bool get canSeeTables => canSell;
   bool get canSeeCashRegister => isAdminOrManager || isCashier;
   bool get canSeePendingReview => canSell;
+  // Lista de compras / checklist ("lo que hace falta comprar"):
+  // admin, gerente y cajero (quienes manejan compras/caja).
+  bool get canSeeChecklist => isAdminOrManager || isCashier;
 
   // ── Gestión / Catálogo ──────────────────────────────────────────
 

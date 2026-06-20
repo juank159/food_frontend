@@ -460,7 +460,10 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                     ? null
                     : () => _onAddTicket(s),
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Agregar ticket'),
+                // "Agregar" (no "Agregar ticket") para que NO envuelva a 2
+                // líneas en el botón angosto y quede del mismo alto que el
+                // de cobrar.
+                label: const Text('Agregar', maxLines: 1),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -478,9 +481,16 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                           ? null
                           : () => _onPayTab(s),
                       icon: const Icon(Icons.payments, size: 18),
-                      label: Text(
-                        'Cobrar ${CurrencyFormatter.format(s.balance)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      // FittedBox: el monto puede ser largo ("$146.500") y
+                      // no debe desbordar ni envolver — se achica si hace
+                      // falta y queda en una línea.
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Cobrar ${CurrencyFormatter.format(s.balance)}',
+                          maxLines: 1,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -498,6 +508,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                       icon: const Icon(Icons.lock_outline, size: 18),
                       label: const Text(
                         'Cerrar cuenta',
+                        maxLines: 1,
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       style: FilledButton.styleFrom(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/constants/order_enums.dart';
@@ -471,5 +470,3 @@ class _PrimaryAction extends StatelessWidget {
     await controller.updateOrderStatus(order.id, next);
   }
 }
-
-String _fmtTime(DateTime t) => DateFormat('HH:mm').format(t);

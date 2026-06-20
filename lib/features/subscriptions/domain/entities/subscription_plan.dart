@@ -51,7 +51,7 @@ class SubscriptionPlan extends Equatable {
   /// Get formatted price
   String get formattedPrice {
     if (price == 0) return 'Gratis';
-    return '${CurrencyFormatter.format(price)}';
+    return CurrencyFormatter.format(price);
   }
 
   /// Get formatted billing cycle

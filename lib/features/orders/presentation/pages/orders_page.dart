@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_filter_chip.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
 import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import '../../../tab_sessions/presentation/widgets/open_tabs_view.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../controllers/orders_controller.dart';
 import '../widgets/order_card.dart';
 
@@ -249,6 +250,23 @@ class _Header extends StatelessWidget {
                       ),
                     ],
                   )),
+              // "Por cobrar": ícono con badge del conteo de órdenes con
+              // saldo pendiente (sin filtro de fecha). Solo aparece si hay.
+              Obx(() {
+                final n = controller.unpaidCount;
+                if (n == 0) return const SizedBox(width: 4);
+                return IconButton(
+                  onPressed: () => Get.toNamed(AppRoutes.unpaidOrders),
+                  tooltip: 'Por cobrar',
+                  visualDensity: VisualDensity.compact,
+                  icon: Badge(
+                    label: Text('$n'),
+                    backgroundColor: AppColors.error,
+                    child: const Icon(Icons.request_quote_outlined,
+                        color: Colors.white, size: 22),
+                  ),
+                );
+              }),
               IconButton(
                 onPressed: controller.refreshOrders,
                 tooltip: 'Refrescar',

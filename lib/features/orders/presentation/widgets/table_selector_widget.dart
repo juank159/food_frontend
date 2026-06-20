@@ -202,7 +202,7 @@ class _TableSelectorWidgetState extends State<TableSelectorWidget> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: DropdownButtonFormField<FloorPlan>(
-        value: _selectedFloorPlan,
+        initialValue: _selectedFloorPlan,
         decoration: InputDecoration(
           labelText: 'Plano',
           prefixIcon: const Icon(Icons.map_outlined),

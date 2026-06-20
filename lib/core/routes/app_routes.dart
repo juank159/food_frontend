@@ -32,6 +32,9 @@ class AppRoutes {
   static const String orders = '/orders';
   static const String ordersList = '/orders/list';
   static const String pendingReviewOrders = '/orders/pending-review';
+  // "Por cobrar" — órdenes con saldo pendiente, sin filtro de fecha.
+  // Path propio (no bajo /orders/) para no chocar con /orders/:id.
+  static const String unpaidOrders = '/unpaid-orders';
   static const String orderDetail = '/orders/:id';
   /// **Pantalla única de venta**. Reemplaza a `createOrder` y
   /// `quickSale` (las dos siguen registradas como alias redirigidos
@@ -111,6 +114,9 @@ class AppRoutes {
   static const String inventoryReport = '/reports/inventory';
   static const String employeeReport = '/reports/employees';
   static const String customerReport = '/reports/customers';
+
+  // ==================== CHECKLIST (lista de compras) ====================
+  static const String checklist = '/checklist';
 
   // ==================== SETTINGS ROUTES ====================
   static const String settings = '/settings';

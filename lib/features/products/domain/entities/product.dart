@@ -21,6 +21,7 @@ class Product extends Equatable {
   final int preparationTime; // en minutos
   final String? imageUrl;
   final String? sku;
+  final String? barcode;
   final bool isAvailable;
   final List<String> tags;
   final List<String> allergens;
@@ -46,6 +47,7 @@ class Product extends Equatable {
     required this.preparationTime,
     this.imageUrl,
     this.sku,
+    this.barcode,
     required this.isAvailable,
     required this.tags,
     required this.allergens,
@@ -135,6 +137,7 @@ class Product extends Equatable {
         preparationTime,
         imageUrl,
         sku,
+        barcode,
         isAvailable,
         tags,
         allergens,

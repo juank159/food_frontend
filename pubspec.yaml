@@ -98,6 +98,11 @@ dependencies:
   # Ya venía transitivo via esc_pos_utils_plus; lo declaramos directo.
   image: ^4.8.0
 
+  # Escaneo de códigos de barras / QR con la cámara (alta de productos:
+  # campo SKU; y búsqueda de productos al vender). Requiere permiso de
+  # cámara en Android/iOS.
+  mobile_scanner: ^6.0.2
+
   # Abrir URL externa para fallback (ej. abrir PDF en navegador si la
   # plataforma no soporta `printing` directamente).
   url_launcher: ^6.3.0

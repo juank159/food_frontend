@@ -201,6 +201,27 @@ class Order extends Equatable {
   bool get hasTable =>
       tableId != null || tableElementId != null || tableName != null;
 
+  /// **ÚNICA fuente** del "destino" a mostrar en cards/headers: si la
+  /// orden tiene etiqueta propia (mesa "Mesa 5" o cuenta libre "mama")
+  /// se usa esa; si no, el tipo en coloquial. Evita el bug recurrente de
+  /// mostrar "Para llevar" en cuentas/órdenes que NUNCA fueron para
+  /// llevar. Usar SIEMPRE esto en vez de `orderType.displayName` para el
+  /// destino visible.
+  String get displayDestination {
+    final label = tableLabel?.trim();
+    if (label != null && label.isNotEmpty) return label;
+    final name = tableName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    switch (orderType) {
+      case OrderType.takeaway:
+        return 'Para llevar';
+      case OrderType.delivery:
+        return 'Domicilio';
+      case OrderType.dineIn:
+        return 'En mesa';
+    }
+  }
+
   /// Verifica si está asignado a un usuario
   bool get isAssigned => assignedTo != null;
 
