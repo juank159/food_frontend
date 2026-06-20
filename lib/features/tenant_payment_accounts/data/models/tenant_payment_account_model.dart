@@ -31,8 +31,8 @@ class TenantPaymentAccountModel {
   factory TenantPaymentAccountModel.fromJson(Map<String, dynamic> json) {
     return TenantPaymentAccountModel(
       id: json['id'] as String,
-      name: json['name'] as String,
-      category: json['category'] as String,
+      name: (json['name'] as String?) ?? '',
+      category: (json['category'] as String?) ?? 'cash',
       accountNumber: json['account_number'] as String?,
       accountHolder: json['account_holder'] as String?,
       icon: json['icon'] as String?,

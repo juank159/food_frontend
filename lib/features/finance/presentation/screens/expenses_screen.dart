@@ -41,15 +41,18 @@ class ExpensesScreen extends StatelessWidget {
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Obx(() => Row(
-                    children: _periods
-                        .map((p) => AppFilterChip(
-                              label: p.label,
-                              selected: c.period.value == p,
-                              onTap: () => c.setPeriod(p),
-                            ))
-                        .toList(),
-                  )),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Obx(() => Row(
+                      children: _periods
+                          .map((p) => AppFilterChip(
+                                label: p.shortLabel,
+                                selected: c.period.value == p,
+                                onTap: () => c.setPeriod(p),
+                              ))
+                          .toList(),
+                    )),
+              ),
             ),
             Expanded(
               child: Obx(() {

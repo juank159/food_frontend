@@ -38,6 +38,15 @@ class SubscriptionModel extends Equatable {
   /// Create from JSON with robust error handling
   factory SubscriptionModel.fromJson(Map<String, dynamic> json) {
     try {
+      // `started_at` / `current_period_start` / `current_period_end` son
+      // NULLABLE en el backend. Antes `DateTime.parse(... as String)` sobre
+      // null tiraba FormatException y rompía la pantalla de suscripción.
+      // Calculamos un inicio robusto y usamos ese como fallback del fin.
+      final periodStart = json['started_at'] != null
+          ? DateTime.parse(json['started_at'] as String)
+          : (json['current_period_start'] != null
+              ? DateTime.parse(json['current_period_start'] as String)
+              : DateTime.now());
       return SubscriptionModel(
         id: json['id'] as String,
         tenantId: json['tenant_id'] as String,
@@ -47,10 +56,10 @@ class SubscriptionModel extends Equatable {
         trialEndsAt: json['trial_ends_at'] != null
             ? DateTime.parse(json['trial_ends_at'] as String)
             : null,
-        currentPeriodStart: json['started_at'] != null
-            ? DateTime.parse(json['started_at'] as String)
-            : DateTime.parse(json['current_period_start'] as String),
-        currentPeriodEnd: DateTime.parse(json['current_period_end'] as String),
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: json['current_period_end'] != null
+            ? DateTime.parse(json['current_period_end'] as String)
+            : periodStart,
         cancelledAt: json['cancelled_at'] != null
             ? DateTime.parse(json['cancelled_at'] as String)
             : null,

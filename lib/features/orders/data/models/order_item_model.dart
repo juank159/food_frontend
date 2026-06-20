@@ -162,10 +162,14 @@ class OrderItemModel {
     return OrderItemModel(
       id: json['id'] as String,
       orderId: (json['order_id'] as String?) ?? '',
-      productId: json['product_id'] as String,
+      // product_id puede venir plano, anidado bajo `product.id`, o faltar en
+      // respuestas parciales de creación → fallback en cadena, nunca crash.
+      productId: (json['product_id'] as String?) ??
+          (product?['id'] as String?) ??
+          '',
       productName: productName,
       unitPrice: parseNum(json['unit_price']),
-      quantity: (json['quantity'] as num).toInt(),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       subtotal: parseNum(json['subtotal']),
       specialInstructions: json['special_instructions'] as String?,
       customizations: json['customizations'] as Map<String, dynamic>?,

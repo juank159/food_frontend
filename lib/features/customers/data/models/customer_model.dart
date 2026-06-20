@@ -1,3 +1,5 @@
+//lib /features/customers/data/models/customer_model.dart
+
 import '../../domain/entities/customer.dart';
 import 'customer_address_model.dart';
 import '../../../../core/utils/json_parsers.dart';
@@ -51,13 +53,14 @@ class CustomerModel {
       defaultAddressId: defaultAddressId,
       totalOrders: totalOrders,
       totalSpent: totalSpent,
-      lastOrderDate:
-          lastOrderDate != null ? DateTime.tryParse(lastOrderDate!) : null,
+      lastOrderDate: lastOrderDate != null
+          ? DateTime.tryParse(lastOrderDate!)
+          : null,
       notes: notes,
       isActive: isActive,
       addresses: addresses.map((a) => a.toEntity()).toList(),
-      createdAt: DateTime.parse(createdAt),
-      updatedAt: DateTime.parse(updatedAt),
+      createdAt: DateTime.tryParse(createdAt) ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(updatedAt) ?? DateTime.now(),
     );
   }
 
@@ -72,8 +75,11 @@ class CustomerModel {
 
     return CustomerModel(
       id: json['id'] as String,
-      fullName: json['full_name'] as String,
-      phone: json['phone'] as String,
+      fullName: (json['full_name'] as String?) ?? '',
+      // phone es OPCIONAL en el backend (clientes creados por autopedido QR
+      // pueden no tener teléfono). Antes el cast `as String` crasheaba con
+      // "Null is not a subtype of String" al listar clientes. Default ''.
+      phone: (json['phone'] as String?) ?? '',
       email: json['email'] as String?,
       defaultAddressId: json['default_address_id'] as String?,
       totalOrders: (json['total_orders'] as num?)?.toInt() ?? 0,
@@ -84,8 +90,8 @@ class CustomerModel {
       addresses: addressesJson
           .map((a) => CustomerAddressModel.fromJson(a as Map<String, dynamic>))
           .toList(),
-      createdAt: json['created_at'] as String,
-      updatedAt: json['updated_at'] as String,
+      createdAt: (json['created_at'] as String?) ?? '',
+      updatedAt: (json['updated_at'] as String?) ?? '',
     );
   }
 }

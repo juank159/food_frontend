@@ -15,7 +15,7 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   roleId: json['role_id'] as String,
   role: RoleModel.fromJson(json['role'] as Map<String, dynamic>),
   tenantId: json['tenant_id'] as String,
-  isActive: json['is_active'] as bool,
+  isActive: json['is_active'] as bool? ?? false,
   createdAt: json['created_at'] as String,
 );
 

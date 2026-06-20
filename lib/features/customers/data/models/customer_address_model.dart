@@ -60,8 +60,8 @@ class CustomerAddressModel {
       deliveryInstructions: deliveryInstructions,
       isDefault: isDefault,
       isActive: isActive,
-      createdAt: DateTime.parse(createdAt),
-      updatedAt: DateTime.parse(updatedAt),
+      createdAt: DateTime.tryParse(createdAt) ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(updatedAt) ?? DateTime.now(),
     );
   }
 
@@ -73,12 +73,12 @@ class CustomerAddressModel {
     }
 
     return CustomerAddressModel(
-      id: json['id'] as String,
-      customerId: json['customer_id'] as String,
-      label: json['label'] as String,
-      addressLine1: json['address_line1'] as String,
+      id: (json['id'] as String?) ?? '',
+      customerId: (json['customer_id'] as String?) ?? '',
+      label: (json['label'] as String?) ?? '',
+      addressLine1: (json['address_line1'] as String?) ?? '',
       addressLine2: json['address_line2'] as String?,
-      city: json['city'] as String,
+      city: (json['city'] as String?) ?? '',
       state: json['state'] as String?,
       postalCode: json['postal_code'] as String?,
       latitude: parseDecimal(json['latitude']),
@@ -86,8 +86,8 @@ class CustomerAddressModel {
       deliveryInstructions: json['delivery_instructions'] as String?,
       isDefault: (json['is_default'] as bool?) ?? false,
       isActive: (json['is_active'] as bool?) ?? true,
-      createdAt: json['created_at'] as String,
-      updatedAt: json['updated_at'] as String,
+      createdAt: (json['created_at'] as String?) ?? '',
+      updatedAt: (json['updated_at'] as String?) ?? '',
     );
   }
 }

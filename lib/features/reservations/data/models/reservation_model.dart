@@ -81,7 +81,7 @@ class ReservationModel {
       customerName: json['customer_name'] as String,
       customerPhone: json['customer_phone'] as String?,
       customerEmail: json['customer_email'] as String?,
-      partySize: (json['party_size'] as num).toInt(),
+      partySize: (json['party_size'] as num?)?.toInt() ?? 1,
       reservedFor: json['reserved_for'] as String,
       durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 90,
       tableElementId: json['table_element_id'] as String?,

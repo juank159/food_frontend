@@ -77,15 +77,20 @@ class ProfitScreen extends StatelessWidget {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Obx(() => Row(
-            children: _periods
-                .map((p) => AppFilterChip(
-                      label: p.label,
-                      selected: c.period.value == p,
-                      onTap: () => c.setPeriod(p),
-                    ))
-                .toList(),
-          )),
+      // Scroll horizontal + etiqueta corta: nunca desborda en pantallas
+      // angostas aunque crezca el nº de chips o el largo del label.
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Obx(() => Row(
+              children: _periods
+                  .map((p) => AppFilterChip(
+                        label: p.shortLabel,
+                        selected: c.period.value == p,
+                        onTap: () => c.setPeriod(p),
+                      ))
+                  .toList(),
+            )),
+      ),
     );
   }
 
