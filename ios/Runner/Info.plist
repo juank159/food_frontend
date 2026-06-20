@@ -3,7 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>NSCameraUsageDescription</key>
-	<string>La cámara se usa para escanear códigos de barras de productos.</string>
+	<string>La cámara se usa para escanear códigos de barras y tomar fotos de los productos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Se accede a tus fotos para elegir la imagen de un producto.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

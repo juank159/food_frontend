@@ -103,6 +103,10 @@ dependencies:
   # cámara en Android/iOS.
   mobile_scanner: ^6.0.2
 
+  # Selección de imágenes (galería/cámara) para la foto del producto.
+  # Se sube a Cloudinary (unsigned) y se guarda la URL en image_url.
+  image_picker: ^1.1.2
+
   # Abrir URL externa para fallback (ej. abrir PDF en navegador si la
   # plataforma no soporta `printing` directamente).
   url_launcher: ^6.3.0

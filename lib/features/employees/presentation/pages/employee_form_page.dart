@@ -212,21 +212,35 @@ class EmployeeFormPage extends GetView<EmployeeFormController> {
         }),
         if (!controller.isEditMode) ...[
           const SizedBox(height: 12),
-          TextFormField(
-            controller: controller.passwordController,
-            decoration: appInputDecoration(
-              label: 'Contraseña inicial',
-              hint: 'Opcional — el admin puede setear luego',
-              prefixIcon: Icons.password_outlined,
-              helperText: 'Si se completa, debe tener al menos 8 caracteres.',
-            ),
-            obscureText: true,
-            validator: (value) {
-              if (value == null || value.isEmpty) return null;
-              if (value.length < 8) return 'Mínimo 8 caracteres';
-              return null;
-            },
-          ),
+          // Contraseña OBLIGATORIA al crear: es la credencial con la que el
+          // empleado va a iniciar sesión. Con ojito para mostrar/ocultar.
+          Obx(() => TextFormField(
+                controller: controller.passwordController,
+                decoration: appInputDecoration(
+                  label: 'Contraseña *',
+                  hint: 'Con esta clave el empleado inicia sesión',
+                  prefixIcon: Icons.lock_outline,
+                  helperText: 'Mínimo 6 caracteres. Compartísela al empleado.',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      controller.obscurePassword.value
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    tooltip: controller.obscurePassword.value
+                        ? 'Mostrar contraseña'
+                        : 'Ocultar contraseña',
+                    onPressed: controller.togglePasswordVisibility,
+                  ),
+                ),
+                obscureText: controller.obscurePassword.value,
+                validator: (value) {
+                  final v = value?.trim() ?? '';
+                  if (v.isEmpty) return 'La contraseña es obligatoria';
+                  if (v.length < 6) return 'Mínimo 6 caracteres';
+                  return null;
+                },
+              )),
         ],
       ],
     );

@@ -30,6 +30,14 @@ class AuthController extends GetxController {
   final Rx<User?> _currentUser = Rx<User?>(null);
   final _isAuthenticated = false.obs;
 
+  // Mostrar/ocultar contraseña en el registro (ojito).
+  final RxBool obscureRegisterPassword = true.obs;
+  final RxBool obscureRegisterConfirm = true.obs;
+  void toggleRegisterPassword() =>
+      obscureRegisterPassword.value = !obscureRegisterPassword.value;
+  void toggleRegisterConfirm() =>
+      obscureRegisterConfirm.value = !obscureRegisterConfirm.value;
+
   // Getters
   bool get isLoading => _isLoading.value;
   User? get currentUser => _currentUser.value;
@@ -118,6 +126,15 @@ class AuthController extends GetxController {
         sl<AuthLocalDataSource>().cacheLastLogin(
           subdomain: tenantSubdomain,
           email: email,
+        );
+        // Recordar la cuenta (con nombre) en la lista de cuentas conocidas
+        // del dispositivo, para seleccionarla rápido en próximos logins.
+        final u = authResponse.user;
+        final displayName = '${u.firstName} ${u.lastName}'.trim();
+        sl<AuthLocalDataSource>().cacheKnownAccount(
+          subdomain: tenantSubdomain,
+          email: email,
+          name: displayName.isEmpty ? email : displayName,
         );
         NavigationService.toHome(clearStack: true);
         return null;

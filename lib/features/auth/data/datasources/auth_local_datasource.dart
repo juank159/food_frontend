@@ -50,6 +50,26 @@ abstract class AuthLocalDataSource {
   /// `lastLogin` para sugerir el formulario al próximo intento.
   /// Usado por el logout normal.
   Future<void> clearSessionKeepingLastLogin();
+
+  /// Agrega/actualiza una cuenta a la lista de cuentas conocidas del
+  /// dispositivo (subdomain + email + nombre, SIN contraseña). La más
+  /// reciente queda primera; se deduplica por (subdomain, email).
+  Future<void> cacheKnownAccount({
+    required String subdomain,
+    required String email,
+    required String name,
+  });
+
+  /// Lista de cuentas que iniciaron sesión en este dispositivo (recientes
+  /// primero) para mostrarlas como selección rápida en el login.
+  Future<List<({String subdomain, String email, String name})>>
+      getKnownAccounts();
+
+  /// Quita una cuenta de la lista (cuando el usuario la elimina del login).
+  Future<void> removeKnownAccount({
+    required String subdomain,
+    required String email,
+  });
 }
 
 /// Auth Local Data Source Implementation
@@ -272,5 +292,93 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     } catch (e) {
       throw CacheException('Failed to clear session');
     }
+  }
+
+  // ───────────────────── Cuentas conocidas ─────────────────────
+  // Lista NO sensible (subdomain + email + nombre) en SharedPreferences,
+  // igual que lastLogin: sobrevive al logout y nunca guarda la contraseña.
+
+  static const int _maxKnownAccounts = 8;
+
+  @override
+  Future<void> cacheKnownAccount({
+    required String subdomain,
+    required String email,
+    required String name,
+  }) async {
+    try {
+      final prefs =
+          sharedPreferences ?? await SharedPreferences.getInstance();
+      final sub = subdomain.trim();
+      final mail = email.trim();
+      if (sub.isEmpty || mail.isEmpty) return;
+
+      final current = await getKnownAccounts();
+      // Quitar duplicado por (subdomain, email) sin importar mayúsculas.
+      current.removeWhere((a) =>
+          a.subdomain.toLowerCase() == sub.toLowerCase() &&
+          a.email.toLowerCase() == mail.toLowerCase());
+      // Insertar al frente (más reciente primero).
+      current.insert(0, (subdomain: sub, email: mail, name: name.trim()));
+      final trimmed = current.take(_maxKnownAccounts).toList();
+
+      final encoded = jsonEncode(trimmed
+          .map((a) => {
+                'subdomain': a.subdomain,
+                'email': a.email,
+                'name': a.name,
+              })
+          .toList());
+      await prefs.setString(ApiConstants.knownAccountsKey, encoded);
+    } catch (_) {
+      // No crítico: el peor caso es que no se sugiera la cuenta.
+    }
+  }
+
+  @override
+  Future<List<({String subdomain, String email, String name})>>
+      getKnownAccounts() async {
+    try {
+      final prefs =
+          sharedPreferences ?? await SharedPreferences.getInstance();
+      final raw = prefs.getString(ApiConstants.knownAccountsKey);
+      if (raw == null || raw.isEmpty) return [];
+      final list = jsonDecode(raw);
+      if (list is! List) return [];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((m) => (
+                subdomain: (m['subdomain'] as String?) ?? '',
+                email: (m['email'] as String?) ?? '',
+                name: (m['name'] as String?) ?? '',
+              ))
+          .where((a) => a.subdomain.isNotEmpty && a.email.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  @override
+  Future<void> removeKnownAccount({
+    required String subdomain,
+    required String email,
+  }) async {
+    try {
+      final prefs =
+          sharedPreferences ?? await SharedPreferences.getInstance();
+      final current = await getKnownAccounts();
+      current.removeWhere((a) =>
+          a.subdomain.toLowerCase() == subdomain.trim().toLowerCase() &&
+          a.email.toLowerCase() == email.trim().toLowerCase());
+      final encoded = jsonEncode(current
+          .map((a) => {
+                'subdomain': a.subdomain,
+                'email': a.email,
+                'name': a.name,
+              })
+          .toList());
+      await prefs.setString(ApiConstants.knownAccountsKey, encoded);
+    } catch (_) {}
   }
 }

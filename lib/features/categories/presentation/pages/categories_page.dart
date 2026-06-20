@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
@@ -62,7 +63,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(child: _buildBody(context)),
           ],
         ),
@@ -80,7 +81,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
 
   // ─────────────────────────── Header ───────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Obx(() {
       final total = controller.categories.length;
       final tree = controller.categoryTree.length;
@@ -126,6 +127,14 @@ class _CategoriesPageState extends State<CategoriesPage> {
                       : 'Mostrar todas',
                   onTap: controller.toggleActiveFilter,
                 )),
+            const SizedBox(width: 6),
+            _GradientToggleButton(
+              active: false,
+              icon: Icons.merge_type,
+              activeIcon: Icons.merge_type,
+              tooltip: 'Unificar categorías',
+              onTap: () => _showMergeDialog(context),
+            ),
           ],
         ),
         chips: [
@@ -147,6 +156,101 @@ class _CategoriesPageState extends State<CategoriesPage> {
         ],
       );
     });
+  }
+
+  // ─────────────────────── Unificar categorías ───────────────────────
+
+  /// Diálogo para unificar dos categorías: elegís ORIGEN (se elimina) y
+  /// DESTINO (recibe sus productos). Resuelve duplicados como dos "Comidas".
+  void _showMergeDialog(BuildContext context) {
+    final cats = controller.categories.toList();
+    if (cats.length < 2) {
+      AppSnackbar.show(
+        'Nada para unificar',
+        'Necesitás al menos dos categorías.',
+      );
+      return;
+    }
+    String? sourceId;
+    String? targetId;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setLocal) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Unificar categorías'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Los productos de la categoría ORIGEN se moverán a la '
+                'DESTINO, y la origen se eliminará.',
+                style: TextStyle(fontSize: 12.5),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: sourceId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Origen (se elimina)',
+                  border: OutlineInputBorder(),
+                ),
+                items: cats
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setLocal(() => sourceId = v),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: targetId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Destino (recibe los productos)',
+                  border: OutlineInputBorder(),
+                ),
+                items: cats
+                    .where((c) => c.id != sourceId)
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setLocal(() => targetId = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            Obx(() => FilledButton(
+                  onPressed: (controller.isMerging.value ||
+                          sourceId == null ||
+                          targetId == null ||
+                          sourceId == targetId)
+                      ? null
+                      : () async {
+                          final src = sourceId!;
+                          final tgt = targetId!;
+                          Navigator.of(dialogCtx).pop();
+                          await controller.mergeCategories(
+                            sourceId: src,
+                            targetId: tgt,
+                          );
+                        },
+                  child: const Text('Unificar'),
+                )),
+          ],
+        ),
+      ),
+    );
   }
 
   // ─────────────────────────── Body ───────────────────────────

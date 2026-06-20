@@ -38,10 +38,47 @@ class _LoginScreenState extends State<LoginScreen> {
   /// para que el operario solo tipee la contraseña, sin tocar nada más.
   final _passwordFocus = FocusNode();
 
+  /// Cuentas que ya iniciaron sesión en este dispositivo (recientes
+  /// primero), para seleccionarlas con un tap.
+  final _knownAccounts =
+      <({String subdomain, String email, String name})>[].obs;
+
   @override
   void initState() {
     super.initState();
     _loadLastLogin();
+    _loadKnownAccounts();
+  }
+
+  Future<void> _loadKnownAccounts() async {
+    try {
+      final accounts = await sl<AuthLocalDataSource>().getKnownAccounts();
+      if (!mounted) return;
+      _knownAccounts.assignAll(accounts);
+    } catch (_) {
+      // cosmético — si falla, simplemente no mostramos atajos
+    }
+  }
+
+  /// Rellena el formulario con la cuenta elegida y enfoca la contraseña.
+  void _selectAccount(({String subdomain, String email, String name}) acc) {
+    _tenantController.text = acc.subdomain;
+    _emailController.text = acc.email;
+    _passwordController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _passwordFocus.requestFocus();
+    });
+  }
+
+  Future<void> _removeAccount(
+      ({String subdomain, String email, String name}) acc) async {
+    await sl<AuthLocalDataSource>().removeKnownAccount(
+      subdomain: acc.subdomain,
+      email: acc.email,
+    );
+    _knownAccounts.removeWhere(
+      (a) => a.subdomain == acc.subdomain && a.email == acc.email,
+    );
   }
 
   Future<void> _loadLastLogin() async {
@@ -188,6 +225,126 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ─────────────────────── Cuentas recientes ───────────────────────
+
+  /// Atajos de las cuentas que ya iniciaron sesión en este dispositivo.
+  /// Tap = rellena restaurante + correo y enfoca la contraseña.
+  Widget _buildKnownAccounts() {
+    return Obx(() {
+      if (_knownAccounts.isEmpty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cuentas recientes',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _knownAccounts.map(_accountChip).toList(),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: Divider(color: AppColors.border)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'o ingresá con otra cuenta',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: AppColors.border)),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
+      );
+    });
+  }
+
+  Widget _accountChip(({String subdomain, String email, String name}) acc) {
+    final base = acc.name.trim().isNotEmpty ? acc.name.trim() : acc.email.trim();
+    final initial = base.isNotEmpty ? base[0].toUpperCase() : '?';
+    return InkWell(
+      onTap: () => _selectAccount(acc),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    acc.name.isNotEmpty ? acc.name : acc.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${acc.email} · ${acc.subdomain}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 15),
+              color: AppColors.textHint,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.zero,
+              tooltip: 'Quitar cuenta',
+              onPressed: () => _removeAccount(acc),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─────────────────────────── Form card ───────────────────────────
 
   Widget _buildFormCard(BuildContext context) {
@@ -208,6 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildKnownAccounts(),
           CustomTextField(
             controller: _tenantController,
             label: 'Restaurante',

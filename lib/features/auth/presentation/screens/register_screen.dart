@@ -265,34 +265,58 @@ class RegisterScreen extends GetView<AuthController> {
             keyboardType: TextInputType.phone,
           ),
           const SizedBox(height: 14),
-          CustomTextField(
-            controller: passwordController,
-            label: 'Contraseña',
-            hint: '8+ chars, mayús, número, especial',
-            prefixIcon: Icons.lock_outline,
-            obscureText: true,
-            validator: Validators.password,
-            textInputAction: TextInputAction.next,
-          ),
+          Obx(() => CustomTextField(
+                controller: passwordController,
+                label: 'Contraseña',
+                hint: '8+ caracteres, mayús, número, especial',
+                prefixIcon: Icons.lock_outline,
+                obscureText: controller.obscureRegisterPassword.value,
+                validator: Validators.password,
+                textInputAction: TextInputAction.next,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    controller.obscureRegisterPassword.value
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                  tooltip: controller.obscureRegisterPassword.value
+                      ? 'Mostrar contraseña'
+                      : 'Ocultar contraseña',
+                  onPressed: controller.toggleRegisterPassword,
+                ),
+              )),
           const SizedBox(height: 14),
-          CustomTextField(
-            controller: confirmPasswordController,
-            label: 'Confirmar contraseña',
-            hint: 'Repetí la contraseña',
-            prefixIcon: Icons.lock_outline,
-            obscureText: true,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Confirmá tu contraseña';
-              }
-              if (value != passwordController.text) {
-                return 'Las contraseñas no coinciden';
-              }
-              return null;
-            },
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => onSubmit(),
-          ),
+          Obx(() => CustomTextField(
+                controller: confirmPasswordController,
+                label: 'Confirmar contraseña',
+                hint: 'Repetí la contraseña',
+                prefixIcon: Icons.lock_outline,
+                obscureText: controller.obscureRegisterConfirm.value,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    controller.obscureRegisterConfirm.value
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                  tooltip: controller.obscureRegisterConfirm.value
+                      ? 'Mostrar contraseña'
+                      : 'Ocultar contraseña',
+                  onPressed: controller.toggleRegisterConfirm,
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Confirmá tu contraseña';
+                  }
+                  if (value != passwordController.text) {
+                    return 'Las contraseñas no coinciden';
+                  }
+                  return null;
+                },
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => onSubmit(),
+              )),
           const SizedBox(height: 16),
           // Términos
           const _TermsCopy(),

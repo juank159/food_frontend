@@ -1,4 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
+import '../../../../core/utils/api_response_utils.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/usecases/get_active_categories_usecase.dart';
 import '../../domain/usecases/get_categories_usecase.dart';
@@ -32,10 +36,40 @@ class CategoriesController extends GetxController {
   final RxBool showOnlyActive = true.obs;
   final RxBool isTreeView = false.obs;
 
+  final RxBool isMerging = false.obs;
+
   @override
   void onInit() {
     super.onInit();
     loadCategories();
+  }
+
+  /// Unifica dos categorías: mueve los productos de [sourceId] a [targetId]
+  /// y elimina la categoría origen. Resuelve duplicados (ej. dos "Comidas").
+  Future<bool> mergeCategories({
+    required String sourceId,
+    required String targetId,
+  }) async {
+    if (sourceId == targetId || isMerging.value) return false;
+    isMerging.value = true;
+    try {
+      final dio = GetIt.I<Dio>();
+      await dio.post('/categories/$sourceId/merge-into/$targetId');
+      await loadCategories();
+      AppSnackbar.show(
+        'Categorías unificadas',
+        'Los productos se movieron a la categoría destino.',
+      );
+      return true;
+    } catch (e) {
+      AppSnackbar.show(
+        'No se pudo unificar',
+        ApiResponseUtils.errorMessage(e) ?? 'Error',
+      );
+      return false;
+    } finally {
+      isMerging.value = false;
+    }
   }
 
   /// Carga todas las categorías con filtros

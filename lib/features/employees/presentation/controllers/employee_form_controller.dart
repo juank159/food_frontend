@@ -49,6 +49,11 @@ class EmployeeFormController extends GetxController {
 
   // Estado reactivo
   final Rx<String?> selectedRoleId = Rx<String?>(null);
+
+  /// Mostrar/ocultar la contraseña en el campo (ojito).
+  final RxBool obscurePassword = true.obs;
+  void togglePasswordVisibility() =>
+      obscurePassword.value = !obscurePassword.value;
   final RxBool isActive = true.obs;
   final RxList<EmployeeRole> availableRoles = <EmployeeRole>[].obs;
 

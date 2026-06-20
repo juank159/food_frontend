@@ -237,4 +237,9 @@ class ApiConstants {
   /// password manager del sistema, no nuestra).
   static const String lastLoginSubdomainKey = 'last_login_subdomain';
   static const String lastLoginEmailKey = 'last_login_email';
+
+  /// Lista (JSON) de cuentas que ya iniciaron sesión en este dispositivo
+  /// (subdomain + email + nombre, SIN contraseña). Se muestran en el login
+  /// para seleccionarlas rápido. Las más recientes primero.
+  static const String knownAccountsKey = 'known_accounts';
 }

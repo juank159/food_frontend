@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/image_upload_service.dart';
 import '../../../../core/widgets/barcode_scanner_page.dart';
 import '../../../../core/widgets/app_form_section.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
@@ -333,13 +334,15 @@ class ProductFormPage extends GetView<ProductFormController> {
           },
         ),
         const SizedBox(height: 12),
+        _buildPhotoPicker(context),
+        const SizedBox(height: 12),
         TextFormField(
           controller: controller.imageUrlController,
           keyboardType: TextInputType.url,
           decoration: appInputDecoration(
-            label: 'URL de imagen (opcional)',
+            label: 'O pegá una URL de imagen (opcional)',
             hint: 'https://…',
-            prefixIcon: Icons.image_outlined,
+            prefixIcon: Icons.link,
           ),
         ),
         const SizedBox(height: 12),
@@ -417,6 +420,104 @@ class ProductFormPage extends GetView<ProductFormController> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Selector de foto del producto: vista previa + subir/cambiar/quitar.
+  /// La foto se sube a Cloudinary y la URL queda en `imageUrlController`.
+  /// Reacciona a cambios del controller (subida o URL pegada a mano).
+  Widget _buildPhotoPicker(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller.imageUrlController,
+      builder: (context, value, _) {
+        final url = value.text.trim();
+        final hasImg = url.isNotEmpty;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Vista previa (o placeholder de cubiertos si no hay foto).
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: hasImg
+                  ? Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.restaurant_menu,
+                        color: AppColors.textHint,
+                        size: 34,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.restaurant_menu,
+                      color: AppColors.textHint,
+                      size: 34,
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Foto del producto',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Se muestra en la carta y al vender. Si no ponés, '
+                    'aparece el ícono de cubiertos.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textSecondary,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          final newUrl =
+                              await ImageUploadService.pickAndUpload(context);
+                          if (newUrl != null && newUrl.isNotEmpty) {
+                            controller.imageUrlController.text = newUrl;
+                          }
+                        },
+                        icon: Icon(
+                          hasImg ? Icons.swap_horiz : Icons.add_a_photo_outlined,
+                          size: 18,
+                        ),
+                        label: Text(hasImg ? 'Cambiar' : 'Subir foto'),
+                      ),
+                      if (hasImg) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Quitar foto',
+                          icon: const Icon(Icons.delete_outline),
+                          color: AppColors.error,
+                          onPressed: () => controller.imageUrlController.clear(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
