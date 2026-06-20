@@ -169,15 +169,12 @@ class EscPosGenerator {
     List<TicketItem> items,
   ) {
     // ─── Header: "COMANDA" + categoría (estación) + tipo de orden ───
+    // "COMANDA" en tamaño normal (es solo la etiqueta); la categoría
+    // (estación) y el destino se mantienen grandes y legibles. Ahorra papel.
     bytes.addAll(
       gen.text(
         'COMANDA',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2,
-          bold: true,
-        ),
+        styles: const PosStyles(align: PosAlign.center, bold: true),
       ),
     );
     bytes.addAll(
@@ -196,7 +193,8 @@ class EscPosGenerator {
     // ("papa") o, si no hay etiqueta, el tipo en coloquial. NO repetimos
     // "PARA LLEVAR" cuando ya hay una etiqueta propia (era confuso: salía
     // "para llevar" en cuentas que no eran para llevar).
-    bytes.addAll(gen.feed(1));
+    // (Sin feed: va pegado a la categoría — distinto tamaño lo separa, y
+    // ahorra papel.)
     final destination = _destinationLabel(data);
     bytes.addAll(
       gen.text(
@@ -210,8 +208,30 @@ class EscPosGenerator {
       ),
     );
 
-    // ─── Nº orden + hora ───
-    bytes.addAll(gen.feed(1));
+    // ─── Badge de tipo (para llevar / domicilio) ───
+    // Cuando el destino es una etiqueta propia (mesa/cuenta) PERO el ticket
+    // es para llevar o domicilio, la cocina necesita verlo para empacarlo.
+    // Ej: "papa" + ">> PARA LLEVAR <<". No lo repetimos si el destino YA es
+    // el tipo (takeaway suelto sin etiqueta → el destino ya dice PARA LLEVAR).
+    final hasOwnLabel =
+        data.tableLabel != null && data.tableLabel!.trim().isNotEmpty;
+    if (hasOwnLabel &&
+        (data.orderType == 'takeaway' || data.orderType == 'delivery')) {
+      final typeLabel =
+          data.orderType == 'takeaway' ? 'PARA LLEVAR' : 'DOMICILIO';
+      bytes.addAll(
+        gen.text(
+          '>> $typeLabel <<',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size2,
+            bold: true,
+          ),
+        ),
+      );
+    }
+
+    // ─── Nº orden + hora (pegado, sin feed) ───
     bytes.addAll(
       gen.text(
         '${data.orderNumber}  ·  ${_hhmm(data.createdAt)}',
@@ -221,7 +241,6 @@ class EscPosGenerator {
 
     // ─── Si vino por QR, badge destacado ───
     if (data.orderSource == 'qr_self_order') {
-      bytes.addAll(gen.feed(1));
       bytes.addAll(
         gen.text(
           '** PEDIDO POR QR **',
@@ -236,7 +255,6 @@ class EscPosGenerator {
     if (data.customerName != null &&
         data.customerName!.isNotEmpty &&
         data.customerName!.trim() != _destinationLabel(data)) {
-      bytes.addAll(gen.feed(1));
       bytes.addAll(gen.text('Cliente: ${data.customerName}'));
       if (data.customerPhone != null && data.customerPhone!.isNotEmpty) {
         bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
@@ -276,7 +294,9 @@ class EscPosGenerator {
           ),
         );
       }
-      bytes.addAll(gen.feed(1));
+      // Sin línea en blanco entre ítems: el nombre en doble alto (size2)
+      // ya separa visualmente cada producto y ahorra MUCHO papel en
+      // comandas largas.
     }
 
     // ─── Notas generales (se repiten en cada comanda) ───
@@ -296,8 +316,9 @@ class EscPosGenerator {
       ),
     );
 
-    // Avance + corte → ticket independiente por categoría.
-    bytes.addAll(gen.feed(2));
+    // Avance mínimo + corte → ticket independiente por categoría.
+    // (feed(1) en vez de 2: el corte ya deja margen y ahorra papel.)
+    bytes.addAll(gen.feed(1));
     bytes.addAll(gen.cut());
   }
 
@@ -355,7 +376,6 @@ class EscPosGenerator {
       );
     }
 
-    bytes.addAll(gen.hr());
     bytes.addAll(
       gen.text(
         'RECIBO DE VENTA',
@@ -505,7 +525,7 @@ class EscPosGenerator {
       ),
     );
 
-    bytes.addAll(gen.feed(2));
+    bytes.addAll(gen.feed(1));
     bytes.addAll(gen.cut());
 
     return Uint8List.fromList(bytes);

@@ -77,13 +77,21 @@ sealed class SellMode {
   const factory SellMode.delivery() = _DeliveryMode;
 
   /// Ticket dentro de una cuenta abierta (libre o de mesa).
+  /// `orderType` permite elegir si ESE ticket es en mesa / para llevar /
+  /// domicilio, SIN sacarlo de la cuenta (se mantiene `sessionId`).
   const factory SellMode.tabSession({
     required String sessionId,
     required String sessionLabel,
     String? tableElementId,
     String? tableId,
     String? tableName,
+    OrderType? orderType,
   }) = _TabSessionMode;
+
+  /// Devuelve una copia del modo con otro `orderType`. Solo tiene efecto
+  /// real en `tabSession` (para elegir tipo de entrega del ticket sin
+  /// salir de la cuenta); en el resto devuelve el mismo modo.
+  SellMode withOrderType(OrderType type) => this;
 }
 
 class _CounterMode extends SellMode {
@@ -199,16 +207,30 @@ class _TabSessionMode extends SellMode {
   @override
   final String? tableName;
 
+  /// Tipo elegido para ESTE ticket. Si es null, default = en mesa
+  /// (la cuenta implica consumo en el local bajo ese cliente). El
+  /// operario puede cambiarlo a para llevar / domicilio.
+  final OrderType? _orderTypeOverride;
+
   const _TabSessionMode({
     required String sessionId,
     required this.sessionLabel,
     this.tableElementId,
     this.tableId,
     this.tableName,
-  }) : tabSessionId = sessionId;
+    OrderType? orderType,
+  })  : tabSessionId = sessionId,
+        _orderTypeOverride = orderType;
 
   @override
-  String get pillLabel => 'Cuenta: $sessionLabel';
+  String get pillLabel {
+    final suffix = switch (orderType) {
+      OrderType.takeaway => ' · Para llevar',
+      OrderType.delivery => ' · Domicilio',
+      _ => '',
+    };
+    return 'Cuenta: $sessionLabel$suffix';
+  }
 
   @override
   String get pillSubtitle => 'El ticket se suma a esta cuenta';
@@ -223,6 +245,15 @@ class _TabSessionMode extends SellMode {
   bool get autoPayAfterSubmit => false;
 
   @override
-  OrderType get orderType =>
-      tableElementId != null ? OrderType.dineIn : OrderType.takeaway;
+  OrderType get orderType => _orderTypeOverride ?? OrderType.dineIn;
+
+  @override
+  SellMode withOrderType(OrderType type) => _TabSessionMode(
+        sessionId: tabSessionId,
+        sessionLabel: sessionLabel,
+        tableElementId: tableElementId,
+        tableId: tableId,
+        tableName: tableName,
+        orderType: type,
+      );
 }

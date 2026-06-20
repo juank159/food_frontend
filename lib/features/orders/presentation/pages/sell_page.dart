@@ -190,17 +190,19 @@ class _ModePill extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Obx(() {
         final mode = controller.currentMode.value;
-        // Si estamos agregando a una CUENTA ABIERTA, el destino queda
-        // BLOQUEADO: el ticket pertenece a esa cuenta/cliente (no se
-        // puede "Cambiar" a mostrador y orphanarlo). Antes "Cambiar"
-        // sacaba el ticket de la cuenta — confuso y rompía la lógica.
+        // En una CUENTA ABIERTA el ticket SIEMPRE queda en esa cuenta/
+        // cliente (no se puede orphanar a mostrador). Pero SÍ se puede
+        // elegir el tipo de entrega de ESE ticket (en mesa / para llevar
+        // / domicilio) → abre un selector de tipo, no el chooser completo.
         final lockedToTab = mode.tabSessionId != null;
         return Material(
           color: mode.pillColor.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: lockedToTab ? null : () => _openModeSheet(context),
+            onTap: lockedToTab
+                ? () => _openTabTypeSheet(context, mode)
+                : () => _openModeSheet(context),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -264,7 +266,7 @@ class _ModePill extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          lockedToTab ? 'En la cuenta' : 'Cambiar',
+                          lockedToTab ? 'Tipo' : 'Cambiar',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -272,7 +274,7 @@ class _ModePill extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(lockedToTab ? Icons.lock_outline : Icons.swap_horiz,
+                        Icon(lockedToTab ? Icons.tune : Icons.swap_horiz,
                             size: 14),
                       ],
                     ),
@@ -295,6 +297,54 @@ class _ModePill extends StatelessWidget {
     );
     if (newMode != null) {
       controller.applyMode(newMode);
+    }
+  }
+
+  /// Selector de TIPO de entrega para un ticket dentro de una cuenta
+  /// abierta — sin sacarlo de la cuenta (mantiene `sessionId` + cliente).
+  /// El tipo elegido sale en la comanda (en mesa / para llevar / domicilio).
+  Future<void> _openTabTypeSheet(BuildContext context, SellMode mode) async {
+    final current = mode.orderType;
+    final chosen = await showModalBottomSheet<OrderType>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Tipo de este ticket',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            for (final opt in const [
+              (OrderType.dineIn, 'En el local', Icons.restaurant),
+              (OrderType.takeaway, 'Para llevar', Icons.takeout_dining_outlined),
+              (OrderType.delivery, 'Domicilio', Icons.delivery_dining_outlined),
+            ])
+              ListTile(
+                leading: Icon(opt.$3, color: AppColors.primary),
+                title: Text(opt.$2),
+                trailing: current == opt.$1
+                    ? const Icon(Icons.check_circle, color: AppColors.success)
+                    : null,
+                onTap: () => Navigator.of(sheetCtx).pop(opt.$1),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null && chosen != current) {
+      controller.applyMode(mode.withOrderType(chosen));
     }
   }
 }
