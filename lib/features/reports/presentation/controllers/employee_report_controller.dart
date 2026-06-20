@@ -5,9 +5,8 @@ import '../../domain/usecases/get_employee_report_usecase.dart';
 /// Employee Report Controller
 ///
 /// Reactivo. Carga el reporte una vez al entrar y soporta `refresh`.
-/// El reporte se compone con la lista de empleados (`GET /users`) — los
-/// campos de performance ya vienen en cada user, no necesita un
-/// endpoint de stats dedicado.
+/// El reporte cruza el roster (`GET /users`) con las ventas reales del mes
+/// por empleado (`GET /finance/employee-sales`) — ver el datasource.
 class EmployeeReportController extends GetxController {
   final GetEmployeeReportUseCase getEmployeeReportUseCase;
 

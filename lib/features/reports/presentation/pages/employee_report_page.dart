@@ -11,9 +11,13 @@ import '../controllers/employee_report_controller.dart';
 /// Estructura:
 ///
 ///   1) `AppGradientHeader` con KPI hero del top vendedor + chips con
-///      total empleados, ventas del equipo y rating promedio.
+///      total empleados, ventas del equipo, órdenes y ticket promedio.
 ///   2) Lista de empleados ordenada por ventas descendente, con badge
 ///      "TOP" en el primero y posición numerada para el resto.
+///
+/// Datos REALES del mes en curso (ventas por empleado calculadas en vivo
+/// desde las órdenes). No hay rating de servicio en el sistema, por eso se
+/// muestra ticket promedio en su lugar.
 class EmployeeReportPage extends GetView<EmployeeReportController> {
   const EmployeeReportPage({super.key});
 
@@ -45,9 +49,11 @@ class _Header extends StatelessWidget {
     return Obx(() {
       final r = controller.report.value;
       final top = r.topSeller;
+      final teamTicket =
+          r.teamOrders > 0 ? r.teamSales / r.teamOrders : 0.0;
       return AppGradientHeader(
         title: 'Reporte de empleados',
-        subtitle: 'Desempeño del equipo',
+        subtitle: 'Ventas por empleado · mes en curso',
         leading: IconButton(
           tooltip: 'Volver',
           onPressed: () => Navigator.of(context).pop(),
@@ -84,11 +90,11 @@ class _Header extends StatelessWidget {
             value: r.teamOrders.toString(),
           ),
           AppKpiChip(
-            icon: Icons.star_outline,
-            label: 'Rating',
-            value: r.teamAverageRating == 0
+            icon: Icons.confirmation_number_outlined,
+            label: 'Ticket prom.',
+            value: teamTicket == 0
                 ? '—'
-                : r.teamAverageRating.toStringAsFixed(1),
+                : CurrencyFormatter.formatCompact(teamTicket),
           ),
         ],
       );
@@ -248,20 +254,23 @@ class _EmployeeTile extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 10),
                                 Icon(
-                                  Icons.star_outline,
+                                  Icons.confirmation_number_outlined,
                                   size: 12,
                                   color: AppColors.textSecondary
                                       .withValues(alpha: 0.8),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  employee.averageServiceRating == null
-                                      ? '—'
-                                      : employee.averageServiceRating!
-                                          .toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
+                                Flexible(
+                                  child: Text(
+                                    employee.totalOrdersHandled > 0
+                                        ? '${CurrencyFormatter.format(employee.totalSalesAmount / employee.totalOrdersHandled)} prom.'
+                                        : 'sin ventas',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ),
                               ],

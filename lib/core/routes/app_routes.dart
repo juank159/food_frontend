@@ -118,6 +118,11 @@ class AppRoutes {
   // ==================== CHECKLIST (lista de compras) ====================
   static const String checklist = '/checklist';
 
+  // ==================== FINANZAS (ganancias / gastos / nómina) ==========
+  static const String profit = '/finance/profit';
+  static const String expenses = '/finance/expenses';
+  static const String payroll = '/finance/payroll';
+
   // ==================== SETTINGS ROUTES ====================
   static const String settings = '/settings';
   static const String profile = '/settings/profile';

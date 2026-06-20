@@ -66,15 +66,25 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screen = MediaQuery.of(context).size;
+    // Acotamos ancho Y alto + scroll: en pantallas chicas el contenido
+    // (input + denominaciones + cambio + botones) superaba el alto del
+    // dialog y desbordaba 126px. Ahora scrollea y nunca desborda.
+    final maxW = screen.width < 600 ? screen.width * 0.92 : 500.0;
+    final maxH = screen.height * 0.9;
 
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: screen.width < 600 ? 16 : 40,
+        vertical: 24,
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 500),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+        constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,7 +129,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Amount Input
               TextField(
@@ -177,11 +187,11 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Change Display
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: _change >= 0
                       ? theme.colorScheme.secondaryContainer
@@ -205,7 +215,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                         ),
                       ],
                     ),
-                    const Divider(height: 16),
+                    const Divider(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -219,7 +229,7 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                         ),
                       ],
                     ),
-                    const Divider(height: 16),
+                    const Divider(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -245,18 +255,34 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-              // Action Buttons
+              // Action Buttons — Expanded para que SIEMPRE quepan (antes
+              // "Cancelar" + "Confirmar Pago" desbordaban 45px a la derecha
+              // en pantallas angostas).
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text(
+                        'Cancelar',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                     onPressed: _canConfirm
                         ? () {
                             // IMPORTANTE: cerrar el dialog ANTES de
@@ -278,7 +304,13 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
                           }
                         : null,
                     icon: const Icon(Icons.check),
-                    label: const Text('Confirmar Pago'),
+                    label: const Text(
+                      'Confirmar',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
+                    ),
                   ),
                 ],
               ),

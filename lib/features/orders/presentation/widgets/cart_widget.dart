@@ -552,7 +552,7 @@ class CartWidget extends StatelessWidget {
                   '${controller.totalItems}',
                   isHighlight: false,
                 )),
-            SizedBox(height: responsive.isMobile ? 6 : 8),
+            SizedBox(height: responsive.isMobile ? 3 : 6),
 
             // Subtotal
             Obx(() => _buildSummaryRow(
@@ -566,7 +566,7 @@ class CartWidget extends StatelessWidget {
             Obx(() {
               if (controller.effectiveDiscount > 0) {
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.only(top: responsive.isMobile ? 4 : 8),
                   child: _buildSummaryRow(
                     context,
                     'Descuento',
@@ -604,7 +604,7 @@ class CartWidget extends StatelessWidget {
             Obx(() {
               if (controller.deliveryFee.value > 0) {
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.only(top: responsive.isMobile ? 4 : 8),
                   child: _buildSummaryRow(
                     context,
                     'Envío',
@@ -620,7 +620,7 @@ class CartWidget extends StatelessWidget {
             Obx(() {
               if (controller.tipAmount.value > 0) {
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.only(top: responsive.isMobile ? 4 : 8),
                   child: _buildSummaryRow(
                     context,
                     'Propina',
@@ -632,7 +632,7 @@ class CartWidget extends StatelessWidget {
               return const SizedBox.shrink();
             }),
 
-            const Divider(height: 24),
+            Divider(height: responsive.isMobile ? 14 : 24),
 
             // Total
             Obx(() => _buildSummaryRow(
@@ -642,12 +642,12 @@ class CartWidget extends StatelessWidget {
                   isHighlight: true,
                 )),
 
-            const SizedBox(height: 16),
+            SizedBox(height: responsive.isMobile ? 10 : 16),
 
             // Discount Actions
             _buildDiscountSection(context),
 
-            const SizedBox(height: 12),
+            SizedBox(height: responsive.isMobile ? 8 : 12),
 
             // Notas de la orden — texto libre a nivel orden completa.
             // Útil para "Mesa silenciosa", "Alérgico a frutos secos",
@@ -655,7 +655,7 @@ class CartWidget extends StatelessWidget {
             // nivel ITEM se editan desde cada cart item.
             _buildOrderNoteRow(context),
 
-            const SizedBox(height: 16),
+            SizedBox(height: responsive.isMobile ? 10 : 16),
 
             // Submit Button. El label es dinámico: cuando el botón está
             // disabled mostramos el motivo concreto ("Agregá productos",

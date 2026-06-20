@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/ui_access.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../domain/entities/employee.dart';
 import '../controllers/employees_controller.dart';
 import '../widgets/employee_card.dart';
@@ -31,11 +33,17 @@ class EmployeesPage extends GetView<EmployeesController> {
           ],
         ),
       ),
-      bottomNavigationBar: AppPrimaryActionBar(
-        label: 'Nuevo empleado',
-        icon: Icons.person_add_alt_1,
-        onPressed: _goToCreate,
-      ),
+      // Alta de empleados: SOLO admin (el manager ve/edita pero no crea).
+      // El backend también lo refuerza con @Roles(ROLE_ADMIN) en POST /users.
+      bottomNavigationBar:
+          UiAccess.from(Get.find<AuthController>().currentUser)
+                  .canCreateEmployees
+              ? AppPrimaryActionBar(
+                  label: 'Nuevo empleado',
+                  icon: Icons.person_add_alt_1,
+                  onPressed: _goToCreate,
+                )
+              : null,
     );
   }
 

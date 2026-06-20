@@ -122,14 +122,68 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
   @override
   Future<EmployeeReportModel> getEmployeeReport() async {
     try {
-      final response = await dio.get(ApiConstants.users);
-      if (response.statusCode != 200) {
+      // Cruzamos el ROSTER (`GET /users`: nombres, roles, estado) con las
+      // VENTAS REALES del período (`GET /finance/employee-sales`), que el
+      // backend calcula en vivo contando las órdenes por `created_by`.
+      // Antes el reporte leía `total_sales_amount`/`total_orders_handled`
+      // de la entity User, que NUNCA se actualizaban → todo en 0. Ahora
+      // los valores son reales (mes en curso).
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final results = await Future.wait([
+        dio.get(ApiConstants.users),
+        dio.get(
+          '/finance/employee-sales',
+          queryParameters: <String, dynamic>{
+            'date_from': monthStart.toUtc().toIso8601String(),
+            'date_to': now.toUtc().toIso8601String(),
+          },
+        ),
+      ]);
+
+      final usersResponse = results[0];
+      final salesResponse = results[1];
+
+      if (usersResponse.statusCode != 200) {
         throw ServerException('Failed to load employee report');
       }
-      final list = _extractList(response.data);
+
+      // Mapa user_id → {ventas, órdenes} reales del período.
+      final salesByUser = <String, Map<String, num>>{};
+      for (final row in _extractList(salesResponse.data)
+          .whereType<Map<String, dynamic>>()) {
+        final uid = row['user_id'];
+        if (uid is String) {
+          salesByUser[uid] = {
+            'sales': (row['total_sales'] as num?) ?? 0,
+            'orders': (row['orders_count'] as num?) ?? 0,
+          };
+        }
+      }
+
+      final list = _extractList(usersResponse.data);
       final employees = list
           .whereType<Map<String, dynamic>>()
-          .map(EmployeeModel.fromJson)
+          .map((u) {
+            // Inyectamos las métricas reales sobre el JSON del user antes
+            // de mapearlo, así el resto del pipeline (modelo→entidad→KPIs)
+            // no cambia.
+            final real = salesByUser[u['id']];
+            if (real != null) {
+              u = {
+                ...u,
+                'total_sales_amount': real['sales'],
+                'total_orders_handled': real['orders'],
+              };
+            } else {
+              u = {
+                ...u,
+                'total_sales_amount': 0,
+                'total_orders_handled': 0,
+              };
+            }
+            return EmployeeModel.fromJson(u);
+          })
           .toList();
       return EmployeeReportModel(employees: employees);
     } on DioException catch (e) {

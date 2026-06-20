@@ -260,10 +260,10 @@ class ProductSelectorWidget extends StatelessWidget {
         crossAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
         mainAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
         childAspectRatio: responsive.getChildAspectRatio(
-          // Mobile: fila compacta (imagen 80px + padding ≈ 100px de alto).
-          // Antes 1.8 daba ~200px = el doble de lo necesario; se veían
-          // pocos productos. 3.4 muestra casi el doble por pantalla.
-          mobile: 3.4,
+          // Mobile: fila compacta (imagen 80px + padding). 3.0 deja que el
+          // nombre + descripción + precio entren sin desbordar pero sigue
+          // mostrando varios productos por pantalla.
+          mobile: 3.0,
           tablet: 0.82,
           desktop: 0.85,
         ),
@@ -410,43 +410,52 @@ class ProductSelectorWidget extends StatelessWidget {
           ),
           const SizedBox(width: 12),
 
-          // Product Info - Compact
+          // Product Info - Compact. La descripción va en Expanded para que
+          // se achique/ellipsice y la card NUNCA desborde la celda del grid
+          // (causaba el overflow de 25-43px en pantallas chicas).
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   product.name,
-                  style: theme.textTheme.bodyLarge?.copyWith(
+                  style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (product.description.isNotEmpty)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        product.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                else
+                  const Spacer(),
+                if (stockBadge != null) stockBadge,
                 const SizedBox(height: 2),
-                Text(
-                  product.description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (stockBadge != null) ...[
-                  const SizedBox(height: 4),
-                  stockBadge,
-                ],
-                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      CurrencyFormatter.format(product.basePrice),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        CurrencyFormatter.format(product.basePrice),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     _buildAddControl(context, product, isAvailable,

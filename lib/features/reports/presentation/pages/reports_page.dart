@@ -244,6 +244,13 @@ class ReportsPage extends StatelessWidget {
   Widget _buildReportsGrid(int columns) {
     final tiles = <_ReportTile>[
       _ReportTile(
+        title: 'Ganancias',
+        subtitle: 'Ingresos − costos − gastos − nómina',
+        icon: Icons.account_balance_wallet_outlined,
+        accent: AppColors.success,
+        onTap: () => Get.toNamed(AppRoutes.profit),
+      ),
+      _ReportTile(
         title: 'Ventas',
         subtitle: 'Facturación, ticket y órdenes',
         icon: Icons.trending_up,
@@ -287,6 +294,12 @@ class ReportsPage extends StatelessWidget {
 
   Widget _buildTipsList() {
     final tips = [
+      (
+        Icons.account_balance_wallet_outlined,
+        '¿Estás ganando?',
+        'Entrá a Ganancias para ver tu utilidad real del período: ventas menos costos, gastos y nómina.',
+        AppColors.success,
+      ),
       (
         Icons.lightbulb_outline,
         'Resumen del día',

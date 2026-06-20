@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/ui_access.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 /// Home Controller
 ///
@@ -23,6 +25,8 @@ class HomeController extends GetxController {
   final _occupiedTables = 0.obs;
   final _totalTables = 0.obs;
   final _totalCustomers = 0.obs;
+  final _netProfitMonth = 0.0.obs;
+  final _hasProfitData = false.obs;
   final _isLoadingStats = false.obs;
 
   // Getters
@@ -34,6 +38,12 @@ class HomeController extends GetxController {
   int get totalTables => _totalTables.value;
   int get totalCustomers => _totalCustomers.value;
   bool get isLoadingStats => _isLoadingStats.value;
+
+  /// Ganancia neta del mes en curso (Ingresos − COGS − Gastos − Nómina).
+  /// Solo se carga para admin/manager. `hasProfitData` indica si el fetch
+  /// fue exitoso (para no mostrar "$0" engañoso si el endpoint falló).
+  double get netProfitMonth => _netProfitMonth.value;
+  bool get hasProfitData => _hasProfitData.value;
 
   /// Delta porcentual de ventas vs. el día anterior.
   ///
@@ -90,15 +100,55 @@ class HomeController extends GetxController {
 
     // Disparamos en paralelo: el dashboard tarda lo que tarda el endpoint
     // más lento, no la suma de todos.
-    await Future.wait<void>([
+    final tasks = <Future<void>>[
       _loadTotalSalesToday(dio),
       _loadTotalSalesYesterday(dio),
       _loadActiveOrders(dio),
       _loadTablesStatistics(dio),
       _loadTotalCustomers(dio),
-    ]);
+    ];
+    // La ganancia es admin/manager-only en el backend: solo la pedimos para
+    // esos roles y evitamos 403 (que ensucian logs y gastan rate-limit) en
+    // meseros/cajeros/cocina.
+    if (_canSeeFinance) tasks.add(_loadNetProfitMonth(dio));
+
+    await Future.wait<void>(tasks);
 
     _isLoadingStats.value = false;
+  }
+
+  bool get _canSeeFinance {
+    try {
+      return UiAccess.from(Get.find<AuthController>().currentUser)
+          .canSeeFinance;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Ganancia neta del mes en curso → `GET /finance/pnl`.
+  Future<void> _loadNetProfitMonth(Dio dio) async {
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, 1);
+      final res = await dio.get(
+        '/finance/pnl',
+        queryParameters: {
+          'date_from': start.toUtc().toIso8601String(),
+          'date_to': now.toUtc().toIso8601String(),
+        },
+      );
+      final data = res.data;
+      final body = (data is Map && data['data'] is Map)
+          ? data['data'] as Map
+          : (data is Map ? data : const {});
+      final net = body['net_profit'];
+      _netProfitMonth.value = net is num ? net.toDouble() : 0.0;
+      _hasProfitData.value = true;
+    } catch (e) {
+      debugPrint('Error cargando ganancia del mes: $e');
+      _hasProfitData.value = false;
+    }
   }
 
   /// `total_revenue` del día → `GET /orders/statistics?date_from=...&date_to=...`.

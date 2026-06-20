@@ -48,6 +48,9 @@ import '../../features/tab_sessions/presentation/pages/tab_session_pay_page.dart
 import '../../features/orders/presentation/pages/orders_page.dart';
 import '../../features/orders/presentation/pages/unpaid_orders_page.dart';
 import '../../features/checklist/presentation/screens/checklist_screen.dart';
+import '../../features/finance/presentation/screens/profit_screen.dart';
+import '../../features/finance/presentation/screens/expenses_screen.dart';
+import '../../features/finance/presentation/screens/payroll_screen.dart';
 import '../../features/orders/presentation/pages/pending_review_page.dart';
 import '../../features/orders/presentation/bindings/pending_review_binding.dart';
 import '../../features/qr_tokens/presentation/pages/qr_tokens_page.dart';
@@ -219,6 +222,26 @@ class AppPages {
       name: AppRoutes.checklist,
       page: () => const ChecklistScreen(),
       middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    // Finanzas (info financiera sensible): solo admin + manager. El backend
+    // también lo refuerza con @Roles(...ADMIN_ROLES) en cada endpoint.
+    GetPage(
+      name: AppRoutes.profit,
+      page: () => const ProfitScreen(),
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: ['admin', 'manager'])],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.expenses,
+      page: () => const ExpensesScreen(),
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: ['admin', 'manager'])],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.payroll,
+      page: () => const PayrollScreen(),
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: ['admin', 'manager'])],
       transition: Transition.cupertino,
     ),
     // Bandeja self-order (pedidos por QR esperando aprobación del mesero).
@@ -603,7 +626,9 @@ class AppPages {
       name: AppRoutes.createEmployee,
       page: () => const EmployeeFormPage(),
       binding: EmployeeFormBinding(),
-      middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
+      // Alta de empleados: SOLO admin (espejo del @Roles(ROLE_ADMIN) del
+      // POST /users). El manager puede editar pero no crear.
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin"])],
       transition: Transition.rightToLeft,
     ),
     GetPage(

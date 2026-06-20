@@ -154,6 +154,17 @@ class DashboardTab extends GetView<HomeController> {
                         : controller.totalCustomers.toString(),
                     onTap: () => NavigationService.toCustomers(),
                   )),
+              // Ganancia neta del mes — el KPI que responde "¿estoy ganando
+              // o perdiendo?" de un vistazo. Tap → estado de resultados.
+              Obx(() => AppKpiChip(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Ganancia mes',
+                    value: controller.isLoadingStats || !controller.hasProfitData
+                        ? '—'
+                        : CurrencyFormatter.formatCompact(
+                            controller.netProfitMonth),
+                    onTap: () => Get.toNamed(AppRoutes.profit),
+                  )),
             ]
           : null,
     );

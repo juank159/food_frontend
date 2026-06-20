@@ -95,11 +95,24 @@ class UiAccess {
 
   bool get canSeeEmployees => isAdminOrManager;
 
+  /// Crear empleados (dar de alta personal) es EXCLUSIVO del admin. Un
+  /// manager puede ver/editar el equipo pero no incorporar gente nueva.
+  /// Espejo del `@Roles(ROLE_ADMIN)` del `POST /users` en el backend.
+  bool get canCreateEmployees => isAdmin;
+
   /// Edición del layout / floor plans de mesas. NO confundir con "Estado
   /// de mesas" del dashboard, que es operativo. Esto es gestión.
   bool get canSeeTablesAdmin => isAdminOrManager;
 
   bool get canSeeInventory => isAdminOrManager;
+
+  // ── Finanzas (ganancias / gastos / nómina) ──────────────────────
+
+  /// Módulo financiero: estado de resultados (ganancia), gastos y nómina.
+  /// Info sensible de dinero → solo admin + manager. Espejo del
+  /// `@Roles(...ADMIN_ROLES)` de los endpoints `/finance`, `/expenses`,
+  /// `/payroll` del backend.
+  bool get canSeeFinance => isAdminOrManager;
 
   // ── Settings ────────────────────────────────────────────────────
 

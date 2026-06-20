@@ -3,11 +3,12 @@ import '../../../employees/domain/entities/employee.dart';
 
 /// Employee Report Entity
 ///
-/// Resumen del desempeño del equipo. Se calcula client-side a partir de
-/// `GET /users` — los empleados ya vienen con `total_orders_handled`,
-/// `total_sales_amount` y `average_service_rating` actualizados por el
-/// backend al cerrar cada orden, así que no necesitamos un endpoint
-/// dedicado de estadísticas de empleados.
+/// Resumen del desempeño del equipo. El roster sale de `GET /users` y las
+/// ventas/órdenes por empleado se calculan EN VIVO desde las órdenes del
+/// mes (`GET /finance/employee-sales`, agrega por `created_by`) y se
+/// inyectan en cada empleado en el datasource. No dependemos de contadores
+/// en la tabla `users` (que no se mantienen). No hay sistema de rating, así
+/// que `average_service_rating` queda null y la UI muestra ticket promedio.
 class EmployeeReport extends Equatable {
   /// Empleados activos del tenant.
   final List<Employee> employees;

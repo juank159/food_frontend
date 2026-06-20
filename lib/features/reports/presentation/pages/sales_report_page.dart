@@ -281,12 +281,16 @@ class _OrderTile extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    '#${order.orderNumber}',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
+                                  Flexible(
+                                    child: Text(
+                                      '#${order.orderNumber}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),

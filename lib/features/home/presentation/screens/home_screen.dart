@@ -257,6 +257,30 @@ class HomeScreen extends GetView<HomeController> {
             ),
         ];
 
+        final financeItems = <Widget>[
+          if (access.canSeeFinance)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.chartPie,
+              title: 'Ganancias',
+              subtitle: 'Ingresos − costos − gastos − nómina',
+              onTap: () => Get.toNamed(AppRoutes.profit),
+            ),
+          if (access.canSeeFinance)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.receipt,
+              title: 'Gastos',
+              subtitle: 'Egresos del negocio',
+              onTap: () => Get.toNamed(AppRoutes.expenses),
+            ),
+          if (access.canSeeFinance)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.sackDollar,
+              title: 'Nómina',
+              subtitle: 'Pagos al personal por período',
+              onTap: () => Get.toNamed(AppRoutes.payroll),
+            ),
+        ];
+
         final settingsItems = <Widget>[
           if (access.canSeeSubscription)
             _buildMenuItem(
@@ -299,6 +323,13 @@ class HomeScreen extends GetView<HomeController> {
               _buildMenuSection(
                 title: 'Reportes y Análisis',
                 items: reportItems,
+              ),
+              const SizedBox(height: 24),
+            ],
+            if (financeItems.isNotEmpty) ...[
+              _buildMenuSection(
+                title: 'Finanzas',
+                items: financeItems,
               ),
               const SizedBox(height: 24),
             ],
