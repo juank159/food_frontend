@@ -28,6 +28,38 @@ class OpenTabsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Buscador de cuentas (mismo criterio que Órdenes: por etiqueta /
+        // nombre de la cuenta). Antes el buscador solo estaba en Órdenes.
+        Obx(() {
+          if (_c.sessions.isEmpty) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              onChanged: _c.setSearchQuery,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Buscar cuenta por nombre…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.cardBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.4),
+                ),
+              ),
+            ),
+          );
+        }),
         Expanded(
           child: Obx(() {
             if (_c.isLoading.value && _c.sessions.isEmpty) {
@@ -36,14 +68,25 @@ class OpenTabsView extends StatelessWidget {
             if (_c.sessions.isEmpty) {
               return _buildEmptyState();
             }
+            final list = _c.filteredSessions;
             return RefreshIndicator(
               onRefresh: _c.load,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
                   _buildStatsBar(),
                   const SizedBox(height: 16),
-                  ..._c.sessions.map(
+                  if (list.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 32),
+                      child: Center(
+                        child: Text(
+                          'Ninguna cuenta coincide con la búsqueda.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                  ...list.map(
                     (s) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _TabCard(

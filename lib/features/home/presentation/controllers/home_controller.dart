@@ -120,8 +120,8 @@ class HomeController extends GetxController {
       final res = await dio.get(
         '/orders/statistics',
         queryParameters: {
-          'date_from': start.toIso8601String(),
-          'date_to': end.toIso8601String(),
+          'date_from': start.toUtc().toIso8601String(),
+          'date_to': end.toUtc().toIso8601String(),
         },
       );
       final data = res.data;
@@ -187,8 +187,8 @@ class HomeController extends GetxController {
       final res = await dio.get(
         '/orders/statistics',
         queryParameters: {
-          'date_from': yesterday.toIso8601String(),
-          'date_to': endYesterday.toIso8601String(),
+          'date_from': yesterday.toUtc().toIso8601String(),
+          'date_to': endYesterday.toUtc().toIso8601String(),
         },
       );
       final data = res.data;

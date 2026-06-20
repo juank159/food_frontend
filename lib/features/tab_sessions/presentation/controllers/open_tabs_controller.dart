@@ -18,6 +18,20 @@ class OpenTabsController extends GetxController {
   final RxBool isOpening = false.obs;
   final RxString errorMessage = ''.obs;
 
+  /// Buscador de cuentas (por etiqueta / nombre de la cuenta).
+  final RxString searchQuery = ''.obs;
+  void setSearchQuery(String q) => searchQuery.value = q;
+
+  /// Cuentas filtradas por el buscador. Si está vacío, todas.
+  List<TabSession> get filteredSessions {
+    final q = searchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return sessions;
+    return sessions.where((s) {
+      return s.displayLabel().toLowerCase().contains(q) ||
+          (s.notes?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
   @override
   void onInit() {
     super.onInit();

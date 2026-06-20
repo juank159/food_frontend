@@ -75,8 +75,8 @@ class CashSessionRepositoryImpl implements CashSessionRepository {
       final list = await remoteDataSource.findAll({
         if (status != null) 'status': status.value,
         if (openedBy != null) 'opened_by': openedBy,
-        if (dateFrom != null) 'date_from': dateFrom.toIso8601String(),
-        if (dateTo != null) 'date_to': dateTo.toIso8601String(),
+        if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
+        if (dateTo != null) 'date_to': dateTo.toUtc().toIso8601String(),
       });
       return list.map((m) => m.toEntity()).toList();
     });

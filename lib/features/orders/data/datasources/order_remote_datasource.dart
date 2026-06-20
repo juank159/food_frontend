@@ -98,10 +98,19 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
       // orders.controller.ts @Query). Antes mandábamos `start_date` /
       // `end_date`, que el backend ignoraba en silencio → el filtro de
       // fecha nunca tomaba efecto (acá y en reportes).
+      //
+      // **OJO timezone:** las fechas vienen como medianoche LOCAL
+      // (`DateTime(y,m,d)`). Sin `.toUtc()`, `toIso8601String()` produce
+      // un string SIN zona que el server (UTC) interpreta como UTC →
+      // en Colombia (UTC-5) el rango "hoy" quedaba corrido 5h y las
+      // órdenes de la tarde/noche se caían del filtro (parecían
+      // desaparecer al recargar). `.toUtc()` manda el instante correcto.
       if (startDate != null) {
-        queryParams['date_from'] = startDate.toIso8601String();
+        queryParams['date_from'] = startDate.toUtc().toIso8601String();
       }
-      if (endDate != null) queryParams['date_to'] = endDate.toIso8601String();
+      if (endDate != null) {
+        queryParams['date_to'] = endDate.toUtc().toIso8601String();
+      }
       if (page != null) queryParams['page'] = page;
       if (limit != null) queryParams['limit'] = limit;
 

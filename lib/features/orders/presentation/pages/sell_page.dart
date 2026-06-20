@@ -190,12 +190,17 @@ class _ModePill extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Obx(() {
         final mode = controller.currentMode.value;
+        // Si estamos agregando a una CUENTA ABIERTA, el destino queda
+        // BLOQUEADO: el ticket pertenece a esa cuenta/cliente (no se
+        // puede "Cambiar" a mostrador y orphanarlo). Antes "Cambiar"
+        // sacaba el ticket de la cuenta — confuso y rompía la lógica.
+        final lockedToTab = mode.tabSessionId != null;
         return Material(
           color: mode.pillColor.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => _openModeSheet(context),
+            onTap: lockedToTab ? null : () => _openModeSheet(context),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -245,6 +250,9 @@ class _ModePill extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // En cuenta abierta: indicador "bloqueado" (el ticket
+                  // queda en la cuenta). Si no, el chip "Cambiar" para
+                  // elegir otro destino.
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 6),
@@ -252,19 +260,20 @@ class _ModePill extends StatelessWidget {
                       color: mode.pillColor.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Cambiar',
-                          style: TextStyle(
+                          lockedToTab ? 'En la cuenta' : 'Cambiar',
+                          style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        SizedBox(width: 4),
-                        Icon(Icons.swap_horiz, size: 14),
+                        const SizedBox(width: 4),
+                        Icon(lockedToTab ? Icons.lock_outline : Icons.swap_horiz,
+                            size: 14),
                       ],
                     ),
                   ),
