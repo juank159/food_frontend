@@ -115,26 +115,27 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
   Future<void> _printNow() async {
     if (_pdfBytes == null) return;
     try {
-      await Printing.layoutPdf(
+      final ok = await Printing.layoutPdf(
         onLayout: (_) async => _pdfBytes!,
         name: 'QR ${_args.subtitle ?? ''}',
       ).timeout(
-        const Duration(seconds: 60),
-        onTimeout: () {
-          AppSnackbar.show(
-            'Sin respuesta de la impresora',
-            'El diálogo no se abrió. Revisá los permisos del SO o probá "Compartir PDF".',
-            duration: const Duration(seconds: 6),
-          );
-          return false;
-        },
+        const Duration(seconds: 20),
+        onTimeout: () => false,
       );
+      // Si la impresión directa no abrió (sin servicio de impresión en el
+      // dispositivo, timeout, etc.), caemos a "Compartir/Guardar PDF" para
+      // que el usuario igual pueda imprimirlo/enviarlo. Nunca queda colgado.
+      if (!ok) {
+        AppSnackbar.show(
+          'Abriendo PDF para imprimir/guardar',
+          'No se detectó impresora directa; usá el menú para imprimir o guardar.',
+          duration: const Duration(seconds: 4),
+        );
+        await _sharePdf();
+      }
     } catch (e) {
-      AppSnackbar.show(
-        'No se pudo imprimir',
-        '$e — probá "Compartir PDF" y abrilo en el visor del sistema.',
-        duration: const Duration(seconds: 6),
-      );
+      // Cualquier error → fallback a compartir (robusto).
+      await _sharePdf();
     }
   }
 
@@ -253,6 +254,11 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
     // de imprimir/compartir van en el AppBar (más confiable en macOS).
     return PdfPreview(
       build: (_) async => _pdfBytes!,
+      // DPI BAJO a propósito: por defecto PdfPreview rasteriza al DPI del
+      // dispositivo (enorme en celulares), y con QRs embebidos eso CONGELA
+      // la app. 96 dpi se ve nítido para confirmar y es liviano. La
+      // impresión usa el PDF original a full calidad (no este raster).
+      dpi: 96,
       canChangePageFormat: false,
       canChangeOrientation: false,
       canDebug: false,
