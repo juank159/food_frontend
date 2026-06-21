@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.foodplatform" "\0"
-            VALUE "FileDescription", "food_platform_app" "\0"
+            VALUE "FileDescription", "Menu Plat" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "food_platform_app" "\0"
+            VALUE "InternalName", "menu_plat" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.foodplatform. All rights reserved." "\0"
-            VALUE "OriginalFilename", "food_platform_app.exe" "\0"
-            VALUE "ProductName", "food_platform_app" "\0"
+            VALUE "OriginalFilename", "menu_plat.exe" "\0"
+            VALUE "ProductName", "Menu Plat" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
