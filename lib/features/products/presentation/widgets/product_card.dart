@@ -153,18 +153,17 @@ class ProductCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       child: AspectRatio(
-        aspectRatio: 16 / 9,
+        aspectRatio: 1,
         child: product.imageUrl != null && product.imageUrl!.isNotEmpty
             ? Stack(
                 fit: StackFit.expand,
                 children: [
+                  Container(color: AppColors.background),
                   Image.network(
                     product.imageUrl!,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => _buildPlaceholder(),
                   ),
-                  // Tinte sutil para que el texto contraste mejor si la
-                  // imagen es muy clara — no afecta cuando es oscura.
                   if (!product.isAvailable)
                     Container(
                       color: Colors.black.withValues(alpha: 0.4),

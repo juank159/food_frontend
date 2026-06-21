@@ -309,10 +309,9 @@ class _ProductsTab extends GetView<ProductsController> {
                       : 2;
                   final gap = width < 600 ? 10.0 : 14.0;
                   final cardWidth = (width - 16 * 2 - gap * (cross - 1)) / cross;
-                  // El card tiene imagen 16:9 + bloque de info compacto.
-                  // Aspect entre 0.74 (compacto en mobile) y 1.05 (denso
-                  // en desktop) para que no se apriete ni desperdicie alto.
-                  final aspect = (cardWidth / 240).clamp(0.74, 1.05);
+                  // Imagen 1:1 + bloque de info (~90px). Calculamos el
+                  // aspect ratio real para evitar overflow.
+                  final aspect = cardWidth / (cardWidth + 90);
                   return GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
