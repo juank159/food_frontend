@@ -1,29 +1,5 @@
-/// API Constants for the Food Platform.
-///
-/// **URL del backend:** se inyecta en build-time con
-/// `--dart-define=API_URL=...`. Si no se pasa, default al backend
-/// de PRODUCCIÓN en Dokploy — así `flutter run` simple ya funciona
-/// contra producción sin pasar flags.
-///
-/// **Para desarrollo local** (backend corriendo en tu máquina):
-///   flutter run --dart-define=API_URL=http://localhost:3000/api/v1  (iOS sim/macOS/web)
-///   flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1   (Android emu)
-///
-/// **Para producción** (default — no necesitás pasar nada):
-///   flutter run
-///   flutter build apk
-///   flutter build ios
-///   flutter build web
-///
-/// Si cambiás el dominio de producción, actualizá `defaultValue`
-/// abajo y recompilá.
 class ApiConstants {
-  // Base URL — inyectada en build-time. Default: backend de producción
-  // en Dokploy. Cambiar con `--dart-define=API_URL=...` para dev local.
-  static const String baseUrl = String.fromEnvironment(
-    'API_URL',
-    defaultValue: 'https://food.plat.baudity.com/api/v1',
-  );
+  static const String baseUrl = 'https://food.plat.baudity.com/api/v1';
 
   // Auth Endpoints
   static const String login = '/auth/login';

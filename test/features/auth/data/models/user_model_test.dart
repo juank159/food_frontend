@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:food_platform_app/features/auth/data/models/user_model.dart';
-import 'package:food_platform_app/features/auth/domain/entities/user.dart';
+import 'package:menu_plat/features/auth/data/models/user_model.dart';
+import 'package:menu_plat/features/auth/domain/entities/user.dart';
 
 /// Tests del normalizador de permisos en UserModel.
 ///

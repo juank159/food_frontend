@@ -1,6 +1,6 @@
 // Smoke test placeholder.
 //
-// El boot completo de la app (`FoodPlatformApp`) requiere que GetIt esté
+// El boot completo de la app (`MenuPlatApp`) requiere que GetIt esté
 // configurado vía `injection_container.init()` con todas las dependencias
 // reales (Dio, secure storage, etc.). Eso es un test de integración que
 // vive aparte de `flutter test` y necesita un backend disponible.

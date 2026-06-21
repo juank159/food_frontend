@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:food_platform_app/core/config/constants/order_enums.dart';
-import 'package:food_platform_app/features/orders/domain/entities/order.dart';
+import 'package:menu_plat/core/config/constants/order_enums.dart';
+import 'package:menu_plat/features/orders/domain/entities/order.dart';
 
 /// Tests de los getters críticos del entity Order que la UI consume
 /// para decidir badges y botones:

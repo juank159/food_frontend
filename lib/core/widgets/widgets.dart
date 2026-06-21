@@ -1,6 +1,6 @@
 /// Widgets reutilizables para toda la aplicación
 ///
-/// Sistema de diseño moderno y elegante para Food Platform App
+/// Sistema de diseño moderno y elegante para Menu Plat
 /// Todos los componentes siguen Material Design 3 y principios DRY
 library;
 

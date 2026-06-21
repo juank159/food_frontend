@@ -1,11 +1,11 @@
 {
-    "name": "food_platform_app",
-    "short_name": "food_platform_app",
+    "name": "Menu Plat",
+    "short_name": "Menu Plat",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FF6B35",
+    "theme_color": "#FF6B35",
+    "description": "Gestión inteligente de restaurantes",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

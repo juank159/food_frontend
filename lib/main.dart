@@ -34,16 +34,16 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(const FoodPlatformApp());
+  runApp(const MenuPlatApp());
 }
 
-class FoodPlatformApp extends StatelessWidget {
-  const FoodPlatformApp({super.key});
+class MenuPlatApp extends StatelessWidget {
+  const MenuPlatApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Food Platform',
+      title: 'Menu Plat',
       debugShowCheckedModeBanner: false,
 
       // Theme

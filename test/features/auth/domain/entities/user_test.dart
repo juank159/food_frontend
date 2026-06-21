@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:food_platform_app/features/auth/domain/entities/user.dart';
+import 'package:menu_plat/features/auth/domain/entities/user.dart';
 
 /// Tests del entity `User` para la lógica de permisos finos.
 /// Regla clave: **admin pasa siempre**, sin importar la matriz.

@@ -127,7 +127,7 @@ class _SplashScreenContentState extends State<_SplashScreenContent>
                       child: const Column(
                         children: [
                           Text(
-                            'Food Platform',
+                            'Menu Plat',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 28,

@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
-import 'package:food_platform_app/core/error/failures.dart';
-import 'package:food_platform_app/features/roles/domain/entities/role.dart';
-import 'package:food_platform_app/features/roles/domain/repositories/role_repository.dart';
-import 'package:food_platform_app/features/roles/domain/usecases/role_usecases.dart';
-import 'package:food_platform_app/features/roles/presentation/bindings/role_binding.dart';
-import 'package:food_platform_app/features/roles/presentation/controllers/role_controller.dart';
+import 'package:menu_plat/core/error/failures.dart';
+import 'package:menu_plat/features/roles/domain/entities/role.dart';
+import 'package:menu_plat/features/roles/domain/repositories/role_repository.dart';
+import 'package:menu_plat/features/roles/domain/usecases/role_usecases.dart';
+import 'package:menu_plat/features/roles/presentation/bindings/role_binding.dart';
+import 'package:menu_plat/features/roles/presentation/controllers/role_controller.dart';
 
 void main() {
   setUp(() {

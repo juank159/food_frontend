@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
-import 'package:food_platform_app/core/error/failures.dart';
-import 'package:food_platform_app/features/shifts/domain/entities/shift.dart';
-import 'package:food_platform_app/features/shifts/domain/repositories/shift_repository.dart';
-import 'package:food_platform_app/features/shifts/domain/usecases/shift_usecases.dart';
-import 'package:food_platform_app/features/shifts/presentation/bindings/shift_binding.dart';
-import 'package:food_platform_app/features/shifts/presentation/controllers/shift_controller.dart';
+import 'package:menu_plat/core/error/failures.dart';
+import 'package:menu_plat/features/shifts/domain/entities/shift.dart';
+import 'package:menu_plat/features/shifts/domain/repositories/shift_repository.dart';
+import 'package:menu_plat/features/shifts/domain/usecases/shift_usecases.dart';
+import 'package:menu_plat/features/shifts/presentation/bindings/shift_binding.dart';
+import 'package:menu_plat/features/shifts/presentation/controllers/shift_controller.dart';
 
 /// Smoke test del binding: verificamos que `dependencies()` registra el
 /// controller sin crashear cuando GetIt está configurado.
