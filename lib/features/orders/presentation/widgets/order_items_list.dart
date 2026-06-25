@@ -7,6 +7,10 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../products/domain/entities/product.dart';
+import '../../../products/domain/entities/product_variant.dart';
+import '../../../products/presentation/bindings/products_binding.dart';
+import '../../../products/presentation/controllers/products_controller.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../domain/entities/order_item_modifier.dart';
@@ -91,8 +95,26 @@ class OrderItemsList extends StatelessWidget {
 
             if (_canEdit) ...[
               const SizedBox(height: 4),
-              _AddItemButton(
-                onTap: () => _showAddItemSheet(context),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AddItemButton(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Agregar producto',
+                      color: AppColors.primary,
+                      onTap: () => _showAddProductSheet(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _AddItemButton(
+                      icon: Icons.add_circle_outline,
+                      label: 'Agregar adicional',
+                      color: AppColors.warning,
+                      onTap: () => _showAddItemSheet(context),
+                    ),
+                  ),
+                ],
               ),
             ],
             const Divider(height: 24),
@@ -470,6 +492,16 @@ class OrderItemsList extends StatelessWidget {
     return null;
   }
 
+
+  void _showAddProductSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddProductToOrderSheet(controller: controller!),
+    );
+  }
 
   void _showAddItemSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1361,7 +1393,16 @@ class _UndoDeliveryDialog extends StatelessWidget {
 
 class _AddItemButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _AddItemButton({required this.onTap});
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _AddItemButton({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1369,24 +1410,25 @@ class _AddItemButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.4),
-            style: BorderStyle.solid,
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
-            const SizedBox(width: 8),
-            Text(
-              'Agregar ítem',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -1608,6 +1650,356 @@ class _AddItemSheetState extends State<_AddItemSheet> {
                       minimumSize: const Size(0, 48),
                     ),
                   ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────── Agregar producto del catálogo ───────────────────────
+
+class _AddProductToOrderSheet extends StatefulWidget {
+  final OrderDetailController controller;
+  const _AddProductToOrderSheet({required this.controller});
+
+  @override
+  State<_AddProductToOrderSheet> createState() =>
+      _AddProductToOrderSheetState();
+}
+
+class _AddProductToOrderSheetState extends State<_AddProductToOrderSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Get.isRegistered<ProductsController>()) {
+      ProductsBinding().dependencies();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Product> get _filtered {
+    if (!Get.isRegistered<ProductsController>()) return [];
+    final all = Get.find<ProductsController>().products;
+    if (_query.isEmpty) return all.toList();
+    final q = _query.toLowerCase();
+    return all.where((p) => p.name.toLowerCase().contains(q)).toList();
+  }
+
+  void _onProductTap(Product product) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ProductPickerDetail(
+        product: product,
+        onConfirm: (variant, qty, note) async {
+          final double price = variant != null
+              ? (product.basePrice + variant.priceModifier)
+              : product.basePrice;
+          final ok = await widget.controller.addItem(
+            productId: product.id,
+            variantId: variant?.id,
+            unitPrice: price,
+            quantity: qty,
+            specialInstructions: note.isEmpty ? null : note,
+          );
+          if (ok && ctx.mounted) {
+            Navigator.of(ctx).pop();
+            if (mounted) Navigator.of(context).pop();
+          }
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('Agregar producto',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Buscar producto…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (v) => setState(() => _query = v.trim()),
+            ),
+          ),
+          const Divider(height: 1),
+          Flexible(
+            child: Builder(builder: (_) {
+              final items = _filtered;
+              if (items.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      _query.isEmpty
+                          ? 'Sin productos registrados'
+                          : 'Sin resultados para "$_query"',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+              return ListView.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final p = items[i];
+                  return ListTile(
+                    dense: true,
+                    leading: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.fastfood_outlined,
+                          size: 18, color: AppColors.primary),
+                    ),
+                    title: Text(p.name,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(CurrencyFormatter.format(p.basePrice),
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => _onProductTap(p),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductPickerDetail extends StatefulWidget {
+  final Product product;
+  final Future<void> Function(ProductVariant? variant, int qty, String note) onConfirm;
+  const _ProductPickerDetail({required this.product, required this.onConfirm});
+
+  @override
+  State<_ProductPickerDetail> createState() => _ProductPickerDetailState();
+}
+
+class _ProductPickerDetailState extends State<_ProductPickerDetail> {
+  ProductVariant? _variant;
+  int _qty = 1;
+  final _noteCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.product.variants.length == 1) {
+      _variant = widget.product.variants.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _unitPrice => _variant != null
+      ? widget.product.basePrice + _variant!.priceModifier
+      : widget.product.basePrice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final variants = widget.product.variants;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + kb),
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(widget.product.name,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            if (variants.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Variante',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8, runSpacing: 6,
+                children: variants.map((v) {
+                  final sel = _variant?.id == v.id;
+                  return ChoiceChip(
+                    label: Text(
+                        '${v.name} · ${CurrencyFormatter.format(widget.product.basePrice + v.priceModifier)}'),
+                    selected: sel,
+                    onSelected: (_) => setState(() => _variant = v),
+                    selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  );
+                }).toList(),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text('Cantidad',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.textSecondary)),
+                const Spacer(),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outline),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                          icon: const Icon(Icons.remove, size: 18),
+                          onPressed:
+                              _qty > 1 ? () => setState(() => _qty--) : null),
+                      Text('$_qty',
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                      IconButton(
+                          icon: const Icon(Icons.add, size: 18),
+                          onPressed: () => setState(() => _qty++)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Nota (opcional)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.sticky_note_2_outlined),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total: ${CurrencyFormatter.format(_unitPrice * _qty)}',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                FilledButton.icon(
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.add, size: 18),
+                  label: const Text('Agregar'),
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          if (variants.isNotEmpty && _variant == null) {
+                            AppSnackbar.show(
+                                'Falta variante', 'Selecciona una variante');
+                            return;
+                          }
+                          setState(() => _saving = true);
+                          await widget.onConfirm(
+                              _variant, _qty, _noteCtrl.text.trim());
+                          if (mounted) setState(() => _saving = false);
+                        },
                 ),
               ],
             ),

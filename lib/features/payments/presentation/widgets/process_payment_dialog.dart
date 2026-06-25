@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../controllers/payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../orders/domain/entities/order.dart';
@@ -452,7 +453,8 @@ class ProcessPaymentDialog extends StatelessWidget {
   }
 
   Future<void> _openItemSelection(BuildContext context) async {
-    final selectedAmount = await showModalBottomSheet<double>(
+    // El sheet procesa el pago directamente — no necesitamos confirmar de nuevo.
+    final payment = await showModalBottomSheet<Payment>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -460,38 +462,9 @@ class ProcessPaymentDialog extends StatelessWidget {
       builder: (_) => _OrderItemSelectionSheet(
         items: order!.items,
         maxAmount: _effectiveAmount,
+        orderId: orderId,
+        controller: controller,
       ),
-    );
-    if (selectedAmount == null || selectedAmount <= 0) return;
-    if (!context.mounted) return;
-
-    final outerContext = context;
-    final isCash = controller.selectedPaymentMethod.value == PaymentMethod.cash;
-    if (isCash) {
-      await showDialog(
-        context: outerContext,
-        builder: (cashCtx) => CashPaymentDialog(
-          totalAmount: selectedAmount,
-          onConfirm: (received) async {
-            controller.receivedAmount.value = received;
-            await _executeItemPayment(outerContext, selectedAmount);
-          },
-        ),
-      );
-    } else {
-      await _executeItemPayment(outerContext, selectedAmount);
-    }
-  }
-
-  Future<void> _executeItemPayment(BuildContext context, double amount) async {
-    final payment = await controller.addPartialPayment(
-      orderId: orderId,
-      paymentMethod: controller.selectedPaymentMethod.value,
-      amount: amount,
-      receivedAmount: controller.selectedPaymentMethod.value == PaymentMethod.cash
-          ? controller.receivedAmount.value
-          : null,
-      tenantPaymentAccountId: controller.selectedTenantAccountId.value,
     );
     if (payment != null && context.mounted) {
       HapticFeedback.mediumImpact();
@@ -695,7 +668,7 @@ class _PreviousPaymentRow extends StatelessWidget {
   }
 }
 
-// ────────────────── Selección de ítems por orden ──────────────────
+// ────────────────── Selección de ítems + pago directo ──────────────────
 
 class _OrderSelectableItem {
   final OrderItem item;
@@ -707,13 +680,20 @@ class _OrderSelectableItem {
   double get subtotal => item.unitPrice * selectedQty;
 }
 
+/// Sheet que combina selección de ítems + método de pago + procesamiento
+/// en un solo paso. No devuelve un monto — devuelve el `Payment` ya
+/// registrado para que el caller cierre el dialog padre directamente.
 class _OrderItemSelectionSheet extends StatefulWidget {
   final List<OrderItem> items;
   final double maxAmount;
+  final String orderId;
+  final PaymentController controller;
 
   const _OrderItemSelectionSheet({
     required this.items,
     required this.maxAmount,
+    required this.orderId,
+    required this.controller,
   });
 
   @override
@@ -723,6 +703,9 @@ class _OrderItemSelectionSheet extends StatefulWidget {
 
 class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
   late final List<_OrderSelectableItem> _selectables;
+  bool _processing = false;
+  // Campo "recibido" inline para efectivo
+  final _cashCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -733,18 +716,55 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
         .toList();
   }
 
-  double get _total =>
-      _selectables.fold(0, (s, i) => s + i.subtotal);
+  @override
+  void dispose() {
+    _cashCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _total => _selectables.fold(0, (s, i) => s + i.subtotal);
+
+  bool get _isCash =>
+      widget.controller.selectedPaymentMethod.value == PaymentMethod.cash;
+
+  double get _parsedReceived {
+    final raw = _cashCtrl.text.replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(raw) ?? 0;
+  }
+
+  Future<void> _confirm() async {
+    final total = _total;
+    if (total <= 0 || total > widget.maxAmount + 0.01) return;
+    if (_isCash) {
+      final rec = _parsedReceived;
+      if (rec < total) {
+        AppSnackbar.show('Monto insuficiente',
+            'El recibido debe ser ≥ ${CurrencyFormatter.format(total)}');
+        return;
+      }
+      widget.controller.receivedAmount.value = rec;
+    }
+    setState(() => _processing = true);
+    final payment = await widget.controller.addPartialPayment(
+      orderId: widget.orderId,
+      paymentMethod: widget.controller.selectedPaymentMethod.value,
+      amount: total,
+      receivedAmount: _isCash ? widget.controller.receivedAmount.value : null,
+      tenantPaymentAccountId: widget.controller.selectedTenantAccountId.value,
+    );
+    if (!mounted) return;
+    setState(() => _processing = false);
+    if (payment != null) Navigator.pop(context, payment);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final total = _total;
-    final tooMuch = total > widget.maxAmount + 0.01;
+    final kb = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -764,17 +784,16 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
           ),
           // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
             child: Row(
               children: [
                 Icon(Icons.checklist_rtl, color: AppColors.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Seleccionar ítems a pagar',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    'Cobrar por ítems',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
                 IconButton(
@@ -785,9 +804,10 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
             ),
           ),
           const Divider(height: 1),
-          // List
-          Expanded(
+          // Item list
+          Flexible(
             child: ListView.separated(
+              shrinkWrap: true,
               itemCount: _selectables.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
@@ -805,62 +825,113 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
             ),
           ),
           const Divider(height: 1),
-          // Footer
+          // Footer: método + totales + botón de cobro
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + kb),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Total seleccionado',
-                        style: theme.textTheme.titleSmall),
-                    Text(
-                      CurrencyFormatter.format(total),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: tooMuch
-                            ? theme.colorScheme.error
-                            : AppColors.primary,
+                // Método de pago
+                Obx(() => PaymentMethodSelector(
+                      selectedMethod:
+                          widget.controller.selectedPaymentMethod.value,
+                      onMethodSelected: (m) =>
+                          widget.controller.selectedPaymentMethod.value = m,
+                    )),
+                // Campo recibido para efectivo
+                Obx(() {
+                  if (widget.controller.selectedPaymentMethod.value !=
+                      PaymentMethod.cash) { return const SizedBox.shrink(); }
+                  final total = _total;
+                  if (total <= 0) { return const SizedBox.shrink(); }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: TextField(
+                      controller: _cashCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Recibido del cliente',
+                        hintText: CurrencyFormatter.format(total),
+                        prefixIcon:
+                            const Icon(Icons.payments_outlined),
+                        isDense: true,
+                        border: const OutlineInputBorder(),
                       ),
+                      onChanged: (_) => setState(() {}),
                     ),
-                  ],
-                ),
-                if (tooMuch) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'El monto supera el saldo pendiente '
-                    '(${CurrencyFormatter.format(widget.maxAmount)})',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
+                  );
+                }),
+                const SizedBox(height: 12),
+                // Total
+                Builder(builder: (_) {
+                  final total = _total;
+                  final tooMuch = total > widget.maxAmount + 0.01;
+                  return Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Total a cobrar',
+                              style: theme.textTheme.titleSmall),
+                          Text(
+                            CurrencyFormatter.format(total),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: tooMuch
+                                  ? theme.colorScheme.error
+                                  : AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (tooMuch) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Supera el saldo '
+                          '(${CurrencyFormatter.format(widget.maxAmount)})',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.error),
+                        ),
+                      ],
+                    ],
+                  );
+                }),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed:
+                            _processing ? null : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                        ),
+                            minimumSize: const Size(0, 48)),
                         child: const Text('Cancelar'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton(
-                        onPressed:
-                            total > 0 && !tooMuch
-                                ? () => Navigator.pop(context, total)
-                                : null,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                        ),
-                        child: Text(
-                          'Cobrar ${CurrencyFormatter.format(total)}',
+                      child: StatefulBuilder(
+                        builder: (_, ss) => FilledButton.icon(
+                          icon: _processing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white),
+                                )
+                              : const Icon(Icons.check, size: 18),
+                          label: Text(
+                            _processing
+                                ? 'Procesando…'
+                                : 'Cobrar ${CurrencyFormatter.format(_total)}',
+                          ),
+                          onPressed: _processing || _total <= 0 ||
+                                  _total > widget.maxAmount + 0.01
+                              ? null
+                              : _confirm,
+                          style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 48)),
                         ),
                       ),
                     ),
