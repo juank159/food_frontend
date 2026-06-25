@@ -567,6 +567,7 @@ class _BottomBar extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -624,19 +625,11 @@ class _BottomBar extends StatelessWidget {
       // Reset para vender al próximo cliente sin navegación.
       controller.resetForm();
     } else {
-      // Mesa o cuenta abierta: el ticket ya se sumó. Si la orden vino
-      // con `tabSessionId` (porque ya estaba en una cuenta o el backend
-      // la creó automáticamente al ser dine-in), vamos al detalle de
-      // la cuenta. Si no, simplemente volvemos atrás.
-      final sessionId = mode.tabSessionId ?? order.tabSessionId;
+      // Mesa o cuenta abierta: el ticket ya se sumó. Volver siempre
+      // al listado de cuentas abiertas para que el cajero pueda
+      // atender al siguiente cliente sin pasos extras.
       controller.resetForm();
-      if (sessionId != null && sessionId.isNotEmpty) {
-        await Get.offNamed<dynamic>(
-          AppRoutes.tabSessionDetail.replaceAll(':id', sessionId),
-        );
-      } else {
-        Navigator.of(context).pop();
-      }
+      await Get.offNamed<dynamic>(AppRoutes.tabSessions);
     }
   }
 }

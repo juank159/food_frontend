@@ -3,8 +3,6 @@ import '../../../../core/error/failures.dart';
 import '../entities/category.dart';
 import '../repositories/category_repository.dart';
 
-/// Update Category Use Case
-/// Actualiza una categoría existente
 class UpdateCategoryUseCase {
   final CategoryRepository repository;
 
@@ -21,6 +19,8 @@ class UpdateCategoryUseCase {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     return await repository.updateCategory(
       id: id,
@@ -33,6 +33,8 @@ class UpdateCategoryUseCase {
       displayOrder: displayOrder,
       parentId: parentId,
       printsKitchen: printsKitchen,
+      quickNotes: quickNotes,
+      flavorLabel: flavorLabel,
     );
   }
 }

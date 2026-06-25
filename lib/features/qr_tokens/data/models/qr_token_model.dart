@@ -3,7 +3,7 @@ enum QrTokenType {
   table('table', 'Mesa específica'),
   zone('zone', 'Zona / Área'),
   pickup('pickup', 'Pickup / Mostrador'),
-  generic('generic', 'Genérico');
+  generic('generic', 'Barra / Mostrador');
 
   final String apiValue;
   final String displayName;

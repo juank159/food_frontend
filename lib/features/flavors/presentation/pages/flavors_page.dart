@@ -59,12 +59,24 @@ class _FlavorsPageState extends State<FlavorsPage> {
     _addCtrl.clear();
   }
 
+  String _labelFor(String? categoryId) {
+    if (categoryId == null) return 'Sabores';
+    try {
+      final cat =
+          categories.categories.firstWhere((c) => c.id == categoryId);
+      return cat.flavorLabel ?? 'Sabores';
+    } catch (_) {
+      return 'Sabores';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Cremas / Sabores'),
+        title: Obx(() =>
+            Text(_labelFor(flavors.categoryId.value))),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
@@ -99,63 +111,71 @@ class _FlavorsPageState extends State<FlavorsPage> {
             );
           }),
 
-          // ── Agregar crema ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _addCtrl,
-                    textInputAction: TextInputAction.done,
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _submitAdd(),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'Nueva crema (ej. Vainilla chip)',
-                      prefixIcon: const Icon(Icons.icecream, size: 20),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
+          // ── Agregar opción ──
+          Obx(() {
+            final label = _labelFor(flavors.categoryId.value);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _addCtrl,
+                      textInputAction: TextInputAction.done,
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _submitAdd(),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Nueva $label (ej. Vainilla chip)',
+                        prefixIcon:
+                            const Icon(Icons.icecream, size: 20),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Obx(() => FilledButton(
-                      onPressed: flavors.isSaving.value ? null : _submitAdd,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
-                      ),
-                      child: flavors.isSaving.value
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.add),
-                    )),
-              ],
-            ),
-          ),
+                  const SizedBox(width: 8),
+                  Obx(() => FilledButton(
+                        onPressed:
+                            flavors.isSaving.value ? null : _submitAdd,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 14),
+                        ),
+                        child: flavors.isSaving.value
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white),
+                              )
+                            : const Icon(Icons.add),
+                      )),
+                ],
+              ),
+            );
+          }),
 
-          // ── Lista de cremas ──
+          // ── Lista ──
           Expanded(
             child: Obx(() {
+              final label = _labelFor(flavors.categoryId.value);
               if (flavors.categoryId.value == null) {
-                return _hint('Elegí una categoría para ver sus cremas.');
+                return _hint('Elegí una categoría para ver sus $label.');
               }
               if (flavors.isLoading.value && flavors.flavors.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (flavors.flavors.isEmpty) {
                 return _hint(
-                    'Sin cremas todavía. Agregá la primera arriba.');
+                    'Sin $label todavía. Agregá la primera arriba.');
               }
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),

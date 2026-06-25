@@ -562,8 +562,8 @@ class _TypeChip extends StatelessWidget {
         color = Colors.deepOrange;
         break;
       case QrTokenType.generic:
-        icon = Icons.qr_code_2;
-        color = Colors.blueGrey;
+        icon = Icons.countertops_outlined;
+        color = Colors.teal;
         break;
     }
     return Container(
@@ -822,6 +822,32 @@ class _CreateOrEditQrDialogState extends State<_CreateOrEditQrDialog> {
                   hintText: 'Ej: terraza, salon_vip',
                   border: OutlineInputBorder(),
                   isDense: true,
+                ),
+              ),
+            ],
+            if (_type == QrTokenType.generic) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ideal para barra o mostrador. Cuando el cliente escanea y '
+                        'hace un pedido, se crea automáticamente una cuenta abierta '
+                        'que aparece en "Cuentas abiertas" para que el cajero la atienda.',
+                        style: TextStyle(fontSize: 12, color: Colors.teal),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

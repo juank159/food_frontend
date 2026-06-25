@@ -487,7 +487,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                       label: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          'Cobrar ${CurrencyFormatter.format(s.balance)}',
+                          'Cobrar restante ${CurrencyFormatter.format(s.balance)}',
                           maxLines: 1,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),

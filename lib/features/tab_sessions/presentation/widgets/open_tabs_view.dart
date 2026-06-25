@@ -6,6 +6,10 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/app_dialog.dart';
+import '../../../../core/utils/date_period.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_filter_chip.dart';
 import '../../domain/entities/tab_session.dart';
 import '../controllers/open_tabs_controller.dart';
 
@@ -28,38 +32,7 @@ class OpenTabsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Buscador de cuentas (mismo criterio que Órdenes: por etiqueta /
-        // nombre de la cuenta). Antes el buscador solo estaba en Órdenes.
-        Obx(() {
-          if (_c.sessions.isEmpty) return const SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: TextField(
-              onChanged: _c.setSearchQuery,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Buscar cuenta por nombre…',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                isDense: true,
-                filled: true,
-                fillColor: AppColors.cardBackground,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.4),
-                ),
-              ),
-            ),
-          );
-        }),
+        _TabsFilterBar(controller: _c),
         Expanded(
           child: Obx(() {
             if (_c.isLoading.value && _c.sessions.isEmpty) {
@@ -301,6 +274,275 @@ class OpenTabsView extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────── Filter bar ───────────────────────
+
+class _TabsFilterBar extends StatefulWidget {
+  final OpenTabsController controller;
+  const _TabsFilterBar({required this.controller});
+
+  @override
+  State<_TabsFilterBar> createState() => _TabsFilterBarState();
+}
+
+class _TabsFilterBarState extends State<_TabsFilterBar> {
+  late final TextEditingController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _search =
+        TextEditingController(text: widget.controller.searchQuery.value);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  String? _customLabel() {
+    final c = widget.controller;
+    if (c.datePeriod.value != DatePeriod.custom) return null;
+    final s = c.startDate.value;
+    final e = c.endDate.value;
+    if (s == null && e == null) return null;
+    final sStr = s != null ? '${_two(s.day)}/${_two(s.month)}' : '—';
+    final eStr = e != null ? '${_two(e.day)}/${_two(e.month)}' : '—';
+    return '$sStr – $eStr';
+  }
+
+  Future<void> _pickCustomRange() async {
+    final c = widget.controller;
+    final now = DateTime.now();
+    final current = (c.startDate.value != null && c.endDate.value != null)
+        ? DateTimeRange(start: c.startDate.value!, end: c.endDate.value!)
+        : null;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: current,
+      helpText: 'Seleccioná un rango',
+      saveText: 'Aplicar',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx)
+              .colorScheme
+              .copyWith(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      c.setDatePeriod(DatePeriod.custom,
+          customStart: picked.start, customEnd: picked.end);
+    }
+  }
+
+  List<ActiveFilterChipData> _activeChips() {
+    final c = widget.controller;
+    final chips = <ActiveFilterChipData>[];
+    if (c.filterTabType.value != null) {
+      chips.add(ActiveFilterChipData(
+        label: c.filterTabType.value!.displayName,
+        onRemove: () => c.filterByTabType(null),
+      ));
+    }
+    if (c.filterBalance.value != null) {
+      chips.add(ActiveFilterChipData(
+        label: c.filterBalance.value!.displayName,
+        color: c.filterBalance.value == BalanceFilter.withBalance
+            ? AppColors.error
+            : AppColors.success,
+        onRemove: () => c.filterByBalance(null),
+      ));
+    }
+    return chips;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.controller;
+    return Obx(() => AppFilterBar(
+          searchController: _search,
+          searchHint: 'Buscar cuenta por nombre…',
+          onSearchChanged: c.setSearchQuery,
+          period: c.datePeriod.value,
+          defaultPeriod: DatePeriod.today,
+          onPeriodSelected: (p) => c.setDatePeriod(p),
+          onPickCustomRange: _pickCustomRange,
+          customRangeLabel: _customLabel(),
+          activeFilterCount: c.advancedFilterCount,
+          onOpenFilters: () => AppDialog.bottomSheet(
+            _TabsFiltersSheet(controller: c),
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+          ),
+          activeChips: _activeChips(),
+          onClearAll: c.advancedFilterCount > 0
+              ? c.clearAdvancedFilters
+              : null,
+        ));
+  }
+}
+
+class _TabsFiltersSheet extends StatelessWidget {
+  final OpenTabsController controller;
+  const _TabsFiltersSheet({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 12,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Filtros',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Obx(() {
+                if (controller.advancedFilterCount == 0) {
+                  return const SizedBox.shrink();
+                }
+                return TextButton.icon(
+                  onPressed: controller.clearAdvancedFilters,
+                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                  label: const Text('Limpiar'),
+                );
+              }),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Tipo ──
+          _sectionTitle('Tipo de cuenta'),
+          Obx(() {
+            final selected = controller.filterTabType.value;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                AppFilterChip(
+                  label: 'Todas',
+                  selected: selected == null,
+                  onTap: () => controller.filterByTabType(null),
+                ),
+                for (final t in TabTypeFilter.values)
+                  AppFilterChip(
+                    label: t.displayName,
+                    selected: selected == t,
+                    onTap: () => controller.filterByTabType(
+                        selected == t ? null : t),
+                  ),
+              ],
+            );
+          }),
+          const SizedBox(height: 20),
+
+          // ── Saldo ──
+          _sectionTitle('Saldo'),
+          Obx(() {
+            final selected = controller.filterBalance.value;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                AppFilterChip(
+                  label: 'Todos',
+                  selected: selected == null,
+                  onTap: () => controller.filterByBalance(null),
+                ),
+                AppFilterChip(
+                  label: BalanceFilter.withBalance.displayName,
+                  selected: selected == BalanceFilter.withBalance,
+                  accentColor: AppColors.error,
+                  onTap: () => controller.filterByBalance(
+                      selected == BalanceFilter.withBalance
+                          ? null
+                          : BalanceFilter.withBalance),
+                ),
+                AppFilterChip(
+                  label: BalanceFilter.paid.displayName,
+                  selected: selected == BalanceFilter.paid,
+                  accentColor: AppColors.success,
+                  onTap: () => controller.filterByBalance(
+                      selected == BalanceFilter.paid
+                          ? null
+                          : BalanceFilter.paid),
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                'Listo',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+}
+
+// ─────────────────────────────────────────────────────────
 
 class _StatTile extends StatelessWidget {
   final String label;

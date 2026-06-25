@@ -18,6 +18,11 @@ CategoryModel _$CategoryModelFromJson(Map<String, dynamic> json) =>
       displayOrder: (json['sort_order'] as num?)?.toInt(),
       parentId: json['parent_category_id'] as String?,
       printsKitchen: json['prints_kitchen'] as bool? ?? true,
+      quickNotes: (json['quick_notes'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      flavorLabel: json['flavor_label'] as String?,
       children: (_readChildren(json, 'subcategories') as List<dynamic>?)
           ?.map((e) => CategoryModel.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -37,6 +42,8 @@ Map<String, dynamic> _$CategoryModelToJson(CategoryModel instance) =>
       'sort_order': instance.displayOrder,
       'parent_category_id': instance.parentId,
       'prints_kitchen': instance.printsKitchen,
+      'quick_notes': instance.quickNotes,
+      'flavor_label': instance.flavorLabel,
       'subcategories': instance.children,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,

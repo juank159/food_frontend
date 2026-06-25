@@ -35,7 +35,6 @@ abstract class CategoryRepository {
   /// Busca categorías por nombre o descripción
   Future<Either<Failure, List<Category>>> searchCategories(String query);
 
-  /// Crea una nueva categoría
   Future<Either<Failure, Category>> createCategory({
     required String name,
     required String description,
@@ -46,9 +45,10 @@ abstract class CategoryRepository {
     int displayOrder = 0,
     String? parentId,
     bool printsKitchen = true,
+    List<String>? quickNotes,
+    String? flavorLabel,
   });
 
-  /// Actualiza una categoría existente
   Future<Either<Failure, Category>> updateCategory({
     required String id,
     String? name,
@@ -60,6 +60,8 @@ abstract class CategoryRepository {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
   });
 
   /// Elimina una categoría

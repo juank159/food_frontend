@@ -3,8 +3,6 @@ import '../../../../core/error/failures.dart';
 import '../entities/category.dart';
 import '../repositories/category_repository.dart';
 
-/// Create Category Use Case
-/// Crea una nueva categoría
 class CreateCategoryUseCase {
   final CategoryRepository repository;
 
@@ -20,6 +18,8 @@ class CreateCategoryUseCase {
     int displayOrder = 0,
     String? parentId,
     bool printsKitchen = true,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     return await repository.createCategory(
       name: name,
@@ -31,6 +31,8 @@ class CreateCategoryUseCase {
       displayOrder: displayOrder,
       parentId: parentId,
       printsKitchen: printsKitchen,
+      quickNotes: quickNotes,
+      flavorLabel: flavorLabel,
     );
   }
 }

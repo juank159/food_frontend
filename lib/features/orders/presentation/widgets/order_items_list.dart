@@ -55,6 +55,12 @@ class OrderItemsList extends StatelessWidget {
   bool get _canInteract =>
       _interactive && order.isActive && _permissions.hasAnyTransition;
 
+  bool get _canEdit =>
+      controller != null &&
+      order.isActive &&
+      ['admin', 'manager', 'cashier', 'waiter']
+          .contains(_currentRoleCode);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -83,6 +89,12 @@ class OrderItemsList extends StatelessWidget {
             // Items
             ...order.items.map((item) => _buildOrderItem(context, item)),
 
+            if (_canEdit) ...[
+              const SizedBox(height: 4),
+              _AddItemButton(
+                onTap: () => _showAddItemSheet(context),
+              ),
+            ],
             const Divider(height: 24),
 
             // Totals
@@ -258,7 +270,50 @@ class OrderItemsList extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          if (_canEdit) ...[
+            Obx(() {
+              final removing = controller!.updatingItemIds.contains(item.id);
+              return IconButton(
+                icon: removing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline, size: 20),
+                color: Theme.of(context).colorScheme.error,
+                tooltip: 'Eliminar',
+                onPressed: removing
+                    ? null
+                    : () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Eliminar ítem'),
+                            content: Text(
+                                '¿Quitar "${item.productName}" de la orden?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.error,
+                                ),
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok == true) controller!.removeItem(item);
+                      },
+              );
+            }),
+          ],
+          const SizedBox(width: 4),
           _DeliveryTapTarget(
             item: item,
             nextStatus: nextStatus,
@@ -415,6 +470,19 @@ class OrderItemsList extends StatelessWidget {
     return null;
   }
 
+
+  void _showAddItemSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddItemSheet(
+        orderId: order.id,
+        controller: controller!,
+      ),
+    );
+  }
 
   Widget _buildModifierLine(ThemeData theme, OrderItemModifier mod) {
     IconData icon;
@@ -1277,6 +1345,267 @@ class _UndoDeliveryDialog extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────── Add item button ───────────────────────
+
+class _AddItemButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddItemButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.4),
+            style: BorderStyle.solid,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Agregar ítem',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────── Add item sheet ───────────────────────
+
+class _AddItemSheet extends StatefulWidget {
+  final String orderId;
+  final OrderDetailController controller;
+
+  const _AddItemSheet({required this.orderId, required this.controller});
+
+  @override
+  State<_AddItemSheet> createState() => _AddItemSheetState();
+}
+
+class _AddItemSheetState extends State<_AddItemSheet> {
+  final _nameCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  int _qty = 1;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _parsedPrice {
+    final raw = _priceCtrl.text.replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(raw) ?? 0;
+  }
+
+  bool get _canSubmit =>
+      _nameCtrl.text.trim().isNotEmpty && _parsedPrice > 0 && _qty >= 1;
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() => _saving = true);
+    final ok = await widget.controller.addItem(
+      productName: _nameCtrl.text.trim(),
+      unitPrice: _parsedPrice,
+      quantity: _qty,
+      specialInstructions: _noteCtrl.text.trim().isEmpty
+          ? null
+          : _noteCtrl.text.trim(),
+    );
+    setState(() => _saving = false);
+    if (ok && mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Icon(Icons.add_circle_outline, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Agregar adicional',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Name
+            TextField(
+              controller: _nameCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Nombre del adicional *',
+                hintText: 'Ej: Pollo extra',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.label_outline),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Price
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _priceCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Precio *',
+                      hintText: '3.000',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Qty stepper
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Cantidad',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          )),
+                      const SizedBox(height: 4),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                              color: theme.colorScheme.outline),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove, size: 18),
+                              onPressed: _qty > 1
+                                  ? () => setState(() => _qty--)
+                                  : null,
+                            ),
+                            Text('$_qty',
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700)),
+                            IconButton(
+                              icon: const Icon(Icons.add, size: 18),
+                              onPressed: () => setState(() => _qty++),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Note
+            TextField(
+              controller: _noteCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Nota (opcional)',
+                hintText: 'Ej: Al gusto del cliente',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.sticky_note_2_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _canSubmit && !_saving ? _submit : null,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check),
+                    label: const Text('Agregar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 48),
                     ),
                   ),
                 ),

@@ -858,39 +858,46 @@ class ProductSelectorWidget extends StatelessWidget {
   }
 
   void _addToCart(BuildContext context, Product product) {
-    // Si el producto tiene variantes o grupos de modificadores activos, NO se
-    // puede agregar directamente al carrito sin pasar por el selector. Si el
-    // grupo es `is_required`, agregar sin elegir rompe la regla del menú y el
-    // backend (cuando persista los modifiers) o el cocinero recibirían un
-    // pedido incompleto. Forzamos abrir el bottom sheet de detalles que sí
-    // monta `ModifierSelectorWidget` y `VariantSelectorWidget`.
-    final hasActiveModifierGroups =
-        product.modifierGroups.any((g) => g.isActive);
-    if (product.hasVariants || hasActiveModifierGroups) {
-      _showProductDetails(context, product);
-      return;
-    }
-    orderController.addToCart(product);
+    // Siempre abrir el sheet para permitir agregar nota al cocinero,
+    // incluso si el producto no tiene variantes ni modificadores.
+    _showProductDetails(context, product);
   }
 
   void _showProductDetails(BuildContext context, Product product) {
+    // Buscar la categoría para obtener quick notes y flavor label.
+    List<String> quickNotes = const [];
+    String? flavorLabel;
+    if (Get.isRegistered<CategoriesController>()) {
+      final cats = Get.find<CategoriesController>().categories;
+      try {
+        final cat = cats.firstWhere((c) => c.id == product.categoryId);
+        quickNotes = cat.quickNotes;
+        flavorLabel = cat.flavorLabel;
+      } catch (_) {}
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _ProductDetailsSheet(
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => _ProductDetailsSheet(
         product: product,
-        onAddToCart: (quantity, variant, modifiers, notes, flavorIds,
-            flavorNames) {
-          orderController.addToCart(
-            product,
-            quantity: quantity,
-            variant: variant,
-            modifiers: modifiers,
-            specialInstructions: notes,
-            flavorIds: flavorIds.isEmpty ? null : flavorIds,
-            flavorNames: flavorNames.isEmpty ? null : flavorNames,
-          );
-          Navigator.pop(context);
+        categoryQuickNotes: quickNotes,
+        categoryFlavorLabel: flavorLabel,
+        onAddItems: (items) {
+          for (final it in items) {
+            orderController.addToCart(
+              product,
+              quantity: it.quantity,
+              variant: it.variant,
+              modifiers: it.modifiers,
+              specialInstructions: it.note,
+              flavorIds: it.flavorIds.isEmpty ? null : it.flavorIds,
+              flavorNames: it.flavorNames.isEmpty ? null : it.flavorNames,
+            );
+          }
+          Navigator.pop(sheetCtx);
         },
       ),
     );
@@ -932,22 +939,44 @@ class ProductSelectorWidget extends StatelessWidget {
   }
 }
 
-/// Product Details Sheet
-/// Bottom sheet con detalles del producto y selector de cantidad
+// ─────────────── Modelo de ítem para agregar al carrito ───────────────
+
+class _CartItemEntry {
+  final int quantity;
+  final ProductVariant? variant;
+  final List<SelectedModifier>? modifiers;
+  final String? note;
+  final List<String> flavorIds;
+  final List<String> flavorNames;
+
+  const _CartItemEntry({
+    required this.quantity,
+    this.variant,
+    this.modifiers,
+    this.note,
+    this.flavorIds = const [],
+    this.flavorNames = const [],
+  });
+}
+
+// ─────────────────── Product Details Sheet ───────────────────────────
+
+/// Sheet rediseñado con:
+/// • Footer sticky (botón siempre visible aunque el teclado esté abierto)
+/// • Quick tags de nota rápida (sin cebolla, sin tomate…)
+/// • Modo "Por ítem" para dar nota individual a cada unidad cuando qty > 1
 class _ProductDetailsSheet extends StatefulWidget {
   final Product product;
-  final void Function(
-    int quantity,
-    ProductVariant? variant,
-    List<SelectedModifier>? modifiers,
-    String? notes,
-    List<String> flavorIds,
-    List<String> flavorNames,
-  ) onAddToCart;
+  final void Function(List<_CartItemEntry> items) onAddItems;
+  /// Quick notes y flavor label vienen de la categoría del producto.
+  final List<String> categoryQuickNotes;
+  final String? categoryFlavorLabel;
 
   const _ProductDetailsSheet({
     required this.product,
-    required this.onAddToCart,
+    required this.onAddItems,
+    this.categoryQuickNotes = const [],
+    this.categoryFlavorLabel,
   });
 
   @override
@@ -955,19 +984,37 @@ class _ProductDetailsSheet extends StatefulWidget {
 }
 
 class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
-  int quantity = 1;
-  final GlobalKey<VariantSelectorWidgetState> _variantKey = GlobalKey();
-  final GlobalKey<ModifierSelectorWidgetState> _modifierKey = GlobalKey();
-  final TextEditingController _notesCtrl = TextEditingController();
+  int _quantity = 1;
+  bool _splitMode = false; // notas individuales por ítem
+
+  final _variantKey = GlobalKey<VariantSelectorWidgetState>();
+  final _modifierKey = GlobalKey<ModifierSelectorWidgetState>();
+
+  // Nota única (modo normal)
+  final _singleNoteCtrl = TextEditingController();
+
+  // Notas individuales por ítem (split mode)
+  final List<TextEditingController> _itemCtrls = [TextEditingController()];
+
   ProductVariant? _selectedVariant;
   List<SelectedModifier> _selectedModifiers = [];
 
-  // Cremas/sabores de la categoría del producto + selección por bola.
+  // Cremas
   List<Flavor> _flavors = [];
   bool _flavorsLoading = false;
-  List<String?> _selectedFlavors = []; // length = scoopCount de la variante
+  List<String?> _selectedFlavors = [];
 
   int get _scoopCount => _selectedVariant?.scoopCount ?? 0;
+
+  static const _defaultQuickTags = [
+    'Sin cebolla', 'Sin tomate', 'Sin salsas', 'Sin sal',
+    'Sin mayonesa', 'Bien hecho', 'A punto', 'Extra queso',
+    'Sin ají', 'Sin pepinillo', 'Poco picante', 'Muy picante',
+  ];
+
+  List<String> get _quickTags => widget.categoryQuickNotes.isNotEmpty
+      ? widget.categoryQuickNotes
+      : _defaultQuickTags;
 
   @override
   void initState() {
@@ -991,7 +1038,6 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     }
   }
 
-  /// Reajusta los slots de cremas cuando cambia la variante (bolas).
   void _syncFlavorSlots() {
     final n = _scoopCount;
     if (_selectedFlavors.length != n) {
@@ -999,358 +1045,307 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     }
   }
 
+  void _setQty(int v) {
+    setState(() {
+      _quantity = v;
+      _syncItemCtrls();
+    });
+  }
+
+  void _syncItemCtrls() {
+    while (_itemCtrls.length < _quantity) {
+      _itemCtrls.add(TextEditingController());
+    }
+    while (_itemCtrls.length > _quantity) {
+      _itemCtrls.last.dispose();
+      _itemCtrls.removeLast();
+    }
+  }
+
+  void _toggleSplit(bool v) {
+    setState(() {
+      _splitMode = v;
+      _syncItemCtrls();
+    });
+  }
+
+  void _appendTag(TextEditingController ctrl, String tag) {
+    final cur = ctrl.text.trim();
+    ctrl.text = cur.isEmpty ? tag : '$cur, $tag';
+    setState(() {});
+  }
+
   @override
   void dispose() {
-    _notesCtrl.dispose();
+    _singleNoteCtrl.dispose();
+    for (final c in _itemCtrls) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  double _calcTotal() {
+    double base = widget.product.basePrice;
+    if (_selectedVariant != null) {
+      base = _selectedVariant!.calculateFinalPrice(base);
+    }
+    final mods = _selectedModifiers.fold<double>(0, (s, m) => s + m.subtotal);
+    return (base + mods) * _quantity;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final product = widget.product;
+    final kbBottom = MediaQuery.of(context).viewInsets.bottom;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.5,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 10, bottom: 4),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
 
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    // Product Image
-                    if (product.imageUrl != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          product.imageUrl!,
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-
-                    // Product Name
-                    Text(
-                      product.name,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+          // Scrollable content
+          Flexible(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header: imagen + nombre + precio
+                  if (product.imageUrl != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        product.imageUrl!,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                    const SizedBox(height: 8),
-
-                    // Price
-                    Text(
-                      CurrencyFormatter.format(product.basePrice),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Description
-                    Text(
-                      product.description,
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Additional Info
-                    if (product.preparationTime > 0) ...[
-                      _buildInfoRow(
-                        context,
-                        Icons.timer,
-                        'Tiempo de preparación',
-                        '${product.preparationTime} min',
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    if (product.allergens.isNotEmpty) ...[
-                      _buildInfoRow(
-                        context,
-                        Icons.warning_amber,
-                        'Alérgenos',
-                        product.allergens.join(', '),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    if (product.trackInventory && product.currentStock != null) ...[
-                      _buildInfoRow(
-                        context,
-                        Icons.inventory,
-                        'Stock disponible',
-                        '${product.currentStock} unidades',
-                      ),
-                    ],
-
-                    const SizedBox(height: 24),
-
-                    // Variant Selector (si el producto tiene variantes)
-                    if (product.hasVariants) ...[
-                      VariantSelectorWidget(
-                        key: _variantKey,
-                        product: product,
-                        onChanged: (variant) {
-                          setState(() {
-                            _selectedVariant = variant;
-                            _syncFlavorSlots();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Selector de cremas (heladería) — una por bola.
-                    if (_scoopCount > 0) ...[
-                      _buildFlavorSelector(theme),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Modifier Selector (si el producto tiene modificadores)
-                    if (product.hasModifiers) ...[
-                      ModifierSelectorWidget(
-                        key: _modifierKey,
-                        product: product,
-                        onChanged: () {
-                          setState(() {
-                            _selectedModifiers = _modifierKey.currentState
-                                    ?.getSelectedModifiers() ??
-                                [];
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Notas para el cocinero — campo único para
-                    // pedidos como "sin cebolla", "bien hecho", etc.
-                    // Se agrega ANTES de que el producto entre al
-                    // carrito para evitar el doble paso de tener que
-                    // editar el ítem después de agregarlo.
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.sticky_note_2_outlined,
-                          size: 18,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Notas para el cocinero',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(height: 14),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _notesCtrl,
-                      maxLines: 2,
-                      maxLength: 200,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        hintText: 'Ej. sin cebolla, bien hecho, sin sal…',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        counterText: '',
                       ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Quantity Selector
-                    _buildQuantitySelector(theme),
-
-                    const SizedBox(height: 24),
-
-                    // Add to Cart Button
-                    FilledButton.icon(
-                      onPressed: _handleAddToCart,
-                      icon: const Icon(Icons.add_shopping_cart),
-                      label: Text(
-                        'Agregar al carrito (${CurrencyFormatter.format(_calculateTotalPrice())})',
+                      const SizedBox(width: 12),
+                      Text(
+                        CurrencyFormatter.format(product.basePrice),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.all(16),
+                    ],
+                  ),
+                  if (product.description.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      product.description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
-                ),
+                  if (product.preparationTime > 0 ||
+                      product.allergens.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        if (product.preparationTime > 0)
+                          _InfoChip(
+                            icon: Icons.timer_outlined,
+                            label: '${product.preparationTime} min',
+                          ),
+                        for (final a in product.allergens)
+                          _InfoChip(
+                            icon: Icons.warning_amber_outlined,
+                            label: a,
+                          ),
+                      ],
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Variante
+                  if (product.hasVariants) ...[
+                    VariantSelectorWidget(
+                      key: _variantKey,
+                      product: product,
+                      onChanged: (v) => setState(() {
+                        _selectedVariant = v;
+                        _syncFlavorSlots();
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Cremas heladería
+                  if (_scoopCount > 0) ...[
+                    _buildFlavorSelector(theme),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Modificadores
+                  if (product.hasModifiers) ...[
+                    ModifierSelectorWidget(
+                      key: _modifierKey,
+                      product: product,
+                      onChanged: () => setState(() {
+                        _selectedModifiers =
+                            _modifierKey.currentState?.getSelectedModifiers() ??
+                                [];
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ─────── SECCIÓN DE NOTAS ───────
+                  _NotesSection(
+                    splitMode: _splitMode,
+                    quantity: _quantity,
+                    singleCtrl: _singleNoteCtrl,
+                    itemCtrls: _itemCtrls,
+                    quickTags: _quickTags,
+                    onToggleSplit: _quantity > 1 ? _toggleSplit : null,
+                    onAppendTag: _appendTag,
+                  ),
+
+                  const SizedBox(height: 16),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+
+          // ─────── FOOTER STICKY ───────
+          _AddFooter(
+            quantity: _quantity,
+            total: _calcTotal(),
+            kbBottom: kbBottom,
+            safeBottom: safeBottom,
+            onDecrement: _quantity > 1 ? () => _setQty(_quantity - 1) : null,
+            onIncrement: () => _setQty(_quantity + 1),
+            onAdd: _handleAdd,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildInfoRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value,
-  ) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: theme.textTheme.bodyMedium,
-          ),
-        ),
-      ],
-    );
-  }
-
-  double _calculateTotalPrice() {
-    final product = widget.product;
-
-    // Calcular precio base (considerando variante si existe)
-    double basePrice = product.basePrice;
-    if (_selectedVariant != null) {
-      basePrice = _selectedVariant!.calculateFinalPrice(product.basePrice);
-    }
-
-    // Calcular precio de modificadores
-    double modifiersPrice = _selectedModifiers.fold<double>(
-      0.0,
-      (sum, modifier) => sum + modifier.subtotal,
-    );
-
-    return (basePrice + modifiersPrice) * quantity;
-  }
-
-  void _handleAddToCart() {
-    // Validate variants if product has variants
+  void _handleAdd() {
     if (widget.product.hasVariants) {
-      final isValid = _variantKey.currentState?.validate() ?? true;
-      if (!isValid || _selectedVariant == null) {
-        AppSnackbar.show(
-          'Variante requerida',
-          'Por favor selecciona una variante del producto',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
-          colorText: Get.theme.colorScheme.onError,
-          duration: const Duration(seconds: 3),
-        );
+      final ok = _variantKey.currentState?.validate() ?? true;
+      if (!ok || _selectedVariant == null) {
+        AppSnackbar.show('Variante requerida',
+            'Selecciona una variante del producto');
         return;
       }
     }
-
-    // Validate modifiers if product has modifier groups
     if (widget.product.hasModifiers) {
-      final isValid = _modifierKey.currentState?.validateAllGroups() ?? true;
-      if (!isValid) {
+      final ok = _modifierKey.currentState?.validateAllGroups() ?? true;
+      if (!ok) {
         AppSnackbar.show(
-          'Validación requerida',
-          'Por favor completa las selecciones requeridas',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
-          colorText: Get.theme.colorScheme.onError,
-          duration: const Duration(seconds: 3),
-        );
+            'Selecciones requeridas', 'Completa las opciones requeridas');
         return;
       }
     }
-
-    // Validar cremas: si la variante pide N bolas, deben estar todas.
     if (_scoopCount > 0) {
+      final label = widget.categoryFlavorLabel ?? 'Cremas';
       if (_flavors.isEmpty) {
-        AppSnackbar.show(
-          'Faltan cremas',
-          'Esta categoría no tiene cremas cargadas. Cargalas en Productos → Cremas.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
-          colorText: Get.theme.colorScheme.onError,
-          duration: const Duration(seconds: 4),
-        );
+        AppSnackbar.show('Faltan $label',
+            'Cargá las $label en Productos → Cremas / Sabores.');
         return;
       }
       if (_selectedFlavors.any((f) => f == null)) {
-        AppSnackbar.show(
-          'Elegí las cremas',
-          'Seleccioná las $_scoopCount cremas antes de agregar.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
-          colorText: Get.theme.colorScheme.onError,
-          duration: const Duration(seconds: 3),
-        );
+        AppSnackbar.show('Elegí las $label',
+            'Selecciona ${_scoopCount > 1 ? 'las $_scoopCount' : 'la'} $label.');
         return;
       }
     }
 
-    // Get selected modifiers
     final modifiers = _modifierKey.currentState?.getSelectedModifiers();
-
-    final notes = _notesCtrl.text.trim();
     final flavorIds = <String>[];
     final flavorNames = <String>[];
     if (_scoopCount > 0) {
       for (final id in _selectedFlavors) {
         if (id == null) continue;
         flavorIds.add(id);
-        flavorNames.add(
-          _flavors.firstWhere((f) => f.id == id).name,
-        );
+        flavorNames
+            .add(_flavors.firstWhere((f) => f.id == id).name);
       }
     }
 
-    widget.onAddToCart(
-      quantity,
-      _selectedVariant,
-      modifiers,
-      notes.isEmpty ? null : notes,
-      flavorIds,
-      flavorNames,
-    );
+    if (_splitMode) {
+      // N ítems individuales, qty=1 cada uno
+      widget.onAddItems([
+        for (int i = 0; i < _quantity; i++)
+          _CartItemEntry(
+            quantity: 1,
+            variant: _selectedVariant,
+            modifiers: modifiers,
+            note: _itemCtrls[i].text.trim().isEmpty
+                ? null
+                : _itemCtrls[i].text.trim(),
+            flavorIds: flavorIds,
+            flavorNames: flavorNames,
+          ),
+      ]);
+    } else {
+      final note = _singleNoteCtrl.text.trim();
+      widget.onAddItems([
+        _CartItemEntry(
+          quantity: _quantity,
+          variant: _selectedVariant,
+          modifiers: modifiers,
+          note: note.isEmpty ? null : note,
+          flavorIds: flavorIds,
+          flavorNames: flavorNames,
+        ),
+      ]);
+    }
   }
 
-  /// Selector de cremas: una fila (dropdown) por bola; permite repetir.
   Widget _buildFlavorSelector(ThemeData theme) {
+    final label = widget.categoryFlavorLabel ?? 'Cremas';
     if (_flavorsLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: Center(child: CircularProgressIndicator()),
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_flavors.isEmpty) {
+      return Text(
+        'No hay $label cargadas. Ve a Productos → Cremas / Sabores.',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.error,
+        ),
       );
     }
     return Column(
@@ -1358,95 +1353,424 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       children: [
         Row(
           children: [
-            Icon(Icons.icecream, size: 18, color: theme.colorScheme.primary),
+            Icon(Icons.icecream, size: 16, color: theme.colorScheme.primary),
             const SizedBox(width: 6),
-            Text(
-              'Elegí tus cremas ($_scoopCount)',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            Text('$label ($_scoopCount selección${_scoopCount == 1 ? '' : 'es'})',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700)),
           ],
         ),
         const SizedBox(height: 8),
-        if (_flavors.isEmpty)
-          Text(
-            'No hay cremas cargadas para esta categoría. Cargalas en Productos → Cremas.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.error),
-          )
-        else
-          for (int i = 0; i < _scoopCount; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 60,
-                    child: Text(
-                      'Bola ${i + 1}',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+        for (int i = 0; i < _scoopCount; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 58,
+                  child: Text('Bola ${i + 1}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedFlavors[i],
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      hintText: 'Elegí…',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
+                    items: [
+                      for (final f in _flavors)
+                        DropdownMenuItem(value: f.id, child: Text(f.name)),
+                    ],
+                    onChanged: (v) => setState(() => _selectedFlavors[i] = v),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedFlavors[i],
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        hintText: 'Elegí…',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────── Helper widgets ───────────────────────────────
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _InfoChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Sección de notas con quick tags y modo por ítem ────────────────
+
+class _NotesSection extends StatelessWidget {
+  final bool splitMode;
+  final int quantity;
+  final TextEditingController singleCtrl;
+  final List<TextEditingController> itemCtrls;
+  final List<String> quickTags;
+  final ValueChanged<bool>? onToggleSplit;
+  final void Function(TextEditingController, String) onAppendTag;
+
+  const _NotesSection({
+    required this.splitMode,
+    required this.quantity,
+    required this.singleCtrl,
+    required this.itemCtrls,
+    required this.quickTags,
+    required this.onToggleSplit,
+    required this.onAppendTag,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header row
+        Row(
+          children: [
+            Icon(Icons.sticky_note_2_outlined,
+                size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              splitMode
+                  ? 'Nota por ítem ($quantity)'
+                  : 'Nota para el cocinero',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            if (onToggleSplit != null) ...[
+              const Spacer(),
+              GestureDetector(
+                onTap: () => onToggleSplit!(!splitMode),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: splitMode
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        splitMode
+                            ? Icons.view_list
+                            : Icons.format_list_numbered,
+                        size: 13,
+                        color: splitMode
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        splitMode ? 'Nota única' : 'Por ítem',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: splitMode
+                              ? theme.colorScheme.onPrimaryContainer
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      items: [
-                        for (final f in _flavors)
-                          DropdownMenuItem(value: f.id, child: Text(f.name)),
-                      ],
-                      onChanged: (val) =>
-                          setState(() => _selectedFlavors[i] = val),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        if (!splitMode) ...[
+          // Quick tags
+          _QuickTagsRow(
+            tags: quickTags,
+            onTap: (tag) => onAppendTag(singleCtrl, tag),
+          ),
+          const SizedBox(height: 8),
+          // Single note field
+          TextField(
+            controller: singleCtrl,
+            maxLines: 2,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              hintText: 'Ej. sin cebolla, bien hecho, sin sal…',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              counterText: '',
+            ),
+          ),
+        ] else ...[
+          // N cards, una por ítem
+          for (int i = 0; i < quantity; i++)
+            _ItemNoteCard(
+              index: i,
+              ctrl: itemCtrls[i],
+              quickTags: quickTags,
+              onAppendTag: onAppendTag,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _QuickTagsRow extends StatelessWidget {
+  final List<String> tags;
+  final ValueChanged<String> onTap;
+  const _QuickTagsRow({required this.tags, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 30,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tags.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (_, i) {
+          return GestureDetector(
+            onTap: () => onTap(tags[i]),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer
+                    .withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color:
+                      theme.colorScheme.primary.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(
+                tags[i],
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ItemNoteCard extends StatelessWidget {
+  final int index;
+  final TextEditingController ctrl;
+  final List<String> quickTags;
+  final void Function(TextEditingController, String) onAppendTag;
+
+  const _ItemNoteCard({
+    required this.index,
+    required this.ctrl,
+    required this.quickTags,
+    required this.onAppendTag,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ítem ${index + 1}',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _QuickTagsRow(
+            tags: quickTags,
+            onTap: (tag) => onAppendTag(ctrl, tag),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: ctrl,
+            maxLines: 1,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Nota (opcional)…',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Footer sticky con cantidad + botón ─────────────────────────────
+
+class _AddFooter extends StatelessWidget {
+  final int quantity;
+  final double total;
+  final double kbBottom;
+  final double safeBottom;
+  final VoidCallback? onDecrement;
+  final VoidCallback onIncrement;
+  final VoidCallback onAdd;
+
+  const _AddFooter({
+    required this.quantity,
+    required this.total,
+    required this.kbBottom,
+    required this.safeBottom,
+    required this.onDecrement,
+    required this.onIncrement,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bottomPad = kbBottom > 0 ? kbBottom + 8 : safeBottom + 12;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPad),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Qty stepper compacto
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _QtyBtn(
+                  icon: Icons.remove,
+                  onTap: onDecrement,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    '$quantity',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                _QtyBtn(icon: Icons.add, onTap: onIncrement),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Botón principal
+          Expanded(
+            child: FilledButton(
+              onPressed: onAdd,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                padding: EdgeInsets.zero,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Agregar al carrito',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    CurrencyFormatter.format(total),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-      ],
-    );
-  }
-
-  Widget _buildQuantitySelector(ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton.outlined(
-          icon: const Icon(Icons.remove),
-          onPressed: quantity > 1
-              ? () => setState(() => quantity--)
-              : null,
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(
-            quantity.toString(),
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ),
-        IconButton.outlined(
-          icon: const Icon(Icons.add),
-          onPressed: () => setState(() => quantity++),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
+
+class _QtyBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _QtyBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: Icon(
+          icon,
+          size: 18,
+          color: onTap == null
+              ? Theme.of(context).colorScheme.outlineVariant
+              : Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────── Flavor selector helper (kept from old code, now separate) ──
+

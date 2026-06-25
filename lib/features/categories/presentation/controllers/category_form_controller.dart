@@ -42,10 +42,16 @@ class CategoryFormController extends GetxController {
 
   // Observable states
   final RxBool isActive = true.obs;
-  /// Si la categoría imprime comanda de cocina al registrar el pedido.
   final RxBool printsKitchen = true.obs;
   final Rx<String?> selectedParentId = Rx<String?>(null);
   final RxList<Category> availableParentCategories = <Category>[].obs;
+
+  /// Notas rápidas predefinidas para esta categoría.
+  final RxList<String> quickNotes = <String>[].obs;
+  late final TextEditingController quickNoteInputCtrl;
+
+  /// Etiqueta para la selección tipo sabor/fruta. Vacío = default.
+  late final TextEditingController flavorLabelController;
 
   @override
   void onInit() {
@@ -77,6 +83,8 @@ class CategoryFormController extends GetxController {
     colorController = TextEditingController();
     iconController = TextEditingController();
     displayOrderController = TextEditingController(text: '0');
+    quickNoteInputCtrl = TextEditingController();
+    flavorLabelController = TextEditingController();
   }
 
   void _disposeControllers() {
@@ -86,6 +94,8 @@ class CategoryFormController extends GetxController {
     colorController.dispose();
     iconController.dispose();
     displayOrderController.dispose();
+    quickNoteInputCtrl.dispose();
+    flavorLabelController.dispose();
   }
 
   void _loadCategoryData() {
@@ -99,6 +109,20 @@ class CategoryFormController extends GetxController {
     isActive.value = category.isActive;
     printsKitchen.value = category.printsKitchen;
     selectedParentId.value = category.parentId;
+    quickNotes.value = List<String>.from(category.quickNotes);
+    flavorLabelController.text = category.flavorLabel ?? '';
+  }
+
+  void addQuickNote() {
+    final text = quickNoteInputCtrl.text.trim();
+    if (text.isEmpty) return;
+    if (quickNotes.contains(text)) return;
+    quickNotes.add(text);
+    quickNoteInputCtrl.clear();
+  }
+
+  void removeQuickNote(String note) {
+    quickNotes.remove(note);
   }
 
   Future<void> _loadParentCategories() async {
@@ -206,6 +230,10 @@ class CategoryFormController extends GetxController {
       displayOrder: int.tryParse(displayOrderController.text) ?? 0,
       parentId: selectedParentId.value,
       printsKitchen: printsKitchen.value,
+      quickNotes: quickNotes.toList(),
+      flavorLabel: flavorLabelController.text.trim().isEmpty
+          ? null
+          : flavorLabelController.text.trim(),
     );
 
     result.fold(
@@ -261,6 +289,10 @@ class CategoryFormController extends GetxController {
       displayOrder: int.tryParse(displayOrderController.text) ?? 0,
       parentId: selectedParentId.value,
       printsKitchen: printsKitchen.value,
+      quickNotes: quickNotes.toList(),
+      flavorLabel: flavorLabelController.text.trim().isEmpty
+          ? null
+          : flavorLabelController.text.trim(),
     );
 
     result.fold(

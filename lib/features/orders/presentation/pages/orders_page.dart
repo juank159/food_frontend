@@ -890,74 +890,70 @@ class _NoOrdersForFilter extends StatelessWidget {
         ? 'No hay órdenes que coincidan con los filtros seleccionados.'
         : 'No se registraron órdenes en el período "$periodLabel".';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.event_busy_outlined,
-                size: 38,
-                color: AppColors.primary,
-              ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(32, 24, 32, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 18),
-            const Text(
-              'Sin órdenes para este filtro',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
+            child: const Icon(
+              Icons.event_busy_outlined,
+              size: 28,
+              color: AppColors.primary,
             ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13.5,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Sin órdenes para este filtro',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
             ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              alignment: WrapAlignment.center,
-              children: [
-                // "Ver todas" amplía el período a todo el historial; solo
-                // tiene sentido si no estamos ya en "Todas".
-                if (!isAllPeriod)
-                  FilledButton.icon(
-                    onPressed: () =>
-                        controller.setDatePeriod(DatePeriod.all),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
-                    ),
-                    icon: const Icon(Icons.history, size: 18),
-                    label: const Text('Ver todas'),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              if (!isAllPeriod)
+                FilledButton.icon(
+                  onPressed: () => controller.setDatePeriod(DatePeriod.all),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
                   ),
-                if (hasOtherFilters)
-                  OutlinedButton.icon(
-                    onPressed: controller.clearFilters,
-                    icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                    label: const Text('Limpiar filtros'),
-                  ),
-              ],
-            ),
-          ],
-        ),
+                  icon: const Icon(Icons.history, size: 16),
+                  label: const Text('Ver todas'),
+                ),
+              if (hasOtherFilters)
+                OutlinedButton.icon(
+                  onPressed: controller.clearFilters,
+                  icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+                  label: const Text('Limpiar filtros'),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

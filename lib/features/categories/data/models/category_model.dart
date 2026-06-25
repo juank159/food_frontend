@@ -31,11 +31,12 @@ class CategoryModel {
   final int? displayOrder;
   @JsonKey(name: 'parent_category_id')
   final String? parentId;
-  /// Si la categoría imprime comanda de cocina. Default `true`.
   @JsonKey(name: 'prints_kitchen')
   final bool printsKitchen;
-  // El backend devuelve la relación como `subcategories` (TypeORM).
-  // Aceptamos también `children` por si algún endpoint lo serializa así.
+  @JsonKey(name: 'quick_notes')
+  final List<String>? quickNotes;
+  @JsonKey(name: 'flavor_label')
+  final String? flavorLabel;
   @JsonKey(name: 'subcategories', readValue: _readChildren)
   final List<CategoryModel>? children;
   @JsonKey(name: 'created_at')
@@ -54,12 +55,13 @@ class CategoryModel {
     this.displayOrder,
     this.parentId,
     this.printsKitchen = true,
+    this.quickNotes,
+    this.flavorLabel,
     this.children,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  /// Convierte el modelo a entidad de dominio
   Category toEntity() {
     return Category(
       id: id,
@@ -72,13 +74,14 @@ class CategoryModel {
       displayOrder: displayOrder ?? 0,
       parentId: parentId,
       printsKitchen: printsKitchen,
+      quickNotes: quickNotes ?? const [],
+      flavorLabel: flavorLabel,
       children: children?.map((child) => child.toEntity()).toList() ?? const [],
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
     );
   }
 
-  /// Crea un modelo desde una entidad de dominio
   factory CategoryModel.fromEntity(Category category) {
     return CategoryModel(
       id: category.id,
@@ -91,6 +94,8 @@ class CategoryModel {
       displayOrder: category.displayOrder,
       parentId: category.parentId,
       printsKitchen: category.printsKitchen,
+      quickNotes: category.quickNotes,
+      flavorLabel: category.flavorLabel,
       children: category.children
           .map((child) => CategoryModel.fromEntity(child))
           .toList(),

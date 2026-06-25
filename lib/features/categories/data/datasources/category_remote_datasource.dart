@@ -43,9 +43,10 @@ abstract class CategoryRemoteDataSource {
     int displayOrder = 0,
     String? parentId,
     bool printsKitchen = true,
+    List<String>? quickNotes,
+    String? flavorLabel,
   });
 
-  /// Actualiza una categoría
   Future<CategoryModel> updateCategory({
     required String id,
     String? name,
@@ -57,6 +58,8 @@ abstract class CategoryRemoteDataSource {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
   });
 
   /// Elimina una categoría
@@ -258,23 +261,24 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     int displayOrder = 0,
     String? parentId,
     bool printsKitchen = true,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     try {
-      // NOTA: el backend usa `whitelist + forbidNonWhitelisted` en el
-      // ValidationPipe global. La entidad/DTO actual NO tiene `color`
-      // ni `icon`, así que NO los enviamos para evitar 400. Los inputs
-      // del form quedan como preview local hasta que el backend los
-      // soporte.
       final requestBody = <String, dynamic>{
         'name': name,
         'description': description,
         'is_active': isActive,
         'sort_order': displayOrder,
         'prints_kitchen': printsKitchen,
+        'quick_notes': quickNotes ?? [],
       };
 
       if (imageUrl != null) requestBody['image_url'] = imageUrl;
       if (parentId != null) requestBody['parent_category_id'] = parentId;
+      if (flavorLabel != null && flavorLabel.isNotEmpty) {
+        requestBody['flavor_label'] = flavorLabel;
+      }
 
       final response = await dio.post(
         ApiConstants.categories,
@@ -311,6 +315,8 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     try {
       final requestBody = <String, dynamic>{};
@@ -321,8 +327,11 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
       if (isActive != null) requestBody['is_active'] = isActive;
       if (displayOrder != null) requestBody['sort_order'] = displayOrder;
       if (parentId != null) requestBody['parent_category_id'] = parentId;
-      if (printsKitchen != null) {
-        requestBody['prints_kitchen'] = printsKitchen;
+      if (printsKitchen != null) requestBody['prints_kitchen'] = printsKitchen;
+      if (quickNotes != null) requestBody['quick_notes'] = quickNotes;
+      if (flavorLabel != null) {
+        requestBody['flavor_label'] =
+            flavorLabel.isEmpty ? null : flavorLabel;
       }
 
       final response = await dio.patch(

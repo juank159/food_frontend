@@ -193,6 +193,8 @@ class CategoryRepositoryImpl implements CategoryRepository {
     int displayOrder = 0,
     String? parentId,
     bool printsKitchen = true,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -206,6 +208,8 @@ class CategoryRepositoryImpl implements CategoryRepository {
           displayOrder: displayOrder,
           parentId: parentId,
           printsKitchen: printsKitchen,
+          quickNotes: quickNotes,
+          flavorLabel: flavorLabel,
         );
         return Right(result.toEntity());
       } on UnauthorizedException {
@@ -234,6 +238,8 @@ class CategoryRepositoryImpl implements CategoryRepository {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
   }) async {
     if (await networkInfo.isConnected) {
       try {
@@ -248,6 +254,8 @@ class CategoryRepositoryImpl implements CategoryRepository {
           displayOrder: displayOrder,
           parentId: parentId,
           printsKitchen: printsKitchen,
+          quickNotes: quickNotes,
+          flavorLabel: flavorLabel,
         );
         return Right(result.toEntity());
       } on UnauthorizedException {

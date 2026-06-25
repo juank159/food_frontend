@@ -32,6 +32,10 @@ class CategoryFormPage extends GetView<CategoryFormController> {
                     const SizedBox(height: 14),
                     _buildCustomizationSection(),
                     const SizedBox(height: 14),
+                    _buildQuickNotesSection(context),
+                    const SizedBox(height: 14),
+                    _buildFlavorLabelSection(),
+                    const SizedBox(height: 14),
                     _buildStatusSection(),
                     const SizedBox(height: 24),
                   ],
@@ -237,6 +241,106 @@ class CategoryFormPage extends GetView<CategoryFormController> {
             if (n < 0) return 'No puede ser negativo';
             return null;
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickNotesSection(BuildContext context) {
+    return AppFormSection(
+      title: 'Notas rápidas',
+      subtitle:
+          'Chips que aparecen al vender productos de esta categoría. El cajero los toca para agregar la nota de un clic.',
+      icon: Icons.label_outline,
+      accent: AppColors.info,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller.quickNoteInputCtrl,
+                decoration: appInputDecoration(
+                  label: 'Nueva nota',
+                  hint: 'Ej: Sin cebolla, Sin tomate',
+                  prefixIcon: Icons.note_add_outlined,
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                onSubmitted: (_) => controller.addQuickNote(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: controller.addQuickNote,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Obx(() {
+          if (controller.quickNotes.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Text(
+                'Sin notas configuradas. Agrega la primera arriba.',
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          return Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: controller.quickNotes.map((note) {
+              return Chip(
+                label: Text(note,
+                    style: const TextStyle(fontSize: 12)),
+                deleteIcon: const Icon(Icons.close, size: 14),
+                onDeleted: () => controller.removeQuickNote(note),
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                deleteIconColor: AppColors.error,
+                side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              );
+            }).toList(),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildFlavorLabelSection() {
+    return AppFormSection(
+      title: 'Opciones de sabor / fruta',
+      subtitle:
+          'Si los productos de esta categoría permiten elegir sabores, escribe cómo se llama esa selección. Ejemplos: "Cremas" para heladería, "Frutas" para jugos.',
+      icon: Icons.local_drink_outlined,
+      accent: AppColors.warning,
+      children: [
+        TextFormField(
+          controller: controller.flavorLabelController,
+          decoration: appInputDecoration(
+            label: 'Etiqueta de selección (opcional)',
+            hint: 'Ej: Cremas, Frutas, Salsas',
+            prefixIcon: Icons.icecream_outlined,
+            helperText:
+                'Vacío = usa "Sabores" por defecto. Agrega los items en Productos → Cremas / Sabores.',
+          ),
+          textCapitalization: TextCapitalization.sentences,
+          maxLength: 100,
         ),
       ],
     );

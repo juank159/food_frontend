@@ -43,6 +43,9 @@ abstract class OrderRemoteDataSource {
   Future<OrderModel> cancelOrder(String id, String? reason);
   Future<void> deleteOrder(String id);
 
+  Future<OrderModel> addOrderItem(String orderId, Map<String, dynamic> data);
+  Future<OrderModel> removeOrderItem(String orderId, String itemId);
+
   /// Cola self-order pendientes de aprobación del mesero.
   /// Devuelve count + items en una sola respuesta (el backend agrupa).
   Future<PendingReviewBatch> getPendingReviewOrders();
@@ -377,6 +380,29 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw ServerException('Failed to delete order');
       }
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> addOrderItem(
+      String orderId, Map<String, dynamic> data) async {
+    try {
+      final response = await dio.post('/orders/$orderId/items', data: data);
+      return OrderModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> removeOrderItem(String orderId, String itemId) async {
+    try {
+      final response = await dio.delete('/orders/$orderId/items/$itemId');
+      return OrderModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       _handleDioException(e);
       rethrow;

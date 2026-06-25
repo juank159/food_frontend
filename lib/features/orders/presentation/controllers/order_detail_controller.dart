@@ -455,6 +455,64 @@ class OrderDetailController extends GetxController {
     }
   }
 
+  // ─────────────────────── Edición de ítems ───────────────────────
+
+  Future<bool> addItem({
+    String? productId,
+    String? variantId,
+    String? productName,
+    double? unitPrice,
+    required int quantity,
+    String? specialInstructions,
+  }) async {
+    final orderId = currentOrder?.id;
+    if (orderId == null) return false;
+    try {
+      isLoading.value = true;
+      final ds = sl<OrderRemoteDataSource>();
+      final data = <String, dynamic>{
+        if (productId != null) 'product_id': productId,
+        if (variantId != null) 'variant_id': variantId,
+        if (productName != null) 'product_name': productName,
+        if (unitPrice != null) 'unit_price': unitPrice,
+        'quantity': quantity,
+        if (specialInstructions != null)
+          'special_instructions': specialInstructions,
+      };
+      final updated = await ds.addOrderItem(orderId, data);
+      order.value = updated.toEntity();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(order.value!);
+      }
+      return true;
+    } catch (e) {
+      AppSnackbar.show('Error', e.toString());
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<bool> removeItem(OrderItem item) async {
+    final orderId = currentOrder?.id;
+    if (orderId == null) return false;
+    try {
+      updatingItemIds.add(item.id);
+      final ds = sl<OrderRemoteDataSource>();
+      final updated = await ds.removeOrderItem(orderId, item.id);
+      order.value = updated.toEntity();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(order.value!);
+      }
+      return true;
+    } catch (e) {
+      AppSnackbar.show('Error al eliminar', e.toString());
+      return false;
+    } finally {
+      updatingItemIds.remove(item.id);
+    }
+  }
+
   @override
   void onClose() {
     order.value = null;

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
+import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
+import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
+import '../../../orders/domain/entities/order.dart';
+import '../../../orders/domain/entities/order_item.dart';
+import '../../domain/entities/payment.dart';
 import 'cash_payment_dialog.dart';
 import 'payment_method_selector.dart';
 import 'split_payment_dialog.dart';
 import 'tenant_payment_account_selector.dart';
-import '../../../../core/config/formatters/currency_formatter.dart';
-import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
-import '../../domain/entities/payment.dart';
 
 /// Process Payment Dialog
 /// Dialog principal para procesar pagos de una orden.
@@ -28,6 +31,8 @@ class ProcessPaymentDialog extends StatelessWidget {
   /// asume que no hay pagos previos (legacy callers).
   final double? amountDue;
   final PaymentController controller;
+  /// Orden completa — necesaria para habilitar "Por ítems".
+  final Order? order;
 
   const ProcessPaymentDialog({
     super.key,
@@ -35,6 +40,7 @@ class ProcessPaymentDialog extends StatelessWidget {
     required this.orderTotal,
     this.amountDue,
     required this.controller,
+    this.order,
   });
 
   /// Lo que efectivamente se va a cobrar en este dialog.
@@ -230,14 +236,32 @@ class ProcessPaymentDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Split Payment Option
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.splitscreen),
-                    label: const Text('Dividir Pago'),
-                    onPressed: () => _showSplitPaymentDialog(context),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.splitscreen, size: 18),
+                          label: const Text('Dividir Pago'),
+                          onPressed: () => _showSplitPaymentDialog(context),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                          ),
+                        ),
+                      ),
+                      if (order != null && order!.items.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.checklist_rtl, size: 18),
+                            label: const Text('Por ítems'),
+                            onPressed: () => _openItemSelection(context),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 44),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
 
@@ -422,6 +446,54 @@ class ProcessPaymentDialog extends StatelessWidget {
       // Pulso háptico medio — confirma físicamente al operario que el
       // cobro se procesó. En POS de bar/restaurante el aviso visual
       // del snackbar puede pasar inadvertido por el ruido del local.
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context, payment);
+    }
+  }
+
+  Future<void> _openItemSelection(BuildContext context) async {
+    final selectedAmount = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _OrderItemSelectionSheet(
+        items: order!.items,
+        maxAmount: _effectiveAmount,
+      ),
+    );
+    if (selectedAmount == null || selectedAmount <= 0) return;
+    if (!context.mounted) return;
+
+    final outerContext = context;
+    final isCash = controller.selectedPaymentMethod.value == PaymentMethod.cash;
+    if (isCash) {
+      await showDialog(
+        context: outerContext,
+        builder: (cashCtx) => CashPaymentDialog(
+          totalAmount: selectedAmount,
+          onConfirm: (received) async {
+            controller.receivedAmount.value = received;
+            await _executeItemPayment(outerContext, selectedAmount);
+          },
+        ),
+      );
+    } else {
+      await _executeItemPayment(outerContext, selectedAmount);
+    }
+  }
+
+  Future<void> _executeItemPayment(BuildContext context, double amount) async {
+    final payment = await controller.addPartialPayment(
+      orderId: orderId,
+      paymentMethod: controller.selectedPaymentMethod.value,
+      amount: amount,
+      receivedAmount: controller.selectedPaymentMethod.value == PaymentMethod.cash
+          ? controller.receivedAmount.value
+          : null,
+      tenantPaymentAccountId: controller.selectedTenantAccountId.value,
+    );
+    if (payment != null && context.mounted) {
       HapticFeedback.mediumImpact();
       Navigator.pop(context, payment);
     }
@@ -620,5 +692,296 @@ class _PreviousPaymentRow extends StatelessWidget {
       case PaymentMethod.digitalWallet:
         return Icons.account_balance_wallet_outlined;
     }
+  }
+}
+
+// ────────────────── Selección de ítems por orden ──────────────────
+
+class _OrderSelectableItem {
+  final OrderItem item;
+  int selectedQty;
+
+  _OrderSelectableItem({required this.item}) : selectedQty = item.quantity;
+
+  bool get isSelected => selectedQty > 0;
+  double get subtotal => item.unitPrice * selectedQty;
+}
+
+class _OrderItemSelectionSheet extends StatefulWidget {
+  final List<OrderItem> items;
+  final double maxAmount;
+
+  const _OrderItemSelectionSheet({
+    required this.items,
+    required this.maxAmount,
+  });
+
+  @override
+  State<_OrderItemSelectionSheet> createState() =>
+      _OrderItemSelectionSheetState();
+}
+
+class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
+  late final List<_OrderSelectableItem> _selectables;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectables = widget.items
+        .where((i) => i.unitPrice > 0)
+        .map((i) => _OrderSelectableItem(item: i))
+        .toList();
+  }
+
+  double get _total =>
+      _selectables.fold(0, (s, i) => s + i.subtotal);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = _total;
+    final tooMuch = total > widget.maxAmount + 0.01;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Row(
+              children: [
+                Icon(Icons.checklist_rtl, color: AppColors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Seleccionar ítems a pagar',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // List
+          Expanded(
+            child: ListView.separated(
+              itemCount: _selectables.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final s = _selectables[i];
+                return _OrderItemTile(
+                  selectable: s,
+                  onIncrement: s.selectedQty < s.item.quantity
+                      ? () => setState(() => s.selectedQty++)
+                      : null,
+                  onDecrement: s.selectedQty > 0
+                      ? () => setState(() => s.selectedQty--)
+                      : null,
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          // Footer
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Total seleccionado',
+                        style: theme.textTheme.titleSmall),
+                    Text(
+                      CurrencyFormatter.format(total),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: tooMuch
+                            ? theme.colorScheme.error
+                            : AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (tooMuch) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'El monto supera el saldo pendiente '
+                    '(${CurrencyFormatter.format(widget.maxAmount)})',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed:
+                            total > 0 && !tooMuch
+                                ? () => Navigator.pop(context, total)
+                                : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                        ),
+                        child: Text(
+                          'Cobrar ${CurrencyFormatter.format(total)}',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderItemTile extends StatelessWidget {
+  final _OrderSelectableItem selectable;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
+
+  const _OrderItemTile({
+    required this.selectable,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final active = selectable.isSelected;
+    final nameColor = active
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+    final amtColor = active
+        ? AppColors.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selectable.item.productName,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: nameColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  CurrencyFormatter.format(selectable.item.unitPrice),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _StepperBtn(icon: Icons.remove, onTap: onDecrement),
+          SizedBox(
+            width: 52,
+            child: Text(
+              '${selectable.selectedQty}/${selectable.item.quantity}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: amtColor,
+              ),
+            ),
+          ),
+          _StepperBtn(icon: Icons.add, onTap: onIncrement),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 68,
+            child: Text(
+              CurrencyFormatter.format(selectable.subtotal),
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: amtColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepperBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _StepperBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: onTap == null
+          ? theme.colorScheme.surfaceContainerHighest
+          : AppColors.primary.withValues(alpha: 0.12),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(
+            icon,
+            size: 16,
+            color: onTap == null
+                ? theme.colorScheme.onSurfaceVariant
+                : AppColors.primary,
+          ),
+        ),
+      ),
+    );
   }
 }

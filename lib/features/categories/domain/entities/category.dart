@@ -13,9 +13,15 @@ class Category extends Equatable {
   final int displayOrder;
   final String? parentId;
 
-  /// Si la categoría imprime comanda de cocina al registrar el pedido
-  /// (para sus productos que requieren preparación). Default true.
   final bool printsKitchen;
+
+  /// Chips de nota rápida predefinidos para esta categoría.
+  /// Ej: ["Sin cebolla", "Sin tomate"] en Comidas; ["Naranja", "Mango"] en Jugos.
+  final List<String> quickNotes;
+
+  /// Etiqueta para la selección de sabores/frutas. Null = "Sabores".
+  /// Ejemplos: "Cremas" (heladería), "Frutas" (jugos), "Salsas" (hamburguesas).
+  final String? flavorLabel;
 
   final List<Category> children;
   final DateTime createdAt;
@@ -32,6 +38,8 @@ class Category extends Equatable {
     required this.displayOrder,
     this.parentId,
     this.printsKitchen = true,
+    this.quickNotes = const [],
+    this.flavorLabel,
     this.children = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -58,12 +66,13 @@ class Category extends Equatable {
         displayOrder,
         parentId,
         printsKitchen,
+        quickNotes,
+        flavorLabel,
         children,
         createdAt,
         updatedAt,
       ];
 
-  /// Copia la entidad con cambios
   Category copyWith({
     String? id,
     String? name,
@@ -75,6 +84,8 @@ class Category extends Equatable {
     int? displayOrder,
     String? parentId,
     bool? printsKitchen,
+    List<String>? quickNotes,
+    String? flavorLabel,
     List<Category>? children,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -90,6 +101,8 @@ class Category extends Equatable {
       displayOrder: displayOrder ?? this.displayOrder,
       parentId: parentId ?? this.parentId,
       printsKitchen: printsKitchen ?? this.printsKitchen,
+      quickNotes: quickNotes ?? this.quickNotes,
+      flavorLabel: flavorLabel ?? this.flavorLabel,
       children: children ?? this.children,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
