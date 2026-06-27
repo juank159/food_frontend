@@ -59,14 +59,15 @@ class _SellModeSheetState extends State<SellModeSheet> {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
-      builder: (_, scrollController) => Container(
+      builder: (sheetCtx, scrollController) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ListView(
           controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          padding: EdgeInsets.fromLTRB(
+              16, 12, 16, MediaQuery.of(sheetCtx).viewPadding.bottom + 16),
           children: [
             _buildHandle(),
             const SizedBox(height: 8),
@@ -403,8 +404,9 @@ class _SellModeSheetState extends State<SellModeSheet> {
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
-        builder: (_, controller) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        builder: (innerCtx, controller) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              16, 12, 16, MediaQuery.of(innerCtx).viewPadding.bottom + 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

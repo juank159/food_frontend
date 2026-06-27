@@ -405,7 +405,7 @@ class _TabsFiltersSheet extends StatelessWidget {
         left: 20,
         right: 20,
         top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).viewPadding.bottom + 12,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

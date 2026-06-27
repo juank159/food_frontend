@@ -289,8 +289,9 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     final cashOk =
         canSubmitWithCashGuard(_selectedMethod == PaymentMethod.cash);
     final enabled = _canSubmit && !_isProcessing && cashOk;
+    final safeBottom = MediaQuery.of(context).viewPadding.bottom;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, safeBottom + 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -633,20 +634,23 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.border)),
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.check),
-                  label: Text(_isFullyPaid ? 'Listo' : 'Cerrar'),
-                  onPressed: _close,
+            Builder(builder: (ctx) {
+              final sb = MediaQuery.of(ctx).viewPadding.bottom;
+              return Container(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, sb + 12),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.border)),
                 ),
-              ),
-            ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.check),
+                    label: Text(_isFullyPaid ? 'Listo' : 'Cerrar'),
+                    onPressed: _close,
+                  ),
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -735,6 +739,8 @@ IconData _iconFor(PaymentMethod m) {
       return Icons.account_balance_outlined;
     case PaymentMethod.digitalWallet:
       return Icons.account_balance_wallet_outlined;
+    case PaymentMethod.nequi:
+      return Icons.qr_code_2;
   }
 }
 

@@ -7,6 +7,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/tab_session.dart';
 import '../controllers/tab_session_detail_controller.dart';
 import '../widgets/tab_payment_dialog.dart';
@@ -107,7 +108,24 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
           child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
         ),
       ),
-      trailing: _StatusBadge(label: s.status.displayName, color: accent),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => PrintingOrchestrator.printTabSessionReceiptManual(s),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.receipt_long, color: Colors.white, size: 20),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _StatusBadge(label: s.status.displayName, color: accent),
+        ],
+      ),
     );
   }
 

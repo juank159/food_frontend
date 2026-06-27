@@ -1,38 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/input_formatters.dart';
 import '../controllers/payment_controller.dart';
+import '../controllers/nequi_payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/domain/entities/order_item.dart';
 import '../../domain/entities/payment.dart';
-import 'cash_payment_dialog.dart';
+import 'nequi_payment_dialog.dart';
 import 'payment_method_selector.dart';
 import 'split_payment_dialog.dart';
 import 'tenant_payment_account_selector.dart';
 
-/// Process Payment Dialog
 /// Dialog principal para procesar pagos de una orden.
-///
-/// Cuando ya hay pagos parciales registrados, el cobro restante NO es
-/// el `orderTotal` sino lo que falta (`amountDue = total - paidAmount`).
-/// El backend siempre cobra el saldo automáticamente, pero la UI tiene
-/// que reflejar ESE saldo — sino el cajero pide más plata de la cuenta,
-/// el cash dialog calcula mal el cambio, y el resumen se ve incorrecto.
-class ProcessPaymentDialog extends StatelessWidget {
+/// Compacto y con calculadora de efectivo inline (sin segundo dialog).
+class ProcessPaymentDialog extends StatefulWidget {
   final String orderId;
-  /// Total bruto de la orden (referencia para la UI).
   final double orderTotal;
-  /// Monto realmente a cobrar — el saldo pendiente. Si la orden no
-  /// tiene pagos previos, coincide con `orderTotal`. Si se omite, se
-  /// asume que no hay pagos previos (legacy callers).
   final double? amountDue;
   final PaymentController controller;
-  /// Orden completa — necesaria para habilitar "Por ítems".
   final Order? order;
 
   const ProcessPaymentDialog({
@@ -44,264 +37,383 @@ class ProcessPaymentDialog extends StatelessWidget {
     this.order,
   });
 
-  /// Lo que efectivamente se va a cobrar en este dialog.
-  double get _effectiveAmount => amountDue ?? orderTotal;
+  @override
+  State<ProcessPaymentDialog> createState() => _ProcessPaymentDialogState();
+}
 
-  /// `true` si la orden tiene pagos previos (mostramos doble badge:
-  /// total + saldo).
-  bool get _hasPartialPayment =>
-      amountDue != null && amountDue! < orderTotal - 0.01;
+class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
+  final _cashCtrl = TextEditingController();
+  double _received = 0;
 
-  /// Total ya cobrado en payments previos.
-  double get _alreadyPaid =>
-      _hasPartialPayment ? (orderTotal - amountDue!) : 0;
+  double get _effectiveAmount => widget.amountDue ?? widget.orderTotal;
+  bool get _hasPartial =>
+      widget.amountDue != null && widget.amountDue! < widget.orderTotal - 0.01;
+  double get _alreadyPaid => _hasPartial ? (widget.orderTotal - widget.amountDue!) : 0;
+  double get _change => _received - _effectiveAmount;
+  bool get _cashReady => _received >= _effectiveAmount;
+
+  static const _denominations = [1000.0, 2000.0, 5000.0, 10000.0, 20000.0, 50000.0, 100000.0];
+
+  @override
+  void initState() {
+    super.initState();
+    _cashCtrl.addListener(_onCashChanged);
+  }
+
+  @override
+  void dispose() {
+    _cashCtrl.removeListener(_onCashChanged);
+    _cashCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onCashChanged() {
+    final v = (NumberFormatHelper.parseFormattedInt(_cashCtrl.text) ?? 0).toDouble();
+    setState(() => _received = v);
+  }
+
+  void _addDenomination(double amt) {
+    final current = (NumberFormatHelper.parseFormattedInt(_cashCtrl.text) ?? 0).toDouble();
+    _cashCtrl.text = NumberFormatHelper.formatNumber((current + amt).toInt());
+  }
+
+  void _setExact() {
+    _cashCtrl.text = NumberFormatHelper.formatNumber(_effectiveAmount.toInt());
+  }
+
+  Future<void> _processPayment(BuildContext context) async {
+    final method = widget.controller.selectedPaymentMethod.value;
+
+    if (method == PaymentMethod.nequi) {
+      await _processNequiPayment(context);
+      return;
+    }
+
+    if (method == PaymentMethod.cash) {
+      if (!_cashReady) {
+        AppSnackbar.show('Monto insuficiente',
+            'El monto recibido debe ser al menos ${CurrencyFormatter.format(_effectiveAmount)}');
+        return;
+      }
+      widget.controller.receivedAmount.value = _received;
+    }
+    await _executePayment(context);
+  }
+
+  Future<void> _processNequiPayment(BuildContext context) async {
+    final outerContext = context;
+    final nequiCtrl = NequiPaymentController(dio: GetIt.instance<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => NequiPaymentDialog(
+        controller: nequiCtrl,
+        orderId: widget.orderId,
+        amount: _effectiveAmount,
+      ),
+    );
+    nequiCtrl.cancel();
+    if ((confirmed ?? false) && outerContext.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.pop(outerContext);
+    }
+  }
+
+  Future<void> _executePayment(BuildContext context) async {
+    final payment = await widget.controller.processOrderPayment(
+      orderId: widget.orderId,
+      orderTotal: _effectiveAmount,
+    );
+    if (payment != null && context.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context, payment);
+    }
+  }
+
+  Future<void> _openItemSelection(BuildContext context) async {
+    final payment = await showModalBottomSheet<Payment>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _OrderItemSelectionSheet(
+        items: widget.order!.items,
+        maxAmount: _effectiveAmount,
+        orderId: widget.orderId,
+        controller: widget.controller,
+      ),
+    );
+    if (payment != null && context.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context, payment);
+    }
+  }
+
+  Future<void> _showSplitPaymentDialog(BuildContext context) async {
+    final outerContext = context;
+    final result = await showDialog<List<Payment>?>(
+      context: context,
+      builder: (_) => SplitPaymentDialog(
+        orderId: widget.orderId,
+        totalAmount: widget.orderTotal,
+        controller: widget.controller,
+      ),
+    );
+    if (outerContext.mounted) Navigator.pop(outerContext, result);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screen = MediaQuery.of(context).size;
-    // En mobile llenamos casi la pantalla; en tablet/desktop usamos un diálogo
-    // de tamaño fijo pero razonable. `min` con `screen.width` evita overflow
-    // horizontal en pantallas más angostas que 500px (iPhone SE, etc).
-    final maxW = screen.width < 600
-        ? screen.width * 0.92
-        : (screen.width < 900 ? 480.0 : 500.0);
-    final maxH = screen.height < 700
-        ? screen.height * 0.9
-        : 700.0;
+    final mq = MediaQuery.of(context);
+    final screen = mq.size;
+    final safeV = mq.viewPadding.top + mq.viewPadding.bottom;
+    final maxW = screen.width < 600 ? screen.width * 0.94 : 480.0;
+    final maxH = (screen.height - safeV - 32).clamp(0.0, 680.0);
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 600 ? 16 : 40,
-        vertical: screen.height < 700 ? 16 : 24,
+        horizontal: screen.width < 600 ? 10 : 40,
+        vertical: mq.viewPadding.bottom + 16,
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
+            // ── Header compacto ────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.colorScheme.primaryContainer,
-                    theme.colorScheme.secondaryContainer,
-                  ],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
+                gradient: LinearGradient(colors: [
+                  theme.colorScheme.primaryContainer,
+                  theme.colorScheme.secondaryContainer,
+                ]),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      Icons.payment,
-                      color: theme.colorScheme.onPrimary,
-                      size: 28,
-                    ),
+                    child: Icon(Icons.payment,
+                        color: theme.colorScheme.onPrimary, size: 20),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _hasPartialPayment
-                              ? 'Cobrar saldo pendiente'
-                              : 'Procesar Pago',
-                          style: theme.textTheme.titleLarge?.copyWith(
+                          _hasPartial ? 'Cobrar saldo' : 'Procesar pago',
+                          style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onPrimaryContainer,
                           ),
                         ),
-                        const SizedBox(height: 4),
                         Text(
-                          // El monto destacado es el que efectivamente
-                          // se va a cobrar. Si hay pagos previos, esto
-                          // es el SALDO, no el total. Antes mostraba
-                          // siempre `orderTotal` y el cajero pedía
-                          // plata de más en la 2da pasada.
                           'A cobrar: ${CurrencyFormatter.format(_effectiveAmount)}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                             color: theme.colorScheme.primary,
                           ),
                         ),
-                        if (_hasPartialPayment) ...[
-                          const SizedBox(height: 2),
+                        if (_hasPartial)
                           Text(
-                            'Total ${CurrencyFormatter.format(orderTotal)} · '
-                            'ya abonado ${CurrencyFormatter.format(_alreadyPaid)}',
+                            'Total ${CurrencyFormatter.format(widget.orderTotal)} · '
+                            'abonado ${CurrencyFormatter.format(_alreadyPaid)}',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onPrimaryContainer
-                                  .withValues(alpha: 0.75),
+                                  .withValues(alpha: 0.7),
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.pop(context),
+                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
             ),
 
-            // Content
-            Expanded(
+            // ── Contenido scrollable ───────────────────────────────────
+            Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Lista colapsada de pagos previos — sólo cuando
-                    // hay pagos parciales. Antes el cajero tenía que
-                    // cerrar el dialog para ver qué se había cobrado.
-                    if (_hasPartialPayment) ...[
+                    if (_hasPartial) ...[
                       _PreviousPaymentsTile(
-                        controller: controller,
-                        orderId: orderId,
-                      ),
-                      const SizedBox(height: 16),
+                          controller: widget.controller,
+                          orderId: widget.orderId),
+                      const SizedBox(height: 12),
                     ],
 
-                    // Payment Method Selector
+                    // Selector de método
                     Obx(() => PaymentMethodSelector(
-                          selectedMethod: controller.selectedPaymentMethod.value,
-                          onMethodSelected: (method) {
-                            // Resetear la cuenta específica cuando cambia
-                            // la categoría — la cuenta anterior puede no
-                            // pertenecer a la categoría nueva.
-                            if (controller.selectedPaymentMethod.value !=
-                                method) {
-                              controller.selectedTenantAccountId.value = null;
+                          selectedMethod:
+                              widget.controller.selectedPaymentMethod.value,
+                          onMethodSelected: (m) {
+                            if (widget.controller.selectedPaymentMethod.value !=
+                                m) {
+                              widget.controller.selectedTenantAccountId.value =
+                                  null;
+                              // Reset cash state al cambiar de método
+                              _cashCtrl.clear();
+                              setState(() => _received = 0);
                             }
-                            controller.selectedPaymentMethod.value = method;
+                            widget.controller.selectedPaymentMethod.value = m;
                           },
-                          enabled: !controller.isProcessing.value,
+                          enabled: !widget.controller.isProcessing.value,
                         )),
 
-                    // Selector de cuenta específica del tenant
-                    // (Nequi, Bancolombia, etc.). Se autocolapsa si el
-                    // tenant no tiene cuentas para la categoría elegida.
                     Obx(() => TenantPaymentAccountSelector(
-                          category: controller.selectedPaymentMethod.value,
-                          controller: controller,
+                          category:
+                              widget.controller.selectedPaymentMethod.value,
+                          controller: widget.controller,
                         )),
 
-                    // Banner inline: solo aparece cuando el método
-                    // seleccionado es CASH y el cajero NO tiene caja
-                    // abierta. Ofrece abrir caja sin perder este cobro.
-                    // El backend rechaza igual el submit si no hay
-                    // sesión, pero advertimos antes para mejor UX.
                     Obx(() => CashSessionRequiredBanner(
-                          isCashSelected: controller
-                                  .selectedPaymentMethod.value ==
-                              PaymentMethod.cash,
+                          isCashSelected:
+                              widget.controller.selectedPaymentMethod.value ==
+                                  PaymentMethod.cash,
                         )),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
 
-                    // Additional Info based on method
-                    Obx(() => _buildMethodSpecificInfo(context, theme)),
+                    // Sección específica por método
+                    Obx(() => _buildMethodSection(context, theme)),
                   ],
                 ),
               ),
             ),
 
-            // Footer with Actions
+            // ── Footer ─────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(20)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, -3),
                   ),
                 ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Cambio inline cuando es efectivo
+                  Obx(() {
+                    if (widget.controller.selectedPaymentMethod.value !=
+                        PaymentMethod.cash) { return const SizedBox.shrink(); }
+                    if (_received <= 0) { return const SizedBox.shrink(); }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.currency_exchange, size: 16),
+                          const SizedBox(width: 6),
+                          Text('Cambio: ',
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          Expanded(
+                            child: Text(
+                              _change >= 0
+                                  ? CurrencyFormatter.format(_change)
+                                  : 'Falta ${CurrencyFormatter.format(-_change)}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: _change >= 0
+                                    ? AppColors.success
+                                    : theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                  // Botones secundarios
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          icon: const Icon(Icons.splitscreen, size: 18),
-                          label: const Text('Dividir Pago'),
+                          icon: const Icon(Icons.splitscreen, size: 16),
+                          label: const Text('Dividir'),
                           onPressed: () => _showSplitPaymentDialog(context),
                           style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(0, 44),
-                          ),
+                              minimumSize: const Size(0, 40),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8)),
                         ),
                       ),
-                      if (order != null && order!.items.isNotEmpty) ...[
-                        const SizedBox(width: 10),
+                      if (widget.order != null &&
+                          widget.order!.items.isNotEmpty) ...[
+                        const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton.icon(
-                            icon: const Icon(Icons.checklist_rtl, size: 18),
+                            icon: const Icon(Icons.checklist_rtl, size: 16),
                             label: const Text('Por ítems'),
                             onPressed: () => _openItemSelection(context),
                             style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 44),
-                            ),
+                                minimumSize: const Size(0, 40),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8)),
                           ),
                         ),
                       ],
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
-                  // Process Payment Button.
-                  // Doble validación reactiva:
-                  //   1. `isProcessing` → evita doble submit.
-                  //   2. `canSubmitWithCashGuard` → si el método es cash
-                  //      y el cajero no tiene caja abierta, deshabilitamos
-                  //      el botón. El banner inline ya le ofrece "Abrir
-                  //      caja ahora" — esto cierra el último gap.
+                  // Botón principal
                   Obx(() {
-                    final isCash = controller.selectedPaymentMethod.value ==
-                        PaymentMethod.cash;
+                    final isCash =
+                        widget.controller.selectedPaymentMethod.value ==
+                            PaymentMethod.cash;
                     final cashOk = canSubmitWithCashGuard(isCash);
-                    final processing = controller.isProcessing.value;
+                    final processing = widget.controller.isProcessing.value;
+                    // Para efectivo además necesitamos que haya monto suficiente
+                    final cashAmountOk = !isCash || _cashReady;
                     final disabled = processing || !cashOk;
 
                     return FilledButton.icon(
                       onPressed: disabled ? null : () => _processPayment(context),
                       icon: processing
                           ? const SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 18,
+                              height: 18,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(!cashOk ? Icons.lock_outline : Icons.check_circle),
+                                  strokeWidth: 2, color: Colors.white))
+                          : Icon(!cashOk
+                              ? Icons.lock_outline
+                              : (isCash && !cashAmountOk)
+                                  ? Icons.payments_outlined
+                                  : Icons.check_circle_outline),
                       label: Text(
                         processing
                             ? 'Procesando...'
-                            : (!cashOk
-                                ? 'Abrí caja para cobrar en efectivo'
-                                : 'Procesar Pago'),
+                            : !cashOk
+                                ? 'Abrí caja para cobrar'
+                                : 'Procesar pago',
+                        overflow: TextOverflow.ellipsis,
                       ),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 56),
-                      ),
+                          minimumSize: const Size(double.infinity, 48)),
                     );
                   }),
                 ],
@@ -313,42 +425,84 @@ class ProcessPaymentDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildMethodSpecificInfo(BuildContext context, ThemeData theme) {
-    final method = controller.selectedPaymentMethod.value;
-
-    switch (method) {
+  Widget _buildMethodSection(BuildContext context, ThemeData theme) {
+    switch (widget.controller.selectedPaymentMethod.value) {
       case PaymentMethod.cash:
-        return _buildCashInfo(context, theme);
+        return _buildCashSection(theme);
+      case PaymentMethod.nequi:
+        return _buildNequiInfo(theme);
       case PaymentMethod.card:
       case PaymentMethod.transfer:
       case PaymentMethod.digitalWallet:
-        return _buildElectronicPaymentInfo(context, theme);
+        return _buildElectronicInfo(theme);
     }
   }
 
-  Widget _buildCashInfo(BuildContext context, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+  /// Calculadora de efectivo inline — reemplaza el CashPaymentDialog separado.
+  Widget _buildCashSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Campo de monto recibido
+        TextField(
+          controller: _cashCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [ThousandsSeparatorInputFormatter()],
+          decoration: InputDecoration(
+            labelText: 'Monto recibido',
+            prefixText: '\$',
+            hintText: NumberFormatHelper.formatNumber(
+                _effectiveAmount.toInt()),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            isDense: true,
+            suffixIcon: TextButton(
+              onPressed: _setExact,
+              child: const Text('Exacto', style: TextStyle(fontSize: 12)),
+            ),
+          ),
         ),
+        const SizedBox(height: 10),
+
+        // Denominaciones rápidas en grid 2 filas
+        Text('Denominaciones rápidas',
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: AppColors.textSecondary)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: _denominations.map((amt) {
+            return ActionChip(
+              label: Text(
+                '+${CurrencyFormatter.format(amt)}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _addDenomination(amt),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNequiInfo(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF32AF60).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.info_outline,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
+          const Icon(Icons.qr_code_2, color: Color(0xFF32AF60), size: 20),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Se abrirá una calculadora para ingresar el monto recibido y calcular el cambio automáticamente.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface,
-              ),
+              'Se generará un QR de Nequi. El cliente lo escanea con la app.',
+              style: theme.textTheme.bodySmall,
             ),
           ),
         ],
@@ -356,147 +510,31 @@ class ProcessPaymentDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildElectronicPaymentInfo(BuildContext context, ThemeData theme) {
+  Widget _buildElectronicInfo(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: theme.colorScheme.secondary.withValues(alpha: 0.3),
-        ),
+            color: theme.colorScheme.secondary.withValues(alpha: 0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                color: theme.colorScheme.secondary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Pago electrónico por el monto total',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _hasPartialPayment
-                ? 'Se cobrará el saldo pendiente de '
-                    '${CurrencyFormatter.format(_effectiveAmount)}.'
-                : 'El pago se procesará por el monto completo de '
-                    '${CurrencyFormatter.format(_effectiveAmount)}.',
-            style: theme.textTheme.bodyMedium,
+          Icon(Icons.info_outline,
+              color: theme.colorScheme.secondary, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _hasPartial
+                  ? 'Se cobrará el saldo de ${CurrencyFormatter.format(_effectiveAmount)}.'
+                  : 'Se cobrará ${CurrencyFormatter.format(_effectiveAmount)} completo.',
+              style: theme.textTheme.bodySmall,
+            ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _processPayment(BuildContext context) async {
-    final method = controller.selectedPaymentMethod.value;
-
-    if (method == PaymentMethod.cash) {
-      // OJO: capturamos `outerContext` (el del ProcessPaymentDialog)
-      // ANTES de abrir el cash dialog. Cuando el cash dialog se
-      // cierra y dispara `onConfirm`, el context del builder del
-      // cash dialog YA está muerto — pero `outerContext` sigue vivo
-      // porque el ProcessPaymentDialog aún no se cerró. Usamos
-      // `outerContext` para el pop final del ProcessPaymentDialog.
-      final outerContext = context;
-      await showDialog(
-        context: context,
-        builder: (cashContext) => CashPaymentDialog(
-          // Pasamos el SALDO PENDIENTE (no el total), así el cálculo
-          // de cambio y la validación de "recibido >= a cobrar" usan
-          // el monto correcto.
-          totalAmount: _effectiveAmount,
-          onConfirm: (receivedAmount) async {
-            controller.receivedAmount.value = receivedAmount;
-            await _executePayment(outerContext);
-          },
-        ),
-      );
-    } else {
-      // Electrónico: procesar directo sin paso intermedio.
-      await _executePayment(context);
-    }
-  }
-
-  Future<void> _executePayment(BuildContext context) async {
-    // El backend siempre cobra el saldo pendiente automáticamente —
-    // este `orderTotal` parámetro es informativo (no se manda en el
-    // payload). Pasamos `_effectiveAmount` para que cualquier check
-    // local del controller compare contra el saldo correcto.
-    final payment = await controller.processOrderPayment(
-      orderId: orderId,
-      orderTotal: _effectiveAmount,
-    );
-
-    // Si el pago fue OK y el dialog sigue montado, cerrar devolviendo
-    // el payment como resultado. El caller (`order_detail_page
-    // ._showPaymentDialog`) lo usa para refrescar la lista de pagos.
-    if (payment != null && context.mounted) {
-      // Pulso háptico medio — confirma físicamente al operario que el
-      // cobro se procesó. En POS de bar/restaurante el aviso visual
-      // del snackbar puede pasar inadvertido por el ruido del local.
-      HapticFeedback.mediumImpact();
-      Navigator.pop(context, payment);
-    }
-  }
-
-  Future<void> _openItemSelection(BuildContext context) async {
-    // El sheet procesa el pago directamente — no necesitamos confirmar de nuevo.
-    final payment = await showModalBottomSheet<Payment>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _OrderItemSelectionSheet(
-        items: order!.items,
-        maxAmount: _effectiveAmount,
-        orderId: orderId,
-        controller: controller,
-      ),
-    );
-    if (payment != null && context.mounted) {
-      HapticFeedback.mediumImpact();
-      Navigator.pop(context, payment);
-    }
-  }
-
-  Future<void> _showSplitPaymentDialog(BuildContext context) async {
-    // El nuevo SplitPaymentDialog persiste cada pago al instante
-    // (`addPartialPayment`). Cuando se cierra, devuelve la lista de
-    // payments reales del backend. Si la orden quedó completamente
-    // pagada, cerramos también el ProcessPaymentDialog devolviendo
-    // esos payments al caller (order detail page) para refresh.
-    final outerContext = context;
-    final result = await showDialog<List<Payment>?>(
-      context: context,
-      builder: (_) => SplitPaymentDialog(
-        orderId: orderId,
-        totalAmount: orderTotal,
-        controller: controller,
-      ),
-    );
-
-    // Cuando el split se cierra (registró un abono parcial o el cobro
-    // total), cerramos también el chooser y volvemos al detalle de la
-    // orden. El detalle ya se refresca solo vía `_notifyOrderChanged`
-    // del PaymentController, así que el botón "Procesar pago" mostrará
-    // el saldo restante actualizado. Antes, tras un abono parcial, el
-    // cajero quedaba atrapado en este dialog sin forma clara de salir.
-    if (outerContext.mounted) {
-      Navigator.pop(outerContext, result);
-    }
   }
 }
 
@@ -664,6 +702,8 @@ class _PreviousPaymentRow extends StatelessWidget {
         return Icons.account_balance;
       case PaymentMethod.digitalWallet:
         return Icons.account_balance_wallet_outlined;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 }
@@ -760,15 +800,21 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    // Cuando el teclado sube, reducimos maxHeight para que el sheet
+    // se achique y el footer quede visible encima del teclado.
+    final kb = mq.viewInsets.bottom;
+    final safeBottom = mq.viewPadding.bottom;
+    final isSmall = mq.size.height < 700;
+    final vPad = isSmall ? 8.0 : 12.0;
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.92,
+        maxHeight: mq.size.height * 0.92 - kb,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -776,7 +822,7 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
           Container(
             width: 40,
             height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
+            margin: EdgeInsets.symmetric(vertical: isSmall ? 8 : 12),
             decoration: BoxDecoration(
               color: theme.colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(2),
@@ -784,10 +830,11 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
           ),
           // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
+            padding: EdgeInsets.fromLTRB(16, 0, 8, isSmall ? 4 : 8),
             child: Row(
               children: [
-                Icon(Icons.checklist_rtl, color: AppColors.primary),
+                Icon(Icons.checklist_rtl,
+                    color: AppColors.primary, size: isSmall ? 20 : 24),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -798,16 +845,18 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
-          // Item list
-          Flexible(
+          // Lista — Expanded llena el espacio disponible y hace scroll
+          // internamente. shrinkWrap:true causaba que la lista reportara
+          // su alto real sin límite → la Column superaba maxHeight.
+          Expanded(
             child: ListView.separated(
-              shrinkWrap: true,
               itemCount: _selectables.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
@@ -825,9 +874,9 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
             ),
           ),
           const Divider(height: 1),
-          // Footer: método + totales + botón de cobro
-          Container(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + kb),
+          // Footer — padding compacto en pantallas pequeñas
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, vPad, 16, vPad + safeBottom),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -841,19 +890,20 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                 // Campo recibido para efectivo
                 Obx(() {
                   if (widget.controller.selectedPaymentMethod.value !=
-                      PaymentMethod.cash) { return const SizedBox.shrink(); }
+                      PaymentMethod.cash) {
+                    return const SizedBox.shrink();
+                  }
                   final total = _total;
-                  if (total <= 0) { return const SizedBox.shrink(); }
+                  if (total <= 0) return const SizedBox.shrink();
                   return Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.only(top: 10),
                     child: TextField(
                       controller: _cashCtrl,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: 'Recibido del cliente',
                         hintText: CurrencyFormatter.format(total),
-                        prefixIcon:
-                            const Icon(Icons.payments_outlined),
+                        prefixIcon: const Icon(Icons.payments_outlined),
                         isDense: true,
                         border: const OutlineInputBorder(),
                       ),
@@ -861,8 +911,8 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                     ),
                   );
                 }),
-                const SizedBox(height: 12),
-                // Total
+                SizedBox(height: vPad),
+                // Total a cobrar
                 Builder(builder: (_) {
                   final total = _total;
                   final tooMuch = total > widget.maxAmount + 0.01;
@@ -873,13 +923,16 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                         children: [
                           Text('Total a cobrar',
                               style: theme.textTheme.titleSmall),
-                          Text(
-                            CurrencyFormatter.format(total),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: tooMuch
-                                  ? theme.colorScheme.error
-                                  : AppColors.primary,
+                          Flexible(
+                            child: Text(
+                              CurrencyFormatter.format(total),
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: tooMuch
+                                    ? theme.colorScheme.error
+                                    : AppColors.primary,
+                              ),
                             ),
                           ),
                         ],
@@ -889,49 +942,51 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                         Text(
                           'Supera el saldo '
                           '(${CurrencyFormatter.format(widget.maxAmount)})',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.error),
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: theme.colorScheme.error),
                         ),
                       ],
                     ],
                   );
                 }),
-                const SizedBox(height: 12),
+                SizedBox(height: vPad),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed:
-                            _processing ? null : () => Navigator.pop(context),
+                        onPressed: _processing
+                            ? null
+                            : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(0, 48)),
+                            minimumSize: const Size(0, 44)),
                         child: const Text('Cancelar'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: StatefulBuilder(
                         builder: (_, ss) => FilledButton.icon(
                           icon: _processing
                               ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
+                                  width: 16,
+                                  height: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white),
+                                      strokeWidth: 2, color: Colors.white),
                                 )
                               : const Icon(Icons.check, size: 18),
                           label: Text(
                             _processing
                                 ? 'Procesando…'
                                 : 'Cobrar ${CurrencyFormatter.format(_total)}',
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          onPressed: _processing || _total <= 0 ||
+                          onPressed: _processing ||
+                                  _total <= 0 ||
                                   _total > widget.maxAmount + 0.01
                               ? null
                               : _confirm,
                           style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 48)),
+                              minimumSize: const Size(0, 44)),
                         ),
                       ),
                     ),

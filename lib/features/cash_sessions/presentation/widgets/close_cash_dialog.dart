@@ -115,7 +115,14 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 720),
+        constraints: BoxConstraints(
+          maxWidth: 480,
+          maxHeight: (MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).viewPadding.top -
+                  MediaQuery.of(context).viewPadding.bottom -
+                  48)
+              .clamp(400.0, 720.0),
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(

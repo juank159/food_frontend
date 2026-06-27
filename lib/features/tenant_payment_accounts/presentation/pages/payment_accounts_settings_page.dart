@@ -213,6 +213,8 @@ class _CategoryHeader extends StatelessWidget {
         return Icons.account_balance_outlined;
       case PaymentMethod.digitalWallet:
         return Icons.account_balance_wallet_outlined;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 }

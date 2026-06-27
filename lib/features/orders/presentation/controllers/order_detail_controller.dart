@@ -464,6 +464,7 @@ class OrderDetailController extends GetxController {
     double? unitPrice,
     required int quantity,
     String? specialInstructions,
+    List<Map<String, dynamic>>? modifiers,
   }) async {
     final orderId = currentOrder?.id;
     if (orderId == null) return false;
@@ -478,15 +479,20 @@ class OrderDetailController extends GetxController {
         'quantity': quantity,
         if (specialInstructions != null)
           'special_instructions': specialInstructions,
+        if (modifiers != null && modifiers.isNotEmpty)
+          'modifiers': modifiers,
       };
       final updated = await ds.addOrderItem(orderId, data);
       order.value = updated.toEntity();
+      // Forzar emit aunque Equatable pueda considerar la orden "igual" —
+      // mismo patrón que updateItemStatus y updateOrderStatus.
+      order.refresh();
       if (Get.isRegistered<OrdersController>()) {
         Get.find<OrdersController>().applyOrderUpdate(order.value!);
       }
       return true;
     } catch (e) {
-      AppSnackbar.show('Error', e.toString());
+      AppSnackbar.show('Error al agregar', e.toString());
       return false;
     } finally {
       isLoading.value = false;
@@ -496,17 +502,84 @@ class OrderDetailController extends GetxController {
   Future<bool> removeItem(OrderItem item) async {
     final orderId = currentOrder?.id;
     if (orderId == null) return false;
+
+    // Optimistic: quitar item localmente al instante; si falla, revertir.
+    final previousOrder = currentOrder!;
+    final optimisticItems =
+        previousOrder.items.where((i) => i.id != item.id).toList();
+    order.value = previousOrder.copyWith(items: optimisticItems);
+    order.refresh();
+
     try {
       updatingItemIds.add(item.id);
       final ds = sl<OrderRemoteDataSource>();
       final updated = await ds.removeOrderItem(orderId, item.id);
       order.value = updated.toEntity();
+      order.refresh();
       if (Get.isRegistered<OrdersController>()) {
         Get.find<OrdersController>().applyOrderUpdate(order.value!);
       }
       return true;
     } catch (e) {
+      order.value = previousOrder;
+      order.refresh();
       AppSnackbar.show('Error al eliminar', e.toString());
+      return false;
+    } finally {
+      updatingItemIds.remove(item.id);
+    }
+  }
+
+  /// Reduce la cantidad de un ítem. Si `newQty` ≤ 0 elimina el ítem.
+  /// Usa el endpoint PATCH /orders/:id/items/:itemId/quantity.
+  Future<bool> updateItemQty(OrderItem item, int newQty) async {
+    final orderId = currentOrder?.id;
+    if (orderId == null) return false;
+
+    final previousOrder = currentOrder!;
+
+    // Optimistic: si qty llega a 0 lo quitamos; si no, lo actualizamos.
+    if (newQty <= 0) {
+      return removeItem(item);
+    }
+    final optimisticItems = previousOrder.items.map((i) {
+      if (i.id != item.id) return i;
+      return OrderItem(
+        id: i.id,
+        orderId: i.orderId,
+        productId: i.productId,
+        productName: i.productName,
+        unitPrice: i.unitPrice,
+        quantity: newQty,
+        subtotal: i.unitPrice * newQty,
+        specialInstructions: i.specialInstructions,
+        customizations: i.customizations,
+        modifiers: i.modifiers,
+        status: i.status,
+        requiresPreparation: i.requiresPreparation,
+        preparedAt: i.preparedAt,
+        deliveredAt: i.deliveredAt,
+        createdAt: i.createdAt,
+        updatedAt: DateTime.now(),
+      );
+    }).toList();
+    order.value = previousOrder.copyWith(items: optimisticItems);
+    order.refresh();
+
+    try {
+      updatingItemIds.add(item.id);
+      final ds = sl<OrderRemoteDataSource>();
+      final updated = await ds.updateOrderItemQty(orderId, item.id, newQty);
+      order.value = updated.toEntity();
+      order.refresh();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(order.value!);
+      }
+      return true;
+    } catch (e) {
+      order.value = previousOrder;
+      order.refresh();
+      AppSnackbar.show('Error al actualizar cantidad', e.toString());
       return false;
     } finally {
       updatingItemIds.remove(item.id);

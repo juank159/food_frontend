@@ -45,6 +45,7 @@ abstract class OrderRemoteDataSource {
 
   Future<OrderModel> addOrderItem(String orderId, Map<String, dynamic> data);
   Future<OrderModel> removeOrderItem(String orderId, String itemId);
+  Future<OrderModel> updateOrderItemQty(String orderId, String itemId, int qty);
 
   /// Cola self-order pendientes de aprobación del mesero.
   /// Devuelve count + items en una sola respuesta (el backend agrupa).
@@ -402,6 +403,21 @@ class OrderRemoteDataSourceImpl implements OrderRemoteDataSource {
   Future<OrderModel> removeOrderItem(String orderId, String itemId) async {
     try {
       final response = await dio.delete('/orders/$orderId/items/$itemId');
+      return OrderModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<OrderModel> updateOrderItemQty(
+      String orderId, String itemId, int qty) async {
+    try {
+      final response = await dio.patch(
+        '/orders/$orderId/items/$itemId/quantity',
+        data: {'quantity': qty},
+      );
       return OrderModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       _handleDioException(e);

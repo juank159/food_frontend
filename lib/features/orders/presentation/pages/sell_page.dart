@@ -577,8 +577,9 @@ class _BottomBar extends StatelessWidget {
         minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
-        builder: (_, scrollController) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        builder: (cartCtx, scrollController) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              16, 12, 16, MediaQuery.of(cartCtx).viewPadding.bottom + 16),
           child: CartWidget(controller: controller),
         ),
       ),

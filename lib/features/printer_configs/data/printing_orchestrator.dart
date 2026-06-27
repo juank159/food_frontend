@@ -11,6 +11,7 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/safe_get.dart';
 import '../../orders/data/models/order_item_model.dart';
 import '../../orders/data/models/order_model.dart';
+import '../../tab_sessions/domain/entities/tab_session.dart';
 import '../../thermal_print/data/thermal_print_service.dart';
 import '../presentation/controllers/printer_configs_controller.dart';
 import 'esc_pos_generator.dart';
@@ -479,6 +480,96 @@ class PrintingOrchestrator {
   /// requiere preparación Y su categoría imprime comanda.
   static bool _hasKitchenItems(OrderModel order) =>
       order.items.any((i) => i.requiresPreparation && i.categoryPrintsKitchen);
+
+  /// Imprime un recibo unificado de una cuenta abierta (tab session).
+  /// Combina TODOS los tickets no-cancelados en un solo recibo.
+  static Future<PrintResult> printTabSessionReceiptManual(
+    TabSession session,
+  ) async {
+    final printer = await _resolveDefault(PrinterPurpose.receipt);
+    if (printer == null) {
+      _snackNoDefault('cuenta', PrinterPurpose.receipt);
+      return PrintResult.noPrinterConfigured;
+    }
+
+    // Parsear órdenes crudas del tab, excluir canceladas
+    final orders = session.orders
+        .whereType<Map<String, dynamic>>()
+        .map(OrderModel.fromJson)
+        .where((o) => o.status != 'cancelled')
+        .toList();
+
+    if (orders.isEmpty) {
+      AppSnackbar.show('Sin ítems', 'Todos los tickets están cancelados');
+      return PrintResult.success;
+    }
+
+    final tenant = await _getTenantInfo();
+    final logoBytes = await _getLogoBytes(tenant.logoUrl);
+    final label = session.displayLabel();
+
+    // Unir ítems de todos los tickets activos
+    final allItems = orders
+        .expand((o) => o.items.map(_toTicketItem))
+        .toList();
+
+    final ticket = TicketData(
+      businessName: tenant.businessName,
+      address: tenant.address,
+      phone: tenant.phone,
+      taxId: tenant.taxId,
+      logoBytes: logoBytes,
+      orderNumber: 'Cuenta · $label',
+      createdAt: session.openedAt,
+      tableLabel: session.tableName != null ? 'Mesa ${session.tableName}' : null,
+      orderType: 'dine_in',
+      orderSource: 'pos',
+      customerName: session.customerName,
+      customerPhone: null,
+      // Totales del backend: ya excluyen canceladas (recomputeRollups)
+      items: allItems,
+      subtotal: session.subtotal,
+      taxAmount: session.taxAmount,
+      discountAmount: session.discountAmount,
+      tipAmount: session.tipAmount,
+      totalAmount: session.totalAmount,
+      paymentMethod: !session.hasPendingBalance ? 'Pagado' : null,
+      notes: '${orders.length} ticket${orders.length > 1 ? "s" : ""}',
+    );
+
+    try {
+      switch (printer.connectionType) {
+        case PrinterConnectionType.network:
+          final bytes = await EscPosGenerator.buildReceipt(
+            data: ticket,
+            paperWidthMm: printer.paperWidth,
+          );
+          final ok = await PrinterDispatcher.printRawBytes(
+            bytes: bytes,
+            printer: printer,
+          );
+          if (ok) {
+            _snackOk('Cuenta', printer);
+            return PrintResult.success;
+          }
+          _snackError('cuenta', printer, 'Sin conexión');
+          return PrintResult.printerError;
+
+        case PrinterConnectionType.system:
+          AppSnackbar.show(
+            'Impresora no compatible',
+            'El recibo unificado solo funciona con impresora de red (TCP).',
+            backgroundColor: Colors.amber.shade800,
+            colorText: Colors.white,
+            icon: const Icon(Icons.warning_amber),
+          );
+          return PrintResult.noPrinterConfigured;
+      }
+    } catch (err) {
+      _snackError('cuenta', printer, err);
+      return PrintResult.printerError;
+    }
+  }
 
   // ── Snackbars (siempre via AppSnackbar) ───────────────────────────
 

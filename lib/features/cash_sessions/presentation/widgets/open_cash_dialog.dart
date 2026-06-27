@@ -53,7 +53,14 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
+        constraints: BoxConstraints(
+          maxWidth: 460,
+          maxHeight: (MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).viewPadding.top -
+                  MediaQuery.of(context).viewPadding.bottom -
+                  48)
+              .clamp(300.0, 640.0),
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(

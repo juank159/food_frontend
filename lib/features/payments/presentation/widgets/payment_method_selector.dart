@@ -148,6 +148,8 @@ class PaymentMethodSelector extends StatelessWidget {
         return Icons.account_balance;
       case PaymentMethod.digitalWallet:
         return Icons.smartphone;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 
@@ -161,6 +163,8 @@ class PaymentMethodSelector extends StatelessWidget {
         return 'Transferencia';
       case PaymentMethod.digitalWallet:
         return 'Billetera Digital';
+      case PaymentMethod.nequi:
+        return 'Nequi QR';
     }
   }
 
@@ -174,6 +178,8 @@ class PaymentMethodSelector extends StatelessWidget {
         return 'Transferencia bancaria';
       case PaymentMethod.digitalWallet:
         return 'Nequi, Daviplata, etc.';
+      case PaymentMethod.nequi:
+        return 'El cliente escanea el QR con Nequi';
     }
   }
 }

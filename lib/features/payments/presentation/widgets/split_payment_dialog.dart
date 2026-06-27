@@ -676,6 +676,8 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
         return Icons.account_balance;
       case PaymentMethod.digitalWallet:
         return Icons.smartphone;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 
@@ -689,6 +691,8 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
         return 'Transferencia';
       case PaymentMethod.digitalWallet:
         return 'Digital';
+      case PaymentMethod.nequi:
+        return 'Nequi QR';
     }
   }
 }

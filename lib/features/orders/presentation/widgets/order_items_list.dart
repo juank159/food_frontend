@@ -15,6 +15,7 @@ import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
 import '../../domain/entities/order_item_modifier.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/utils/input_formatters.dart';
 import '../controllers/order_detail_controller.dart';
 
 /// Order Items List
@@ -294,9 +295,9 @@ class OrderItemsList extends StatelessWidget {
           ),
           if (_canEdit) ...[
             Obx(() {
-              final removing = controller!.updatingItemIds.contains(item.id);
+              final busy = controller!.updatingItemIds.contains(item.id);
               return IconButton(
-                icon: removing
+                icon: busy
                     ? const SizedBox(
                         width: 18,
                         height: 18,
@@ -305,33 +306,9 @@ class OrderItemsList extends StatelessWidget {
                     : const Icon(Icons.delete_outline, size: 20),
                 color: Theme.of(context).colorScheme.error,
                 tooltip: 'Eliminar',
-                onPressed: removing
+                onPressed: busy
                     ? null
-                    : () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Eliminar ítem'),
-                            content: Text(
-                                '¿Quitar "${item.productName}" de la orden?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancelar'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor:
-                                      Theme.of(context).colorScheme.error,
-                                ),
-                                child: const Text('Eliminar'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (ok == true) controller!.removeItem(item);
-                      },
+                    : () => _onDeleteTap(context, item),
               );
             }),
           ],
@@ -492,6 +469,49 @@ class OrderItemsList extends StatelessWidget {
     return null;
   }
 
+
+  /// Maneja el tap en el ícono de eliminar.
+  /// - Qty == 1: confirmación simple.
+  /// - Qty > 1: selector de cuántas unidades quitar.
+  void _onDeleteTap(BuildContext context, OrderItem item) async {
+    if (item.quantity == 1) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Eliminar ítem'),
+          content:
+              Text('¿Quitar "${item.productName}" de la orden?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.error),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        ),
+      );
+      if (ok == true && context.mounted) controller!.removeItem(item);
+      return;
+    }
+
+    // Qty > 1: mostrar selector de cantidad
+    final result = await showDialog<_RemoveQtyResult>(
+      context: context,
+      builder: (ctx) => _RemoveQtyDialog(item: item),
+    );
+    if (result == null || !context.mounted) return;
+    if (result.removeAll) {
+      controller!.removeItem(item);
+    } else {
+      controller!.updateItemQty(item, item.quantity - result.qty);
+    }
+  }
 
   void _showAddProductSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1491,18 +1511,20 @@ class _AddItemSheetState extends State<_AddItemSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final kb = mq.viewInsets.bottom;
+    final safeBottom = mq.viewPadding.bottom;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: mq.size.height * 0.88 - safeBottom,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom + 20 + kb),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1660,6 +1682,194 @@ class _AddItemSheetState extends State<_AddItemSheet> {
   }
 }
 
+// ─────────────────────── Diálogo eliminar por cantidad ───────────────────────
+
+class _RemoveQtyResult {
+  final int qty;
+  final bool removeAll;
+  const _RemoveQtyResult({required this.qty, required this.removeAll});
+}
+
+/// Dialog para seleccionar cuántas unidades de un ítem eliminar.
+/// Aparece solo cuando el ítem tiene qty > 1.
+class _RemoveQtyDialog extends StatefulWidget {
+  final OrderItem item;
+  const _RemoveQtyDialog({required this.item});
+
+  @override
+  State<_RemoveQtyDialog> createState() => _RemoveQtyDialogState();
+}
+
+class _RemoveQtyDialogState extends State<_RemoveQtyDialog> {
+  late int _toRemove = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final max = widget.item.quantity;
+    final removeAll = _toRemove >= max;
+
+    return Dialog(
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.remove_shopping_cart_outlined,
+                      color: AppColors.error, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Quitar unidades',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('${max}x',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        )),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(widget.item.productName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('¿Cuántas unidades quitar?',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            // Stepper de cantidad a quitar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  color: AppColors.error,
+                  iconSize: 32,
+                  onPressed: _toRemove > 1
+                      ? () => setState(() => _toRemove--)
+                      : null,
+                ),
+                Container(
+                  width: 64,
+                  alignment: Alignment.center,
+                  child: Text('$_toRemove',
+                      style: theme.textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  color: AppColors.primary,
+                  iconSize: 32,
+                  onPressed: _toRemove < max
+                      ? () => setState(() => _toRemove++)
+                      : null,
+                ),
+              ],
+            ),
+            // Preview del resultado
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: removeAll
+                    ? AppColors.error.withValues(alpha: 0.07)
+                    : AppColors.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                removeAll
+                    ? 'Se eliminará el ítem completo de la orden'
+                    : 'Quedarán ${max - _toRemove} unidad(es) en la orden',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: removeAll ? AppColors.error : AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(
+                      context,
+                      _RemoveQtyResult(qty: _toRemove, removeAll: removeAll),
+                    ),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: Text(removeAll ? 'Eliminar todo' : 'Quitar $_toRemove'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─────────────────────── Agregar producto del catálogo ───────────────────────
 
 class _AddProductToOrderSheet extends StatefulWidget {
@@ -1705,14 +1915,12 @@ class _AddProductToOrderSheetState extends State<_AddProductToOrderSheet> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _ProductPickerDetail(
         product: product,
-        onConfirm: (variant, qty, note) async {
-          final double price = variant != null
-              ? (product.basePrice + variant.priceModifier)
-              : product.basePrice;
+        // unitPrice ya viene ajustado desde el sheet (base ± ajuste)
+        onConfirm: (variant, qty, unitPrice, note) async {
           final ok = await widget.controller.addItem(
             productId: product.id,
             variantId: variant?.id,
-            unitPrice: price,
+            unitPrice: unitPrice,
             quantity: qty,
             specialInstructions: note.isEmpty ? null : note,
           );
@@ -1728,12 +1936,15 @@ class _AddProductToOrderSheetState extends State<_AddProductToOrderSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mq = MediaQuery.of(context);
+    final safeBottom = mq.viewPadding.bottom;
     return Container(
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      constraints: BoxConstraints(
+        maxHeight: mq.size.height * 0.9 - safeBottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -1836,7 +2047,14 @@ class _AddProductToOrderSheetState extends State<_AddProductToOrderSheet> {
 
 class _ProductPickerDetail extends StatefulWidget {
   final Product product;
-  final Future<void> Function(ProductVariant? variant, int qty, String note) onConfirm;
+  // unitPrice ya viene calculado (base ± ajuste manual)
+  final Future<void> Function(
+    ProductVariant? variant,
+    int qty,
+    double unitPrice,
+    String note,
+  ) onConfirm;
+
   const _ProductPickerDetail({required this.product, required this.onConfirm});
 
   @override
@@ -1847,7 +2065,12 @@ class _ProductPickerDetailState extends State<_ProductPickerDetail> {
   ProductVariant? _variant;
   int _qty = 1;
   final _noteCtrl = TextEditingController();
+  final _adjustAmountCtrl = TextEditingController();
+  final _adjustReasonCtrl = TextEditingController();
   bool _saving = false;
+  // -1 = descuento, +1 = adicional
+  int _adjustSign = -1;
+  bool _adjustOpen = false;
 
   @override
   void initState() {
@@ -1860,133 +2083,221 @@ class _ProductPickerDetailState extends State<_ProductPickerDetail> {
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _adjustAmountCtrl.dispose();
+    _adjustReasonCtrl.dispose();
     super.dispose();
   }
 
-  double get _unitPrice => _variant != null
+  double get _basePrice => _variant != null
       ? widget.product.basePrice + _variant!.priceModifier
       : widget.product.basePrice;
+
+  double get _adjustAmount {
+    if (!_adjustOpen) return 0;
+    final raw = NumberFormatHelper.parseFormattedInt(
+            _adjustAmountCtrl.text) ??
+        0;
+    return raw.toDouble() * _adjustSign;
+  }
+
+  double get _unitPrice => (_basePrice + _adjustAmount).clamp(0, double.infinity);
+
+  double get _totalPrice => _unitPrice * _qty;
+
+  String _buildNote() {
+    final parts = <String>[];
+    if (_adjustOpen && _adjustAmount != 0) {
+      final sign = _adjustAmount < 0 ? '-' : '+';
+      final label = _adjustReasonCtrl.text.trim();
+      final amount = CurrencyFormatter.format(_adjustAmount.abs());
+      parts.add(label.isNotEmpty
+          ? '$label ($sign$amount)'
+          : '${_adjustSign < 0 ? "Descuento" : "Adicional"} ($sign$amount)');
+    }
+    final note = _noteCtrl.text.trim();
+    if (note.isNotEmpty) parts.add(note);
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final kb = mq.viewInsets.bottom;
+    final safeBottom = mq.viewPadding.bottom;
     final variants = widget.product.variants;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + kb),
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      constraints: BoxConstraints(
+        maxHeight: mq.size.height * 0.92 - safeBottom,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Row(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Header ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+            child: Column(
               children: [
-                Expanded(
-                  child: Text(widget.product.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-                IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.product.name,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
               ],
             ),
-            if (variants.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text('Variante',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary)),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8, runSpacing: 6,
-                children: variants.map((v) {
-                  final sel = _variant?.id == v.id;
-                  return ChoiceChip(
-                    label: Text(
-                        '${v.name} · ${CurrencyFormatter.format(widget.product.basePrice + v.priceModifier)}'),
-                    selected: sel,
-                    onSelected: (_) => setState(() => _variant = v),
-                    selectedColor: AppColors.primary.withValues(alpha: 0.15),
-                  );
-                }).toList(),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text('Cantidad',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textSecondary)),
-                const Spacer(),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.outline),
-                    borderRadius: BorderRadius.circular(8),
+          ),
+          const Divider(height: 1),
+
+          // ── Contenido scrollable ─────────────────────────────────────
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom + 8 + kb),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Variantes ────────────────────────────────────────
+                  if (variants.isNotEmpty) ...[
+                    Text('Variante',
+                        style: theme.textTheme.labelMedium
+                            ?.copyWith(color: AppColors.textSecondary)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8, runSpacing: 6,
+                      children: variants.map((v) {
+                        final sel = _variant?.id == v.id;
+                        return ChoiceChip(
+                          label: Text(
+                            '${v.name} · ${CurrencyFormatter.format(widget.product.basePrice + v.priceModifier)}',
+                          ),
+                          selected: sel,
+                          onSelected: (_) => setState(() => _variant = v),
+                          selectedColor:
+                              AppColors.primary.withValues(alpha: 0.15),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── Cantidad ─────────────────────────────────────────
+                  Row(
+                    children: [
+                      Text('Cantidad',
+                          style: theme.textTheme.labelMedium
+                              ?.copyWith(color: AppColors.textSecondary)),
+                      const Spacer(),
+                      _QtySelector(
+                        qty: _qty,
+                        onDecrement: _qty > 1
+                            ? () => setState(() => _qty--)
+                            : null,
+                        onIncrement: () => setState(() => _qty++),
+                      ),
+                    ],
                   ),
-                  child: Row(
+                  const SizedBox(height: 16),
+
+                  // ── Ajuste de precio ──────────────────────────────────
+                  _AjustePrecioSection(
+                    open: _adjustOpen,
+                    sign: _adjustSign,
+                    amountCtrl: _adjustAmountCtrl,
+                    reasonCtrl: _adjustReasonCtrl,
+                    onToggleOpen: () =>
+                        setState(() => _adjustOpen = !_adjustOpen),
+                    onChangeSign: (s) => setState(() => _adjustSign = s),
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Nota ─────────────────────────────────────────────
+                  TextField(
+                    controller: _noteCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Nota adicional (opcional)',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.sticky_note_2_outlined),
+                      isDense: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.4),
+                      filled: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Footer fijo ──────────────────────────────────────────────
+          const Divider(height: 1),
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, safeBottom + 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                          icon: const Icon(Icons.remove, size: 18),
-                          onPressed:
-                              _qty > 1 ? () => setState(() => _qty--) : null),
-                      Text('$_qty',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      IconButton(
-                          icon: const Icon(Icons.add, size: 18),
-                          onPressed: () => setState(() => _qty++)),
+                      Text('Total',
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: AppColors.textSecondary)),
+                      Text(
+                        CurrencyFormatter.format(_totalPrice),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      if (_adjustOpen && _adjustAmount != 0)
+                        Text(
+                          '${CurrencyFormatter.format(_basePrice)} ${_adjustAmount < 0 ? "-" : "+"} ${CurrencyFormatter.format(_adjustAmount.abs())}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: _adjustAmount < 0
+                                ? AppColors.success
+                                : AppColors.textSecondary,
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Nota (opcional)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.sticky_note_2_outlined),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total: ${CurrencyFormatter.format(_unitPrice * _qty)}',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
+                const SizedBox(width: 16),
                 FilledButton.icon(
                   icon: _saving
                       ? const SizedBox(
                           width: 16, height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                              strokeWidth: 2, color: Colors.white),
+                        )
                       : const Icon(Icons.add, size: 18),
                   label: const Text('Agregar'),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size(120, 48)),
                   onPressed: _saving
                       ? null
                       : () async {
@@ -1997,13 +2308,281 @@ class _ProductPickerDetailState extends State<_ProductPickerDetail> {
                           }
                           setState(() => _saving = true);
                           await widget.onConfirm(
-                              _variant, _qty, _noteCtrl.text.trim());
+                            _variant,
+                            _qty,
+                            _unitPrice,
+                            _buildNote(),
+                          );
                           if (mounted) setState(() => _saving = false);
                         },
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Stepper de cantidad ───────────────────────────────────────────────────────
+class _QtySelector extends StatelessWidget {
+  final int qty;
+  final VoidCallback? onDecrement;
+  final VoidCallback onIncrement;
+
+  const _QtySelector({
+    required this.qty,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outline),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, size: 18),
+            onPressed: onDecrement,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+          ),
+          SizedBox(
+            width: 32,
+            child: Text(
+              '$qty',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            onPressed: onIncrement,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sección de ajuste de precio ───────────────────────────────────────────────
+class _AjustePrecioSection extends StatelessWidget {
+  final bool open;
+  final int sign; // -1 o +1
+  final TextEditingController amountCtrl;
+  final TextEditingController reasonCtrl;
+  final VoidCallback onToggleOpen;
+  final ValueChanged<int> onChangeSign;
+  final VoidCallback onChanged;
+
+  const _AjustePrecioSection({
+    required this.open,
+    required this.sign,
+    required this.amountCtrl,
+    required this.reasonCtrl,
+    required this.onToggleOpen,
+    required this.onChangeSign,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: open
+              ? (sign < 0
+                  ? AppColors.success.withValues(alpha: 0.6)
+                  : AppColors.primary.withValues(alpha: 0.6))
+              : theme.colorScheme.outlineVariant,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        color: open
+            ? (sign < 0
+                ? AppColors.success.withValues(alpha: 0.05)
+                : AppColors.primary.withValues(alpha: 0.05))
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      ),
+      child: Column(
+        children: [
+          // Fila toggle
+          InkWell(
+            onTap: onToggleOpen,
+            borderRadius: open
+                ? const BorderRadius.vertical(top: Radius.circular(12))
+                : BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 18,
+                    color: open
+                        ? (sign < 0 ? AppColors.success : AppColors.primary)
+                        : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Ajustar precio',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: open
+                            ? (sign < 0 ? AppColors.success : AppColors.primary)
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    open ? 'Quitar ajuste' : 'Agregar ajuste',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    open
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Panel expandido
+          if (open) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Toggle descuento / adicional
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SignChip(
+                          label: 'Descuento (−)',
+                          selected: sign < 0,
+                          color: AppColors.success,
+                          onTap: () => onChangeSign(-1),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SignChip(
+                          label: 'Adicional (+)',
+                          selected: sign > 0,
+                          color: AppColors.primary,
+                          onTap: () => onChangeSign(1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Motivo + monto en la misma fila
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: reasonCtrl,
+                          textCapitalization: TextCapitalization.sentences,
+                          onChanged: (_) => onChanged(),
+                          decoration: const InputDecoration(
+                            labelText: 'Motivo',
+                            hintText: 'Ej: Sin gaseosa',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 120,
+                        child: TextField(
+                          controller: amountCtrl,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => onChanged(),
+                          decoration: InputDecoration(
+                            labelText: 'Valor',
+                            hintText: '1.000',
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                            prefixText:
+                                sign < 0 ? '−\$' : '+\$',
+                            prefixStyle: TextStyle(
+                              color: sign < 0
+                                  ? AppColors.success
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SignChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SignChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+          border: Border.all(
+            color: selected ? color : Theme.of(context).colorScheme.outline,
+            width: selected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? color : AppColors.textSecondary,
+          ),
         ),
       ),
     );

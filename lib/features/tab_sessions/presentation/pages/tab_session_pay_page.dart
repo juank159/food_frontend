@@ -528,6 +528,8 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
         return Icons.account_balance_outlined;
       case PaymentMethod.digitalWallet:
         return Icons.account_balance_wallet_outlined;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 }

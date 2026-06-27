@@ -478,8 +478,16 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
+      useSafeArea: true,
+      builder: (sheetCtx) {
+        final safeBottom = MediaQuery.of(sheetCtx).viewPadding.bottom;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85 - safeBottom,
+          ),
+          child: SingleChildScrollView(
+            child: Container(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, safeBottom + 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -596,6 +604,9 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
           ],
         ),
       ),
+          ),
+        );
+      },
     );
   }
 
@@ -664,6 +675,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         return Icons.account_balance;
       case PaymentMethod.digitalWallet:
         return Icons.smartphone;
+      case PaymentMethod.nequi:
+        return Icons.qr_code_2;
     }
   }
 
@@ -677,6 +690,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         return 'Transferencia';
       case PaymentMethod.digitalWallet:
         return 'Billetera Digital';
+      case PaymentMethod.nequi:
+        return 'Nequi QR';
     }
   }
 

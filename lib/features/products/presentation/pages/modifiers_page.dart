@@ -248,12 +248,13 @@ class _ModifiersPageState extends State<ModifiersPage> {
         minChildSize: 0.4,
         maxChildSize: 0.85,
         expand: false,
-        builder: (context, scrollController) => Container(
+        builder: (innerCtx, scrollController) => Container(
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: EdgeInsets.fromLTRB(
+              20, 12, 20, MediaQuery.of(innerCtx).viewPadding.bottom + 16),
           child: SingleChildScrollView(
             controller: scrollController,
             child: Column(
