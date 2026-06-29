@@ -43,6 +43,8 @@ class ProcessPaymentDialog extends StatefulWidget {
 
 class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   final _cashCtrl = TextEditingController();
+  final _referenceCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
   double _received = 0;
 
   double get _effectiveAmount => widget.amountDue ?? widget.orderTotal;
@@ -51,8 +53,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   double get _alreadyPaid => _hasPartial ? (widget.orderTotal - widget.amountDue!) : 0;
   double get _change => _received - _effectiveAmount;
   bool get _cashReady => _received >= _effectiveAmount;
-
-  static const _denominations = [1000.0, 2000.0, 5000.0, 10000.0, 20000.0, 50000.0, 100000.0];
 
   @override
   void initState() {
@@ -64,6 +64,8 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   void dispose() {
     _cashCtrl.removeListener(_onCashChanged);
     _cashCtrl.dispose();
+    _referenceCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -72,17 +74,16 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     setState(() => _received = v);
   }
 
-  void _addDenomination(double amt) {
-    final current = (NumberFormatHelper.parseFormattedInt(_cashCtrl.text) ?? 0).toDouble();
-    _cashCtrl.text = NumberFormatHelper.formatNumber((current + amt).toInt());
-  }
-
   void _setExact() {
     _cashCtrl.text = NumberFormatHelper.formatNumber(_effectiveAmount.toInt());
   }
 
   Future<void> _processPayment(BuildContext context) async {
     final method = widget.controller.selectedPaymentMethod.value;
+
+    // Sincronizar campos locales al controlador antes de procesar
+    widget.controller.transactionReference.value = _referenceCtrl.text.trim();
+    widget.controller.notes.value = _notesCtrl.text.trim();
 
     if (method == PaymentMethod.nequi) {
       await _processNequiPayment(context);
@@ -182,28 +183,18 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Header compacto ────────────────────────────────────────
+            // ── Header ────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [
-                  theme.colorScheme.primaryContainer,
-                  theme.colorScheme.secondaryContainer,
-                ]),
+                color: theme.colorScheme.primaryContainer,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.payment,
-                        color: theme.colorScheme.onPrimary, size: 20),
-                  ),
+                  Icon(Icons.payment,
+                      color: theme.colorScheme.onPrimaryContainer, size: 26),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -211,34 +202,27 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                       children: [
                         Text(
                           _hasPartial ? 'Cobrar saldo' : 'Procesar pago',
-                          style: theme.textTheme.titleMedium?.copyWith(
+                          style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onPrimaryContainer,
                           ),
                         ),
                         Text(
-                          'A cobrar: ${CurrencyFormatter.format(_effectiveAmount)}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: theme.colorScheme.primary,
+                          _hasPartial
+                              ? 'Total ${CurrencyFormatter.format(widget.orderTotal)} · abonado ${CurrencyFormatter.format(_alreadyPaid)}'
+                              : 'A cobrar: ${CurrencyFormatter.format(_effectiveAmount)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (_hasPartial)
-                          Text(
-                            'Total ${CurrencyFormatter.format(widget.orderTotal)} · '
-                            'abonado ${CurrencyFormatter.format(_alreadyPaid)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer
-                                  .withValues(alpha: 0.7),
-                            ),
-                          ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
-                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
@@ -258,7 +242,8 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                       const SizedBox(height: 12),
                     ],
 
-                    // Selector de método
+                    const _SectionLabel('Método de pago'),
+                    const SizedBox(height: 8),
                     Obx(() => PaymentMethodSelector(
                           selectedMethod:
                               widget.controller.selectedPaymentMethod.value,
@@ -288,7 +273,9 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                                   PaymentMethod.cash,
                         )),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+                    const _SectionLabel('Detalle del pago'),
+                    const SizedBox(height: 8),
 
                     // Sección específica por método
                     Obx(() => _buildMethodSection(context, theme)),
@@ -438,107 +425,112 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     }
   }
 
-  /// Calculadora de efectivo inline — reemplaza el CashPaymentDialog separado.
   Widget _buildCashSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Campo de monto recibido
         TextField(
           controller: _cashCtrl,
           keyboardType: TextInputType.number,
           inputFormatters: [ThousandsSeparatorInputFormatter()],
           decoration: InputDecoration(
-            labelText: 'Monto recibido',
-            prefixText: '\$',
-            hintText: NumberFormatHelper.formatNumber(
-                _effectiveAmount.toInt()),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            isDense: true,
+            labelText: 'Recibido (opcional)',
+            prefixText: '\$ ',
+            hintText: NumberFormatHelper.formatNumber(_effectiveAmount.toInt()),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
             suffixIcon: TextButton(
               onPressed: _setExact,
               child: const Text('Exacto', style: TextStyle(fontSize: 12)),
             ),
           ),
         ),
-        const SizedBox(height: 10),
-
-        // Denominaciones rápidas en grid 2 filas
-        Text('Denominaciones rápidas',
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: AppColors.textSecondary)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: _denominations.map((amt) {
-            return ActionChip(
-              label: Text(
-                '+${CurrencyFormatter.format(amt)}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              onPressed: () => _addDenomination(amt),
-            );
-          }).toList(),
-        ),
+        const SizedBox(height: 12),
+        _buildNotesField(),
       ],
     );
   }
 
   Widget _buildNequiInfo(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF32AF60).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.qr_code_2, color: Color(0xFF32AF60), size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Se generará un QR de Nequi. El cliente lo escanea con la app.',
-              style: theme.textTheme.bodySmall,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF32AF60).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              const Icon(Icons.qr_code_2, color: Color(0xFF32AF60), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Se generará un QR de Nequi. El cliente lo escanea con la app.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildNotesField(),
+      ],
     );
   }
 
   Widget _buildElectronicInfo(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: theme.colorScheme.secondary.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline,
-              color: theme.colorScheme.secondary, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _hasPartial
-                  ? 'Se cobrará el saldo de ${CurrencyFormatter.format(_effectiveAmount)}.'
-                  : 'Se cobrará ${CurrencyFormatter.format(_effectiveAmount)} completo.',
-              style: theme.textTheme.bodySmall,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _referenceCtrl,
+          decoration: InputDecoration(
+            labelText: 'Referencia (opcional)',
+            hintText: 'Voucher, ID transacción, etc.',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
           ),
-        ],
+        ),
+        const SizedBox(height: 12),
+        _buildNotesField(),
+      ],
+    );
+  }
+
+  Widget _buildNotesField() {
+    return TextField(
+      controller: _notesCtrl,
+      maxLines: 2,
+      decoration: InputDecoration(
+        labelText: 'Notas (opcional)',
+        hintText: 'Detalle interno',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
       ),
     );
   }
 }
 
 // ─────────────────────── Previous payments tile ───────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel(this.label);
+  @override
+  Widget build(BuildContext context) => Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.4,
+        ),
+      );
+}
 
 /// Tile colapsado con la lista de pagos ya cobrados de esta orden.
 /// Sólo se muestra cuando hay pagos parciales (decisión del parent).

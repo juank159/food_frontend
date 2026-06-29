@@ -175,19 +175,28 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screen = MediaQuery.of(context).size;
+    final maxW = screen.width < 600
+        ? screen.width * 0.92
+        : (screen.width < 900 ? 480.0 : 520.0);
+    final maxH = screen.height < 700 ? screen.height * 0.92 : 720.0;
 
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: screen.width < 600 ? 16 : 40,
+        vertical: screen.height < 700 ? 16 : 24,
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 720),
+        constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(
           children: [
             _buildHeader(theme),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -253,43 +262,40 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
 
   Widget _buildHeader(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.splitscreen,
-            color: theme.colorScheme.onPrimaryContainer,
-            size: 28,
-          ),
+          Icon(Icons.splitscreen,
+              color: theme.colorScheme.onPrimaryContainer, size: 26),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pagos parciales',
+                  'Dividir pago',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
                 Text(
-                  'Total orden: ${CurrencyFormatter.format(widget.totalAmount)}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  'Total: ${CurrencyFormatter.format(widget.totalAmount)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onPrimaryContainer,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
           IconButton(
             icon: const Icon(Icons.close),
-            // Cerrar simple — no hay nada que descartar, todos los pagos
-            // que hizo el cajero YA están persistidos.
             onPressed: () => Navigator.pop(
               context,
               widget.controller.payments.toList(),
@@ -562,25 +568,23 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
   }
 
   Widget _buildFooter(ThemeData theme) {
+    final safeBottom = MediaQuery.of(context).viewPadding.bottom;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, safeBottom + 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.check),
-              label: Text(_isFullyPaid ? 'Listo' : 'Cerrar'),
-              onPressed: () => Navigator.pop(
-                context,
-                widget.controller.payments.toList(),
-              ),
-            ),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.check),
+          label: Text(_isFullyPaid ? 'Listo' : 'Cerrar'),
+          onPressed: () => Navigator.pop(
+            context,
+            widget.controller.payments.toList(),
           ),
-        ],
+        ),
       ),
     );
   }

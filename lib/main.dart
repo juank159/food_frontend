@@ -9,7 +9,7 @@ import 'features/orders/presentation/controllers/pending_review_watcher.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize dependency injection
+  // Initialize dependency injection5
   await di.init();
 
   // Servicio singleton de notificación de pedidos por QR — vivo
@@ -67,4 +67,3 @@ class MenuPlatApp extends StatelessWidget {
     );
   }
 }
-
