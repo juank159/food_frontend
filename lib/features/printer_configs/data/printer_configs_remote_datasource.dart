@@ -27,6 +27,7 @@ class PrinterConfigsRemoteDataSource {
     bool isDefault = false,
     bool autoPrint = true,
     String? notes,
+    List<String> allowedRoles = const [],
   }) async {
     final body = <String, dynamic>{
       'name': name,
@@ -38,6 +39,7 @@ class PrinterConfigsRemoteDataSource {
       'is_default': isDefault,
       'auto_print': autoPrint,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'allowed_roles': allowedRoles.isEmpty ? null : allowedRoles.join(','),
     };
     final response = await dio.post(_base, data: body);
     return PrinterConfigModel.fromJson(ApiResponseUtils.object(response));
@@ -55,6 +57,7 @@ class PrinterConfigsRemoteDataSource {
     bool? autoPrint,
     bool? isActive,
     String? notes,
+    List<String>? allowedRoles,
   }) async {
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
@@ -69,6 +72,9 @@ class PrinterConfigsRemoteDataSource {
     if (autoPrint != null) body['auto_print'] = autoPrint;
     if (isActive != null) body['is_active'] = isActive;
     if (notes != null) body['notes'] = notes;
+    if (allowedRoles != null) {
+      body['allowed_roles'] = allowedRoles.isEmpty ? null : allowedRoles.join(',');
+    }
 
     final response = await dio.patch('$_base/$id', data: body);
     return PrinterConfigModel.fromJson(ApiResponseUtils.object(response));

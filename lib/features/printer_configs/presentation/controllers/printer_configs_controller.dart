@@ -62,6 +62,7 @@ class PrinterConfigsController extends GetxController {
     bool isDefault = false,
     bool autoPrint = true,
     String? notes,
+    List<String> allowedRoles = const [],
   }) async {
     try {
       final created = await _ds.create(
@@ -74,6 +75,7 @@ class PrinterConfigsController extends GetxController {
         isDefault: isDefault,
         autoPrint: autoPrint,
         notes: notes,
+        allowedRoles: allowedRoles,
       );
       await fetch(); // refresca todos para reflejar despromote de otros default
       AppSnackbar.show('Impresora agregada', created.name);
@@ -95,6 +97,7 @@ class PrinterConfigsController extends GetxController {
     bool? autoPrint,
     bool? isActive,
     String? notes,
+    List<String>? allowedRoles,
   }) async {
     if (processingIds.contains(id)) return;
     processingIds.add(id);
@@ -111,6 +114,7 @@ class PrinterConfigsController extends GetxController {
         autoPrint: autoPrint,
         isActive: isActive,
         notes: notes,
+        allowedRoles: allowedRoles,
       );
       await fetch();
     } catch (e) {

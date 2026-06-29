@@ -51,6 +51,9 @@ class PrinterConfigModel {
   final bool isActive;
   final String? notes;
 
+  /// Roles que pueden imprimir. Vacío = todos los roles.
+  final List<String> allowedRoles;
+
   const PrinterConfigModel({
     required this.id,
     required this.name,
@@ -63,6 +66,7 @@ class PrinterConfigModel {
     required this.autoPrint,
     required this.isActive,
     required this.notes,
+    this.allowedRoles = const [],
   });
 
   String get connectionSummary {
@@ -81,6 +85,10 @@ class PrinterConfigModel {
   }
 
   factory PrinterConfigModel.fromJson(Map<String, dynamic> json) {
+    final rawRoles = json['allowed_roles'] as String?;
+    final roles = (rawRoles != null && rawRoles.trim().isNotEmpty)
+        ? rawRoles.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+        : <String>[];
     return PrinterConfigModel(
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
@@ -95,6 +103,7 @@ class PrinterConfigModel {
       autoPrint: json['auto_print'] as bool? ?? true,
       isActive: json['is_active'] as bool? ?? true,
       notes: json['notes'] as String?,
+      allowedRoles: roles,
     );
   }
 }

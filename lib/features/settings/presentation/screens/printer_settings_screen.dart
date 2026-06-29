@@ -698,11 +698,22 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
   late int _paperWidth;
   late bool _isDefault;
   late bool _autoPrint;
+  late Set<String> _allowedRoles;
   bool _saving = false;
   bool _testing = false;
   bool? _testOk;
 
   bool get _isEditing => widget.existing != null;
+
+  static const _allRoles = [
+    ('admin', 'Administrador'),
+    ('manager', 'Gerente'),
+    ('cashier', 'Cajero'),
+    ('waiter', 'Mesero'),
+    ('bartender', 'Bartender'),
+    ('delivery', 'Domiciliario'),
+    ('kitchen', 'Cocina'),
+  ];
 
   @override
   void initState() {
@@ -717,6 +728,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
     _paperWidth = e?.paperWidth ?? 80;
     _isDefault = e?.isDefault ?? true;
     _autoPrint = e?.autoPrint ?? true;
+    _allowedRoles = Set.from(e?.allowedRoles ?? []);
   }
 
   @override
@@ -895,15 +907,65 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
                           ),
                         ),
                         subtitle: Text(
-                          _connType == PrinterConnectionType.network
-                              ? 'Las comandas/recibos se imprimen solos sin '
-                                  'diálogo del SO'
-                              : 'Las impresoras del sistema siempre piden '
-                                  'confirmación. Para auto-print real usá red.',
+                          _autoPrint
+                              ? (_connType == PrinterConnectionType.network
+                                  ? 'Imprime solo, sin confirmación, al crear la orden / cobrar.'
+                                  : 'Muestra el diálogo del SO al crear la orden / cobrar.')
+                              : 'Pregunta "¿Imprimir?" antes de cada comanda o factura.',
                           style: const TextStyle(fontSize: 11),
                         ),
                         value: _autoPrint,
                         onChanged: (v) => setState(() => _autoPrint = v),
+                      ),
+                      const SizedBox(height: 14),
+                      _label('¿Quién puede imprimir?'),
+                      Text(
+                        'Vacío = todos los roles. Marcá solo los que deben imprimir.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _allRoles.map(((String, String) role) {
+                          final code = role.$1;
+                          final label = role.$2;
+                          final selected = _allowedRoles.contains(code);
+                          return FilterChip(
+                            label: Text(label,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                )),
+                            selected: selected,
+                            selectedColor: AppColors.primary,
+                            checkmarkColor: Colors.white,
+                            backgroundColor: AppColors.background,
+                            side: BorderSide(
+                              color: selected
+                                  ? AppColors.primary
+                                  : Colors.grey.shade300,
+                            ),
+                            showCheckmark: false,
+                            avatar: selected
+                                ? const Icon(Icons.check_circle,
+                                    size: 14, color: Colors.white)
+                                : const Icon(Icons.radio_button_unchecked,
+                                    size: 14, color: Colors.grey),
+                            onSelected: (v) => setState(() {
+                              if (v) {
+                                _allowedRoles.add(code);
+                              } else {
+                                _allowedRoles.remove(code);
+                              }
+                            }),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
@@ -1107,6 +1169,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
   Future<void> _submit() async {
     setState(() => _saving = true);
     try {
+      final roles = _allowedRoles.toList();
       if (_isEditing) {
         await widget.controller.edit(
           widget.existing!.id,
@@ -1123,6 +1186,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
           isDefault: _isDefault,
           autoPrint: _autoPrint,
           notes: _notesCtrl.text.trim(),
+          allowedRoles: roles,
         );
       } else {
         await widget.controller.create(
@@ -1139,6 +1203,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
           isDefault: _isDefault,
           autoPrint: _autoPrint,
           notes: _notesCtrl.text.trim(),
+          allowedRoles: roles,
         );
       }
       if (mounted) Navigator.of(context).pop();

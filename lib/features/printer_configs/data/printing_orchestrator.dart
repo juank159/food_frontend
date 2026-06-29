@@ -3,12 +3,14 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../../core/config/theme/app_colors.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/utils/api_response_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/safe_get.dart';
+import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../orders/data/models/order_item_model.dart';
 import '../../orders/data/models/order_model.dart';
 import '../../tab_sessions/domain/entities/tab_session.dart';
@@ -193,6 +195,49 @@ class PrintingOrchestrator {
     return anyActive.isNotEmpty ? anyActive.first : null;
   }
 
+  // ── Rol check ─────────────────────────────────────────────────────
+
+  /// True si el usuario logueado puede usar esta impresora.
+  /// Lista vacía = todos los roles están permitidos.
+  static bool _userCanPrint(PrinterConfigModel printer) {
+    if (printer.allowedRoles.isEmpty) return true;
+    final auth = SafeGet.find<AuthController>();
+    final roleCode = auth?.currentUser?.roleCode;
+    if (roleCode == null) return true;
+    return printer.allowedRoles.contains(roleCode);
+  }
+
+  // ── Dialog de confirmación ─────────────────────────────────────────
+
+  /// Muestra un dialog compacto "¿Imprimir [label]?" y devuelve
+  /// true si el usuario confirmó. Usa el contexto activo de GetX.
+  static Future<bool> _askUser(String label) async {
+    final ctx = Get.context;
+    if (ctx == null || !ctx.mounted) return false;
+    final result = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: true,
+      builder: (dialogCtx) => AlertDialog(
+        icon: const Icon(Icons.print_outlined, size: 32),
+        title: Text('¿Imprimir $label?'),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Omitir'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.print, size: 16),
+            label: const Text('Imprimir'),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   // ── KITCHEN ───────────────────────────────────────────────────────
 
   static Future<PrintResult> autoPrintKitchen({
@@ -200,14 +245,20 @@ class PrintingOrchestrator {
     String? subtitle,
   }) async {
     final printer = await _resolveDefault(PrinterPurpose.kitchen);
-    if (printer == null || !printer.autoPrint) {
-      return PrintResult.noPrinterConfigured;
+    if (printer == null) return PrintResult.noPrinterConfigured;
+    if (!_userCanPrint(printer)) return PrintResult.noPrinterConfigured;
+
+    if (!printer.autoPrint) {
+      // Preguntar antes de imprimir
+      final should = await _askUser('comanda de cocina');
+      if (!should) return PrintResult.cancelled;
     }
+
     return _runPrintJob(
       kind: PrintJobKind.kitchen,
       orderId: orderId,
       printer: printer,
-      silent: true,
+      silent: printer.autoPrint,
       subtitle: subtitle,
     );
   }
@@ -219,6 +270,10 @@ class PrintingOrchestrator {
     final printer = await _resolveDefault(PrinterPurpose.kitchen);
     if (printer == null) {
       _snackNoDefault('comanda', PrinterPurpose.kitchen);
+      return PrintResult.noPrinterConfigured;
+    }
+    if (!_userCanPrint(printer)) {
+      AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
       return PrintResult.noPrinterConfigured;
     }
     return _runPrintJob(
@@ -237,14 +292,20 @@ class PrintingOrchestrator {
     String? subtitle,
   }) async {
     final printer = await _resolveDefault(PrinterPurpose.receipt);
-    if (printer == null || !printer.autoPrint) {
-      return PrintResult.noPrinterConfigured;
+    if (printer == null) return PrintResult.noPrinterConfigured;
+    if (!_userCanPrint(printer)) return PrintResult.noPrinterConfigured;
+
+    if (!printer.autoPrint) {
+      // Preguntar antes de imprimir la factura
+      final should = await _askUser('factura / recibo');
+      if (!should) return PrintResult.cancelled;
     }
+
     return _runPrintJob(
       kind: PrintJobKind.receipt,
       orderId: orderId,
       printer: printer,
-      silent: true,
+      silent: printer.autoPrint,
       subtitle: subtitle,
     );
   }
@@ -256,6 +317,10 @@ class PrintingOrchestrator {
     final printer = await _resolveDefault(PrinterPurpose.receipt);
     if (printer == null) {
       _snackNoDefault('recibo', PrinterPurpose.receipt);
+      return PrintResult.noPrinterConfigured;
+    }
+    if (!_userCanPrint(printer)) {
+      AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
       return PrintResult.noPrinterConfigured;
     }
     return _runPrintJob(

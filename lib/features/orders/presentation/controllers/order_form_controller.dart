@@ -905,51 +905,49 @@ class OrderFormController extends GetxController {
         paymentMethod: paymentMethod.value,
       );
 
+      // Extraemos el resultado del fold para poder hacer trabajo async
+      // después (dialog de impresión) sin bloquear el callback sync.
+      Object? foldFailure;
+      dynamic createdOrder;
       result.fold(
-        (failure) {
-          String message = 'Error al crear la orden';
-          if (failure is ValidationFailure) {
-            message = failure.message;
-          } else if (failure is NetworkFailure) {
-            message = 'Error de conexión. Verifica tu internet.';
-          } else if (failure is ServerFailure) {
-            message = 'Error del servidor. Intenta nuevamente.';
-          }
-          errorMessage.value = message;
-          AppSnackbar.show(
-            'Error',
-            message,
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.error,
-            colorText: Get.theme.colorScheme.onError,
-            duration: const Duration(seconds: 5),
-          );
-        },
-        (order) {
-          // Imprimir la(s) comanda(s) de cocina automáticamente al
-          // registrar el pedido — UNA por categoría (solo categorías con
-          // `prints_kitchen` e items que requieren preparación). Va ACÁ
-          // (y no en SellPage._checkout) porque para mesa/cuenta libre/
-          // takeaway/delivery el submit hace `Get.back` y nunca setea
-          // `lastCreatedOrder`, así que el checkout no alcanzaba a
-          // imprimir. Fire-and-forget: el orquestador omite solo si no
-          // hay impresora de cocina o no hay items para cocina.
-          unawaited(PrintingOrchestrator.autoPrintKitchen(orderId: order.id));
+        (failure) => foldFailure = failure,
+        (order) => createdOrder = order,
+      );
 
-          // Avisar al listado de Órdenes para que la orden nueva aparezca
-          // al instante (sin esto, una orden de cuenta abierta / mesa /
-          // llevar quedaba invisible en "Órdenes" hasta un reload manual).
-          _registerInOrdersList(order);
+      if (foldFailure != null) {
+        String message = 'Error al crear la orden';
+        if (foldFailure is ValidationFailure) {
+          message = (foldFailure as ValidationFailure).message;
+        } else if (foldFailure is NetworkFailure) {
+          message = 'Error de conexión. Verifica tu internet.';
+        } else if (foldFailure is ServerFailure) {
+          message = 'Error del servidor. Intenta nuevamente.';
+        }
+        errorMessage.value = message;
+        AppSnackbar.show(
+          'Error',
+          message,
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error,
+          colorText: Get.theme.colorScheme.onError,
+          duration: const Duration(seconds: 5),
+        );
+      } else if (createdOrder != null) {
+        final order = createdOrder as dynamic;
 
-          // En Venta Express NO mostramos snackbar de "Orden creada" ni
-          // popeamos la pantalla — el caller se encarga del flujo (abrir
-          // dialog de cobro, mostrar feedback final). Solo exponemos la
-          // orden creada para que la pueda usar.
-          if (isQuickSale.value) {
-            lastCreatedOrder.value = order;
-            return;
-          }
+        // Avisar al listado de Órdenes para que la orden nueva aparezca
+        // al instante sin reload manual.
+        _registerInOrdersList(order);
 
+        // Mostrar dialog de impresión (o imprimir auto si está configurado).
+        // Hacemos AWAIT para que el dialog aparezca ANTES de navegar — así
+        // el cajero ve la pregunta mientras la pantalla de venta sigue abierta.
+        await PrintingOrchestrator.autoPrintKitchen(orderId: order.id);
+
+        if (isQuickSale.value) {
+          // Venta express: el caller (sell_page) maneja la navegación y cobro.
+          lastCreatedOrder.value = order;
+        } else {
           AppSnackbar.show(
             'Orden creada',
             'Orden #${order.orderNumber} creada exitosamente',
@@ -958,12 +956,10 @@ class OrderFormController extends GetxController {
             colorText: Get.theme.colorScheme.onPrimary,
             duration: const Duration(seconds: 3),
           );
-
-          // Clear form and navigate back
           clearCart();
           Get.back(result: order);
-        },
-      );
+        }
+      }
     } catch (e) {
       errorMessage.value = 'Error inesperado: ${e.toString()}';
       AppSnackbar.show(

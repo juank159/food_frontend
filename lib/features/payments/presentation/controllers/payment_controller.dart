@@ -290,17 +290,17 @@ class PaymentController extends GetxController {
       return;
     }
     final orders = Get.find<OrdersController>();
-    orders.reloadAndApply(orderId).then((updated) {
+    orders.reloadAndApply(orderId).then((updated) async {
       if (updated == null) return;
       if (!tryPrintReceipt) return;
       if (!updated.isPaymentCompleted) return;
       if (_printedReceiptIds.contains(updated.id)) return;
       _printedReceiptIds.add(updated.id);
-      unawaited(
-        PrintingOrchestrator.autoPrintReceipt(
-          orderId: updated.id,
-          subtitle: updated.displayTableLabel,
-        ),
+      // Await para que el dialog de "¿Imprimir factura?" aparezca en el
+      // contexto activo. Si auto_print=true imprime sin dialog.
+      await PrintingOrchestrator.autoPrintReceipt(
+        orderId: updated.id,
+        subtitle: updated.displayTableLabel,
       );
     });
   }
