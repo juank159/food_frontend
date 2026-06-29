@@ -7,7 +7,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
-import '../../../../core/widgets/app_filter_chip.dart';
+import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
@@ -707,7 +707,7 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(_iconFor(r.method), color: theme.colorScheme.primary),
+                  Icon(paymentMethodIcon(r.method), color: theme.colorScheme.primary),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(r.method.displayName,
@@ -730,21 +730,6 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
 }
 
 // ════════════════════════ Piezas compartidas ════════════════════════
-
-IconData _iconFor(PaymentMethod m) {
-  switch (m) {
-    case PaymentMethod.cash:
-      return Icons.payments_outlined;
-    case PaymentMethod.card:
-      return Icons.credit_card_outlined;
-    case PaymentMethod.transfer:
-      return Icons.account_balance_outlined;
-    case PaymentMethod.digitalWallet:
-      return Icons.account_balance_wallet_outlined;
-    case PaymentMethod.nequi:
-      return Icons.qr_code_2;
-  }
-}
 
 InputDecoration _inputDecoration({
   String? label,
@@ -914,17 +899,9 @@ class _MethodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: PaymentMethod.values.map((m) {
-        return AppFilterChip(
-          label: m.displayName,
-          icon: _iconFor(m),
-          selected: selected == m,
-          onTap: () => onSelect(m),
-        );
-      }).toList(),
+    return PaymentMethodSelector(
+      selectedMethod: selected,
+      onMethodSelected: onSelect,
     );
   }
 }

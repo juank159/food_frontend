@@ -5,6 +5,7 @@ import '../../../../core/network/network_info.dart';
 import '../../domain/entities/customer_report.dart';
 import '../../domain/entities/employee_report.dart';
 import '../../domain/entities/inventory_report.dart';
+import '../../domain/entities/product_sales_report.dart';
 import '../../domain/entities/sales_report.dart';
 import '../../domain/repositories/reports_repository.dart';
 import '../datasources/reports_remote_datasource.dart';
@@ -104,6 +105,29 @@ class ReportsRepositoryImpl implements ReportsRepository {
       return Left(NotFoundFailure(e.message));
     } on ValidationException catch (e) {
       return Left(ValidationFailure(e.message));
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    }
+  }
+
+  @override
+  Future<Either<Failure, ProductSalesReport>> getProductSalesReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure());
+    }
+    try {
+      final report = await remoteDataSource.getProductSalesReport(
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+      );
+      return Right(report);
+    } on UnauthorizedException {
+      return const Left(UnauthorizedFailure());
     } on NetworkException catch (e) {
       return Left(NetworkFailure(e.message));
     } on ServerException catch (e) {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/config/constants/order_enums.dart';
-import '../../../../core/widgets/app_filter_chip.dart';
 
-/// Selector compacto de método de pago — chips horizontales.
+/// Selector de método de pago como dropdown de una sola línea.
+/// Ocupa el espacio de un campo de texto — al tocar abre la lista.
 class PaymentMethodSelector extends StatelessWidget {
   final PaymentMethod selectedMethod;
   final Function(PaymentMethod) onMethodSelected;
@@ -17,47 +17,60 @@ class PaymentMethodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: PaymentMethod.values.map((m) {
-        return AppFilterChip(
-          label: _name(m),
-          icon: _icon(m),
-          selected: selectedMethod == m,
-          onTap: enabled ? () => onMethodSelected(m) : () {},
-        );
-      }).toList(),
+    return DropdownButtonFormField<PaymentMethod>(
+      initialValue: selectedMethod,
+      decoration: InputDecoration(
+        labelText: 'Método de pago',
+        prefixIcon: Icon(paymentMethodIcon(selectedMethod), size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      ),
+      items: PaymentMethod.values
+          .map((m) => DropdownMenuItem(
+                value: m,
+                child: Row(
+                  children: [
+                    Icon(paymentMethodIcon(m), size: 18),
+                    const SizedBox(width: 10),
+                    Text(paymentMethodName(m)),
+                  ],
+                ),
+              ))
+          .toList(),
+      onChanged: enabled ? (m) { if (m != null) onMethodSelected(m); } : null,
     );
   }
+}
 
-  IconData _icon(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.cash:
-        return Icons.payments_outlined;
-      case PaymentMethod.card:
-        return Icons.credit_card_outlined;
-      case PaymentMethod.transfer:
-        return Icons.account_balance_outlined;
-      case PaymentMethod.digitalWallet:
-        return Icons.account_balance_wallet_outlined;
-      case PaymentMethod.nequi:
-        return Icons.qr_code_2;
-    }
+IconData paymentMethodIcon(PaymentMethod m) {
+  switch (m) {
+    case PaymentMethod.cash:
+      return Icons.payments_outlined;
+    case PaymentMethod.card:
+      return Icons.credit_card_outlined;
+    case PaymentMethod.transfer:
+      return Icons.account_balance_outlined;
+    case PaymentMethod.digitalWallet:
+      return Icons.account_balance_wallet_outlined;
+    case PaymentMethod.nequi:
+      return Icons.qr_code_2;
   }
+}
 
-  String _name(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.cash:
-        return 'Efectivo';
-      case PaymentMethod.card:
-        return 'Tarjeta';
-      case PaymentMethod.transfer:
-        return 'Transferencia';
-      case PaymentMethod.digitalWallet:
-        return 'Digital';
-      case PaymentMethod.nequi:
-        return 'Nequi QR';
-    }
+String paymentMethodName(PaymentMethod m) {
+  switch (m) {
+    case PaymentMethod.cash:
+      return 'Efectivo';
+    case PaymentMethod.card:
+      return 'Tarjeta';
+    case PaymentMethod.transfer:
+      return 'Transferencia';
+    case PaymentMethod.digitalWallet:
+      return 'Billetera digital';
+    case PaymentMethod.nequi:
+      return 'Nequi QR';
   }
 }

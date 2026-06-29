@@ -85,11 +85,13 @@ import '../../features/subscriptions/presentation/pages/subscription_page.dart';
 import '../../features/reports/presentation/bindings/customer_report_binding.dart';
 import '../../features/reports/presentation/bindings/employee_report_binding.dart';
 import '../../features/reports/presentation/bindings/inventory_report_binding.dart';
+import '../../features/reports/presentation/bindings/product_sales_binding.dart';
 import '../../features/reports/presentation/bindings/reports_binding.dart';
 import '../../features/reports/presentation/bindings/sales_report_binding.dart';
 import '../../features/reports/presentation/pages/customer_report_page.dart';
 import '../../features/reports/presentation/pages/employee_report_page.dart';
 import '../../features/reports/presentation/pages/inventory_report_page.dart';
+import '../../features/reports/presentation/pages/product_sales_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/reports/presentation/pages/sales_report_page.dart';
 import '../../features/inventory/presentation/bindings/inventory_binding.dart';
@@ -680,6 +682,14 @@ class AppPages {
       name: AppRoutes.customerReport,
       page: () => const CustomerReportPage(),
       binding: CustomerReportBinding(),
+      middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.productSalesReport,
+      page: () => const ProductSalesPage(),
+      binding: ProductSalesBinding(),
       middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),

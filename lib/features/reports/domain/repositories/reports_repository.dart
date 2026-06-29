@@ -3,6 +3,7 @@ import '../../../../core/error/failures.dart';
 import '../entities/customer_report.dart';
 import '../entities/employee_report.dart';
 import '../entities/inventory_report.dart';
+import '../entities/product_sales_report.dart';
 import '../entities/sales_report.dart';
 
 /// Reports Repository
@@ -31,4 +32,10 @@ abstract class ReportsRepository {
 
   /// Reporte de clientes — KPIs globales + top spenders.
   Future<Either<Failure, CustomerReport>> getCustomerReport();
+
+  /// Ranking de productos más vendidos en el período indicado.
+  Future<Either<Failure, ProductSalesReport>> getProductSalesReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+  });
 }

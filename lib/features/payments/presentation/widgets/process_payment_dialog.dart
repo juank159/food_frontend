@@ -648,7 +648,7 @@ class _PreviousPaymentRow extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            _iconFor(payment.paymentMethod),
+            paymentMethodIcon(payment.paymentMethod),
             size: 18,
             color: theme.colorScheme.primary,
           ),
@@ -684,20 +684,6 @@ class _PreviousPaymentRow extends StatelessWidget {
     );
   }
 
-  IconData _iconFor(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.cash:
-        return Icons.payments_outlined;
-      case PaymentMethod.card:
-        return Icons.credit_card;
-      case PaymentMethod.transfer:
-        return Icons.account_balance;
-      case PaymentMethod.digitalWallet:
-        return Icons.account_balance_wallet_outlined;
-      case PaymentMethod.nequi:
-        return Icons.qr_code_2;
-    }
-  }
 }
 
 // ────────────────── Selección de ítems + pago directo ──────────────────

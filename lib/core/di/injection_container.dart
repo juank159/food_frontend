@@ -138,6 +138,7 @@ import '../../features/reports/domain/repositories/reports_repository.dart';
 import '../../features/reports/domain/usecases/get_customer_report_usecase.dart';
 import '../../features/reports/domain/usecases/get_employee_report_usecase.dart';
 import '../../features/reports/domain/usecases/get_inventory_report_usecase.dart';
+import '../../features/reports/domain/usecases/get_product_sales_usecase.dart';
 import '../../features/reports/domain/usecases/get_sales_report_usecase.dart';
 import '../../features/inventory/data/datasources/inventory_remote_datasource.dart';
 import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
@@ -534,6 +535,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetInventoryReportUseCase(sl()));
   sl.registerLazySingleton(() => GetEmployeeReportUseCase(sl()));
   sl.registerLazySingleton(() => GetCustomerReportUseCase(sl()));
+  sl.registerLazySingleton(() => GetProductSalesUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<ReportsRepository>(

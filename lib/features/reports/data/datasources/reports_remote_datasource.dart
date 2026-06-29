@@ -9,7 +9,9 @@ import '../../../products/data/models/product_model.dart';
 import '../models/customer_report_model.dart';
 import '../models/employee_report_model.dart';
 import '../models/inventory_report_model.dart';
+import '../models/product_sales_model.dart';
 import '../models/sales_report_model.dart';
+import '../../domain/entities/product_sales_report.dart';
 
 /// Reports Remote Data Source
 ///
@@ -41,6 +43,13 @@ abstract class ReportsRemoteDataSource {
   /// Llama a `GET /customers/statistics` y `GET /customers` en paralelo
   /// para componer el reporte combinado.
   Future<CustomerReportModel> getCustomerReport();
+
+  /// Llama a `GET /finance/product-sales` con rango de fechas y devuelve
+  /// la lista de productos más vendidos ordenada por unidades DESC.
+  Future<ProductSalesReport> getProductSalesReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+  });
 }
 
 class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
@@ -220,6 +229,34 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
           .toList();
 
       return CustomerReportModel(statistics: stats, customers: customers);
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ProductSalesReport> getProductSalesReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+  }) async {
+    try {
+      final response = await dio.get(
+        '/finance/product-sales',
+        queryParameters: {
+          'date_from': dateFrom.toUtc().toIso8601String(),
+          'date_to': dateTo.toUtc().toIso8601String(),
+        },
+      );
+      final list = _extractList(response.data);
+      final items = list
+          .whereType<Map<String, dynamic>>()
+          .toList()
+          .asMap()
+          .entries
+          .map((e) => ProductSalesItemModel.fromJson(e.value, e.key + 1).toEntity())
+          .toList();
+      return ProductSalesReport(items: items);
     } on DioException catch (e) {
       _handleDioException(e);
       rethrow;

@@ -114,6 +114,7 @@ class AppRoutes {
   static const String inventoryReport = '/reports/inventory';
   static const String employeeReport = '/reports/employees';
   static const String customerReport = '/reports/customers';
+  static const String productSalesReport = '/reports/products';
 
   // ==================== CHECKLIST (lista de compras) ====================
   static const String checklist = '/checklist';

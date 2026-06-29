@@ -278,6 +278,13 @@ class ReportsPage extends StatelessWidget {
         accent: AppColors.secondary,
         onTap: () => Get.toNamed(AppRoutes.customerReport),
       ),
+      _ReportTile(
+        title: 'Productos top',
+        subtitle: 'Ranking por unidades vendidas',
+        icon: Icons.emoji_events_outlined,
+        accent: const Color(0xFFB8860B),
+        onTap: () => Get.toNamed(AppRoutes.productSalesReport),
+      ),
     ];
     return GridView.count(
       crossAxisCount: columns,

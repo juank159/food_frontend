@@ -4,7 +4,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/input_formatters.dart';
-import '../../../../core/widgets/app_filter_chip.dart';
+import 'payment_method_selector.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
@@ -533,14 +533,14 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
       ),
       child: Row(
         children: [
-          Icon(_methodIcon(p.paymentMethod), color: theme.colorScheme.primary),
+          Icon(paymentMethodIcon(p.paymentMethod), color: theme.colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _methodName(p.paymentMethod),
+                  paymentMethodName(p.paymentMethod),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -590,20 +590,12 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
   }
 
   Widget _buildCompactMethodSelector(ThemeData theme) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: PaymentMethod.values.map((method) {
-        return AppFilterChip(
-          label: _methodName(method),
-          icon: _methodIcon(method),
-          selected: _selectedMethod == method,
-          onTap: () => setState(() {
-            _selectedMethod = method;
-            _selectedTenantAccount = null;
-          }),
-        );
-      }).toList(),
+    return PaymentMethodSelector(
+      selectedMethod: _selectedMethod,
+      onMethodSelected: (m) => setState(() {
+        _selectedMethod = m;
+        _selectedTenantAccount = null;
+      }),
     );
   }
 
@@ -670,33 +662,4 @@ class _SplitPaymentDialogState extends State<SplitPaymentDialog> {
     );
   }
 
-  IconData _methodIcon(PaymentMethod method) {
-    switch (method) {
-      case PaymentMethod.cash:
-        return Icons.payments;
-      case PaymentMethod.card:
-        return Icons.credit_card;
-      case PaymentMethod.transfer:
-        return Icons.account_balance;
-      case PaymentMethod.digitalWallet:
-        return Icons.smartphone;
-      case PaymentMethod.nequi:
-        return Icons.qr_code_2;
-    }
-  }
-
-  String _methodName(PaymentMethod method) {
-    switch (method) {
-      case PaymentMethod.cash:
-        return 'Efectivo';
-      case PaymentMethod.card:
-        return 'Tarjeta';
-      case PaymentMethod.transfer:
-        return 'Transferencia';
-      case PaymentMethod.digitalWallet:
-        return 'Digital';
-      case PaymentMethod.nequi:
-        return 'Nequi QR';
-    }
-  }
 }
