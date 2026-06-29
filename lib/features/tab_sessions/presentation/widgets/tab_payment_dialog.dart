@@ -340,7 +340,9 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
                   ? 'Cobrando...'
                   : (!cashOk
                       ? 'Abrí caja para cobrar en efectivo'
-                      : 'Cobrar restante ${CurrencyFormatter.format(_amount)}'),
+                      : (session.paidAmount > 0.01
+                          ? 'Cobrar restante ${CurrencyFormatter.format(_amount)}'
+                          : 'Procesar pago ${CurrencyFormatter.format(_amount)}')),
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             style: FilledButton.styleFrom(

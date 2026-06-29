@@ -505,7 +505,9 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                       label: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          'Cobrar restante ${CurrencyFormatter.format(s.balance)}',
+                          s.paidAmount > 0.01
+                              ? 'Cobrar restante ${CurrencyFormatter.format(s.balance)}'
+                              : 'Procesar pago ${CurrencyFormatter.format(s.balance)}',
                           maxLines: 1,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
