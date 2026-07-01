@@ -44,6 +44,20 @@ class TenantPaymentAccountModel {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'category': category,
+        if (accountNumber != null) 'account_number': accountNumber,
+        if (accountHolder != null) 'account_holder': accountHolder,
+        if (icon != null) 'icon': icon,
+        if (notes != null) 'notes': notes,
+        'is_active': isActive,
+        'sort_order': sortOrder,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
+
   TenantPaymentAccount toEntity() {
     return TenantPaymentAccount(
       id: id,

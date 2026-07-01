@@ -50,3 +50,9 @@ class NotFoundFailure extends Failure {
 class ConflictFailure extends Failure {
   const ConflictFailure([super.message = 'Resource already exists']);
 }
+
+// Offline queue failures
+class OfflineQueuedFailure extends Failure {
+  const OfflineQueuedFailure(
+      [super.message = 'Sin conexión. El pago fue guardado para enviar cuando haya red.']);
+}

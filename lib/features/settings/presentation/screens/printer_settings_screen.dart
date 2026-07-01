@@ -490,6 +490,11 @@ class _PurposeCard extends StatelessWidget {
                                     ],
                                   ),
                                 ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 5),
+                                child: _RolesBadge(
+                                    allowedRoles: printer!.allowedRoles),
+                              ),
                             ],
                           ),
                         ),
@@ -615,6 +620,8 @@ class _PrinterRow extends StatelessWidget {
                         fontSize: 11.5,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    _RolesBadge(allowedRoles: printer.allowedRoles),
                   ],
                 ),
               ),
@@ -671,6 +678,72 @@ class _PrinterRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// =====================================================================
+// Badge de roles permitidos
+// =====================================================================
+
+/// Mapa de código → etiqueta en español (igual que en _PrinterFormDialog._allRoles).
+const _roleLabels = {
+  'admin': 'Admin',
+  'manager': 'Gerente',
+  'cashier': 'Cajero',
+  'waiter': 'Mesero',
+  'bartender': 'Bartender',
+  'delivery': 'Domiciliario',
+  'kitchen': 'Cocina',
+};
+
+/// Muestra un chip compacto por cada rol que puede imprimir.
+/// Si la lista está vacía, muestra "Todos los roles".
+class _RolesBadge extends StatelessWidget {
+  final List<String> allowedRoles;
+  const _RolesBadge({required this.allowedRoles});
+
+  @override
+  Widget build(BuildContext context) {
+    if (allowedRoles.isEmpty) {
+      return Row(
+        children: [
+          Icon(Icons.groups_outlined, size: 12, color: Colors.green.shade700),
+          const SizedBox(width: 3),
+          Text(
+            'Todos los roles',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: Colors.green.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+    return Wrap(
+      spacing: 4,
+      runSpacing: 3,
+      children: allowedRoles.map((code) {
+        final label = _roleLabels[code] ?? code;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.25)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -918,50 +991,56 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
                         onChanged: (v) => setState(() => _autoPrint = v),
                       ),
                       const SizedBox(height: 14),
-                      _label('¿Quién puede imprimir?'),
+                      Row(
+                        children: [
+                          Expanded(child: _label('¿Quién puede imprimir?')),
+                          if (_allowedRoles.isNotEmpty)
+                            GestureDetector(
+                              onTap: () =>
+                                  setState(() => _allowedRoles.clear()),
+                              child: Text(
+                                'Limpiar',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
                       Text(
-                        'Vacío = todos los roles. Marcá solo los que deben imprimir.',
+                        _allowedRoles.isEmpty
+                            ? 'Vacío = todos los roles pueden imprimir.'
+                            : 'Solo los roles marcados pueden imprimir con esta impresora.',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey.shade600,
+                          color: _allowedRoles.isEmpty
+                              ? Colors.green.shade700
+                              : AppColors.primary,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
-                        spacing: 6,
+                        spacing: 0,
                         runSpacing: 6,
                         children: _allRoles.map(((String, String) role) {
                           final code = role.$1;
                           final label = role.$2;
                           final selected = _allowedRoles.contains(code);
-                          return FilterChip(
-                            label: Text(label,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                )),
+                          return AppFilterChip(
+                            label: label,
                             selected: selected,
-                            selectedColor: AppColors.primary,
-                            checkmarkColor: Colors.white,
-                            backgroundColor: AppColors.background,
-                            side: BorderSide(
-                              color: selected
-                                  ? AppColors.primary
-                                  : Colors.grey.shade300,
-                            ),
-                            showCheckmark: false,
-                            avatar: selected
-                                ? const Icon(Icons.check_circle,
-                                    size: 14, color: Colors.white)
-                                : const Icon(Icons.radio_button_unchecked,
-                                    size: 14, color: Colors.grey),
-                            onSelected: (v) => setState(() {
-                              if (v) {
-                                _allowedRoles.add(code);
-                              } else {
+                            icon: selected
+                                ? Icons.check
+                                : Icons.radio_button_unchecked,
+                            onTap: () => setState(() {
+                              if (selected) {
                                 _allowedRoles.remove(code);
+                              } else {
+                                _allowedRoles.add(code);
                               }
                             }),
                           );

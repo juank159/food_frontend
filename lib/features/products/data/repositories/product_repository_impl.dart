@@ -8,15 +8,18 @@ import '../../domain/entities/product_variant.dart';
 import '../../domain/entities/modifier.dart';
 import '../../domain/entities/modifier_group.dart';
 import '../../domain/repositories/product_repository.dart';
+import '../datasources/product_local_datasource.dart';
 import '../datasources/product_remote_datasource.dart';
 
 /// Product Repository Implementation
 class ProductRepositoryImpl implements ProductRepository {
   final ProductRemoteDataSource remoteDataSource;
+  final ProductLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   ProductRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -39,6 +42,18 @@ class ProductRepositoryImpl implements ProductRepository {
           page: page,
           limit: limit,
         );
+        // Cache the full unfiltered list only when no filters are applied,
+        // so the cache represents the complete catalog.
+        if (categoryId == null &&
+            isAvailable == null &&
+            search == null &&
+            (tags == null || tags.isEmpty) &&
+            page == null &&
+            limit == null) {
+          await localDataSource.cacheProducts(
+            result.map((m) => m.toJson()).toList(),
+          );
+        }
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -50,6 +65,8 @@ class ProductRepositoryImpl implements ProductRepository {
         return Left(ServerFailure('Unexpected error: ${e.toString()}'));
       }
     } else {
+      final cached = await localDataSource.getCachedProducts();
+      if (cached != null) return Right(cached.map((m) => m.toEntity()).toList());
       return const Left(NetworkFailure());
     }
   }
@@ -72,6 +89,8 @@ class ProductRepositoryImpl implements ProductRepository {
         return Left(ServerFailure('Unexpected error: ${e.toString()}'));
       }
     } else {
+      final cached = await localDataSource.getCachedProductById(id);
+      if (cached != null) return Right(cached.toEntity());
       return const Left(NetworkFailure());
     }
   }
@@ -81,6 +100,9 @@ class ProductRepositoryImpl implements ProductRepository {
     if (await networkInfo.isConnected) {
       try {
         final result = await remoteDataSource.getAvailableProducts();
+        await localDataSource.cacheProducts(
+          result.map((m) => m.toJson()).toList(),
+        );
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -92,6 +114,11 @@ class ProductRepositoryImpl implements ProductRepository {
         return Left(ServerFailure('Unexpected error: ${e.toString()}'));
       }
     } else {
+      final cached = await localDataSource.getCachedProducts();
+      if (cached != null) {
+        final available = cached.where((m) => m.isAvailable).toList();
+        return Right(available.map((m) => m.toEntity()).toList());
+      }
       return const Left(NetworkFailure());
     }
   }

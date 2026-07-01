@@ -32,6 +32,9 @@ enum PrintResult {
   /// No hay impresora default configurada para ese propósito.
   noPrinterConfigured,
 
+  /// La impresora está configurada pero el rol del usuario no tiene permiso.
+  roleNotAllowed,
+
   /// La impresora respondió pero el envío falló (red caída, etc.).
   printerError,
 
@@ -246,7 +249,7 @@ class PrintingOrchestrator {
   }) async {
     final printer = await _resolveDefault(PrinterPurpose.kitchen);
     if (printer == null) return PrintResult.noPrinterConfigured;
-    if (!_userCanPrint(printer)) return PrintResult.noPrinterConfigured;
+    if (!_userCanPrint(printer)) return PrintResult.roleNotAllowed;
 
     if (!printer.autoPrint) {
       // Preguntar antes de imprimir
@@ -274,7 +277,7 @@ class PrintingOrchestrator {
     }
     if (!_userCanPrint(printer)) {
       AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
-      return PrintResult.noPrinterConfigured;
+      return PrintResult.roleNotAllowed;
     }
     return _runPrintJob(
       kind: PrintJobKind.kitchen,
@@ -293,7 +296,7 @@ class PrintingOrchestrator {
   }) async {
     final printer = await _resolveDefault(PrinterPurpose.receipt);
     if (printer == null) return PrintResult.noPrinterConfigured;
-    if (!_userCanPrint(printer)) return PrintResult.noPrinterConfigured;
+    if (!_userCanPrint(printer)) return PrintResult.roleNotAllowed;
 
     if (!printer.autoPrint) {
       // Preguntar antes de imprimir la factura
@@ -321,7 +324,7 @@ class PrintingOrchestrator {
     }
     if (!_userCanPrint(printer)) {
       AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
-      return PrintResult.noPrinterConfigured;
+      return PrintResult.roleNotAllowed;
     }
     return _runPrintJob(
       kind: PrintJobKind.receipt,
@@ -555,6 +558,10 @@ class PrintingOrchestrator {
     if (printer == null) {
       _snackNoDefault('cuenta', PrinterPurpose.receipt);
       return PrintResult.noPrinterConfigured;
+    }
+    if (!_userCanPrint(printer)) {
+      AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
+      return PrintResult.roleNotAllowed;
     }
 
     // Parsear órdenes crudas del tab, excluir canceladas

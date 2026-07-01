@@ -5,16 +5,19 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/payment.dart';
 import '../../domain/repositories/payment_repository.dart';
+import '../datasources/payment_local_datasource.dart';
 import '../datasources/payment_remote_datasource.dart';
 
 /// Payment Repository Implementation
 /// Implementación concreta del repositorio de pagos
 class PaymentRepositoryImpl implements PaymentRepository {
   final PaymentRemoteDataSource remoteDataSource;
+  final PaymentLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   PaymentRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -88,7 +91,20 @@ class PaymentRepositoryImpl implements PaymentRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
-      return const Left(NetworkFailure());
+      // Sin red: encolar el DTO para reintentar cuando haya conexión
+      final dto = <String, dynamic>{
+        'type': 'processOrderPayment',
+        'order_id': orderId,
+        'payment_method': paymentMethod.value,
+        if (receivedAmount != null) 'received_amount': receivedAmount,
+        if (transactionReference != null)
+          'transaction_reference': transactionReference,
+        if (notes != null) 'notes': notes,
+        if (tenantPaymentAccountId != null)
+          'tenant_payment_account_id': tenantPaymentAccountId,
+      };
+      await localDataSource.enqueuePayment(dto);
+      return const Left(OfflineQueuedFailure());
     }
   }
 
@@ -154,7 +170,21 @@ class PaymentRepositoryImpl implements PaymentRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
-      return const Left(NetworkFailure());
+      // Sin red: encolar el DTO para reintentar cuando haya conexión
+      final dto = <String, dynamic>{
+        'type': 'processTabPayment',
+        'tab_session_id': tabSessionId,
+        'amount': amount,
+        'payment_method': paymentMethod.value,
+        if (tenantPaymentAccountId != null)
+          'tenant_payment_account_id': tenantPaymentAccountId,
+        if (receivedAmount != null) 'received_amount': receivedAmount,
+        if (transactionReference != null)
+          'transaction_reference': transactionReference,
+        if (notes != null) 'notes': notes,
+      };
+      await localDataSource.enqueuePayment(dto);
+      return const Left(OfflineQueuedFailure());
     }
   }
 

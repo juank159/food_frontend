@@ -158,6 +158,19 @@ import '../../features/reservations/domain/usecases/update_reservation_status_us
 import '../../features/reservations/domain/usecases/update_reservation_usecase.dart';
 import '../config/constants/api_constants.dart';
 import '../network/network_info.dart';
+import '../services/app_sync_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/local_cache_service.dart';
+import '../services/offline_queue_service.dart';
+import '../services/sync_handlers.dart';
+import '../../features/products/data/datasources/product_local_datasource.dart';
+import '../../features/categories/data/datasources/category_local_datasource.dart';
+import '../../features/employees/data/datasources/employee_local_datasource.dart';
+import '../../features/customers/data/datasources/customer_local_datasource.dart';
+import '../../features/printer_configs/data/printer_configs_local_datasource.dart';
+import '../../features/orders/data/datasources/order_local_datasource.dart';
+import '../../features/payments/data/datasources/payment_local_datasource.dart';
+import '../../features/tenant_payment_accounts/data/datasources/tenant_payment_account_local_datasource.dart';
 
 final sl = GetIt.instance;
 
@@ -228,6 +241,7 @@ Future<void> init() async {
   sl.registerLazySingleton<ProductRepository>(
     () => ProductRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -253,6 +267,7 @@ Future<void> init() async {
   sl.registerLazySingleton<CategoryRepository>(
     () => CategoryRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -281,6 +296,7 @@ Future<void> init() async {
   sl.registerLazySingleton<CustomerRepository>(
     () => CustomerRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -308,6 +324,7 @@ Future<void> init() async {
   sl.registerLazySingleton<EmployeeRepository>(
     () => EmployeeRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -334,6 +351,7 @@ Future<void> init() async {
   sl.registerLazySingleton<OrderRepository>(
     () => OrderRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -423,6 +441,7 @@ Future<void> init() async {
   sl.registerLazySingleton<PaymentRepository>(
     () => PaymentRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
@@ -495,11 +514,15 @@ Future<void> init() async {
   sl.registerLazySingleton<TenantPaymentAccountRepository>(
     () => TenantPaymentAccountRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
   sl.registerLazySingleton<TenantPaymentAccountRemoteDataSource>(
     () => TenantPaymentAccountRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<TenantPaymentAccountLocalDataSource>(
+    () => TenantPaymentAccountLocalDataSourceImpl(cache: sl()),
   );
 
   // ========================================
@@ -596,6 +619,54 @@ Future<void> init() async {
   // Data Source
   sl.registerLazySingleton<ReservationRemoteDataSource>(
     () => ReservationRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // ========================================
+  // Core — Offline infrastructure
+  // ========================================
+
+  // Local cache (Hive wrapper)
+  final localCache = LocalCacheService();
+  await localCache.init();
+  sl.registerLazySingleton<LocalCacheService>(() => localCache);
+
+  // Offline queue (Hive-backed outbox)
+  final offlineQueue = OfflineQueueService();
+  await offlineQueue.init();
+  sl.registerLazySingleton<OfflineQueueService>(() => offlineQueue);
+
+  // Sync service (processes queue on reconnect) — permanent GetX controller
+  final syncService = AppSyncService(queue: offlineQueue);
+  Get.put<AppSyncService>(syncService, permanent: true);
+  sl.registerLazySingleton<AppSyncService>(() => syncService);
+
+  // Connectivity service — permanent stream of online/offline state
+  Get.put<ConnectivityService>(ConnectivityService(), permanent: true);
+
+  // ========================================
+  // Local datasources (require LocalCacheService / OfflineQueueService)
+  // ========================================
+
+  sl.registerLazySingleton<ProductLocalDataSource>(
+    () => ProductLocalDataSourceImpl(cache: sl()),
+  );
+  sl.registerLazySingleton<CategoryLocalDataSource>(
+    () => CategoryLocalDataSourceImpl(cache: sl()),
+  );
+  sl.registerLazySingleton<EmployeeLocalDataSource>(
+    () => EmployeeLocalDataSourceImpl(cache: sl()),
+  );
+  sl.registerLazySingleton<CustomerLocalDataSource>(
+    () => CustomerLocalDataSourceImpl(cache: sl()),
+  );
+  sl.registerLazySingleton<PrinterConfigsLocalDataSource>(
+    () => PrinterConfigsLocalDataSourceImpl(cache: sl()),
+  );
+  sl.registerLazySingleton<OrderLocalDataSource>(
+    () => OrderLocalDataSourceImpl(cache: sl(), queue: sl()),
+  );
+  sl.registerLazySingleton<PaymentLocalDataSource>(
+    () => PaymentLocalDataSourceImpl(queue: sl()),
   );
 
   // ========================================
@@ -815,4 +886,8 @@ Future<void> init() async {
   if (!kIsWeb) {
     sl.registerLazySingleton(() => InternetConnectionChecker());
   }
+
+  // Register sync handlers so the queue processor knows how to replay
+  // offline orders and payments when internet reconnects.
+  SyncHandlers.register();
 }

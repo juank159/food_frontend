@@ -4,16 +4,19 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/repositories/category_repository.dart';
+import '../datasources/category_local_datasource.dart';
 import '../datasources/category_remote_datasource.dart';
 
 /// Category Repository Implementation
-/// Implementación concreta del repositorio de categorías
+/// Implementación concreta del repositorio de categorías con soporte offline-first.
 class CategoryRepositoryImpl implements CategoryRepository {
   final CategoryRemoteDataSource remoteDataSource;
+  final CategoryLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   CategoryRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -32,6 +35,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
           page: page,
           limit: limit,
         );
+        // Cache only unfiltered full-list fetches so the cache stays coherent.
+        if (isActive == null && search == null && page == null && limit == null) {
+          await localDataSource.cacheCategories(
+            result.map((m) => m.toJson()).toList(),
+          );
+        }
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -45,6 +54,10 @@ class CategoryRepositoryImpl implements CategoryRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
+      final cached = await localDataSource.getCachedCategories();
+      if (cached != null) {
+        return Right(cached.map((m) => m.toEntity()).toList());
+      }
       return const Left(NetworkFailure());
     }
   }
@@ -58,6 +71,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
         final result = await remoteDataSource.getCategoryTree(
           isActive: isActive,
         );
+        // Cache the tree when no filter is applied.
+        if (isActive == null) {
+          await localDataSource.cacheCategories(
+            result.map((m) => m.toJson()).toList(),
+          );
+        }
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -69,6 +88,10 @@ class CategoryRepositoryImpl implements CategoryRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
+      final cached = await localDataSource.getCachedCategories();
+      if (cached != null) {
+        return Right(cached.map((m) => m.toEntity()).toList());
+      }
       return const Left(NetworkFailure());
     }
   }
@@ -78,6 +101,9 @@ class CategoryRepositoryImpl implements CategoryRepository {
     if (await networkInfo.isConnected) {
       try {
         final result = await remoteDataSource.getActiveCategories();
+        await localDataSource.cacheCategories(
+          result.map((m) => m.toJson()).toList(),
+        );
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -89,6 +115,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
+      final cached = await localDataSource.getCachedCategories();
+      if (cached != null) {
+        // Filter locally to active-only, mirroring the remote call semantics.
+        final active = cached.where((m) => m.isActive).toList();
+        return Right(active.map((m) => m.toEntity()).toList());
+      }
       return const Left(NetworkFailure());
     }
   }
@@ -181,6 +213,10 @@ class CategoryRepositoryImpl implements CategoryRepository {
       return const Left(NetworkFailure());
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Write operations — always require connectivity
+  // -------------------------------------------------------------------------
 
   @override
   Future<Either<Failure, Category>> createCategory({

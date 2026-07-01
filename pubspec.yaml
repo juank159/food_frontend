@@ -61,6 +61,9 @@ dependencies:
   # Shared Preferences
   shared_preferences: ^2.2.2
 
+  # Local Database (offline-first cache + outbox queue)
+  hive_flutter: ^1.1.0
+
   # Icons
   cupertino_icons: ^1.0.8
   font_awesome_flutter: ^10.6.0

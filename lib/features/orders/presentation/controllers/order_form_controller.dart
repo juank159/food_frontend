@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart' show Color;
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/config/constants/order_enums.dart';
@@ -916,19 +917,26 @@ class OrderFormController extends GetxController {
 
       if (foldFailure != null) {
         String message = 'Error al crear la orden';
-        if (foldFailure is ValidationFailure) {
+        bool isOfflineQueued = false;
+        if (foldFailure is OfflineQueuedFailure) {
+          message =
+              'Sin conexión. La orden se guardó offline y se enviará al conectarse.';
+          isOfflineQueued = true;
+        } else if (foldFailure is ValidationFailure) {
           message = (foldFailure as ValidationFailure).message;
         } else if (foldFailure is NetworkFailure) {
-          message = 'Error de conexión. Verifica tu internet.';
+          message = 'Sin conexión. Verifica tu internet e intenta de nuevo.';
         } else if (foldFailure is ServerFailure) {
           message = 'Error del servidor. Intenta nuevamente.';
         }
         errorMessage.value = message;
         AppSnackbar.show(
-          'Error',
+          isOfflineQueued ? 'Guardado offline' : 'Error',
           message,
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Get.theme.colorScheme.error,
+          backgroundColor: isOfflineQueued
+              ? const Color(0xFF1565C0)
+              : Get.theme.colorScheme.error,
           colorText: Get.theme.colorScheme.onError,
           duration: const Duration(seconds: 5),
         );

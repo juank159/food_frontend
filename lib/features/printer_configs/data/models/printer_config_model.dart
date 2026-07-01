@@ -84,6 +84,21 @@ class PrinterConfigModel {
     return purpose == target || purpose == PrinterPurpose.both;
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'purpose': purpose.apiValue,
+        'connection_type': connectionType.apiValue,
+        'host': host,
+        'port': port,
+        'paper_width': paperWidth,
+        'is_default': isDefault,
+        'auto_print': autoPrint,
+        'is_active': isActive,
+        'notes': notes,
+        'allowed_roles': allowedRoles.isEmpty ? null : allowedRoles.join(','),
+      };
+
   factory PrinterConfigModel.fromJson(Map<String, dynamic> json) {
     final rawRoles = json['allowed_roles'] as String?;
     final roles = (rawRoles != null && rawRoles.trim().isNotEmpty)

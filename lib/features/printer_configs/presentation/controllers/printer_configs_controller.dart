@@ -3,14 +3,19 @@ import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../data/models/printer_config_model.dart';
+import '../../data/printer_configs_local_datasource.dart';
 import '../../data/printer_configs_remote_datasource.dart';
 import '../../data/printer_dispatcher.dart';
 
 class PrinterConfigsController extends GetxController {
-  PrinterConfigsController({PrinterConfigsRemoteDataSource? dataSource})
-      : _ds = dataSource ?? sl<PrinterConfigsRemoteDataSource>();
+  PrinterConfigsController({
+    PrinterConfigsRemoteDataSource? dataSource,
+    PrinterConfigsLocalDataSource? localDataSource,
+  })  : _ds = dataSource ?? sl<PrinterConfigsRemoteDataSource>(),
+        _local = localDataSource ?? sl<PrinterConfigsLocalDataSource>();
 
   final PrinterConfigsRemoteDataSource _ds;
+  final PrinterConfigsLocalDataSource _local;
 
   final RxList<PrinterConfigModel> printers = <PrinterConfigModel>[].obs;
   final RxBool loading = false.obs;
@@ -45,8 +50,17 @@ class PrinterConfigsController extends GetxController {
     try {
       final list = await _ds.list();
       printers.assignAll(list);
+      // Persist to local cache so configs survive app restart when offline.
+      await _local.cachePrinterConfigs(list.map((p) => p.toJson()).toList());
     } catch (e) {
-      error.value = e.toString();
+      // Network or server failure — try local cache before surfacing error.
+      final cached = await _local.getCachedPrinterConfigs();
+      if (cached != null && cached.isNotEmpty) {
+        printers.assignAll(cached);
+        // Don't expose an error to the UI; silent fallback.
+      } else {
+        error.value = e.toString();
+      }
     } finally {
       loading.value = false;
     }

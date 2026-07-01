@@ -106,6 +106,38 @@ class EmployeeModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'full_name': fullName,
+      'phone': phone,
+      'avatar_url': avatarUrl,
+      'status': status,
+      'last_login': lastLogin?.toIso8601String(),
+      'employee_code': employeeCode,
+      'hire_date': hireDate?.toIso8601String(),
+      'salary': salary,
+      'notes': notes,
+      'role_id': roleId,
+      'role': role == null
+          ? null
+          : {
+              'id': role!.id,
+              'name': role!.name,
+              'code': role!.code,
+              'description': role!.description,
+              'is_active': role!.isActive,
+              'is_system': role!.isSystem,
+            },
+      'total_orders_handled': totalOrdersHandled,
+      'total_sales_amount': totalSalesAmount,
+      'average_service_rating': averageServiceRating,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
   Employee toEntity() {
     return Employee(
       id: id,

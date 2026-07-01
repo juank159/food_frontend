@@ -16,6 +16,7 @@ import 'delivery_dashboard.dart';
 import 'kitchen_dashboard.dart';
 import '../../../../core/utils/app_dialog.dart';
 import '../../../../core/utils/ui_access.dart';
+import '../../../../core/widgets/widgets.dart';
 
 /// Home Screen - Pantalla principal con navegación inferior.
 ///
@@ -41,9 +42,16 @@ class HomeScreen extends GetView<HomeController> {
       final safeIndex =
           controller.currentIndex.clamp(0, tabs.length - 1);
       return Scaffold(
-        body: IndexedStack(
-          index: safeIndex,
-          children: tabs.map((t) => t.body).toList(),
+        body: Column(
+          children: [
+            const OfflineBanner(),
+            Expanded(
+              child: IndexedStack(
+                index: safeIndex,
+                children: tabs.map((t) => t.body).toList(),
+              ),
+            ),
+          ],
         ),
         bottomNavigationBar:
             _buildBottomNavigationBar(safeIndex: safeIndex, tabs: tabs),

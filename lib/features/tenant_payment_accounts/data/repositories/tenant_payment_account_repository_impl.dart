@@ -5,15 +5,19 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/tenant_payment_account.dart';
 import '../../domain/repositories/tenant_payment_account_repository.dart';
+import '../datasources/tenant_payment_account_local_datasource.dart';
 import '../datasources/tenant_payment_account_remote_datasource.dart';
+import '../models/tenant_payment_account_model.dart';
 
 class TenantPaymentAccountRepositoryImpl
     implements TenantPaymentAccountRepository {
   final TenantPaymentAccountRemoteDataSource remoteDataSource;
+  final TenantPaymentAccountLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   TenantPaymentAccountRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -41,11 +45,26 @@ class TenantPaymentAccountRepositoryImpl
   Future<Either<Failure, List<TenantPaymentAccount>>> getAll({
     PaymentMethod? category,
     bool? onlyActive,
-  }) {
+  }) async {
+    final isConnected = await networkInfo.isConnected;
+    if (!isConnected) {
+      final cached = await localDataSource.getCachedAccounts();
+      if (cached != null) {
+        final entities = cached
+            .whereType<Map<String, dynamic>>()
+            .map((e) => TenantPaymentAccountModel.fromJson(e).toEntity())
+            .toList();
+        return Right(entities);
+      }
+      return const Left(NetworkFailure());
+    }
     return _run(() async {
       final models = await remoteDataSource.getAll(
         category: category,
         onlyActive: onlyActive,
+      );
+      await localDataSource.cacheAccounts(
+        models.map((m) => m.toJson()).toList(),
       );
       return models.map((m) => m.toEntity()).toList();
     });

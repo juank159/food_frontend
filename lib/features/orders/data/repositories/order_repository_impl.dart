@@ -5,16 +5,19 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/repositories/order_repository.dart';
+import '../datasources/order_local_datasource.dart';
 import '../datasources/order_remote_datasource.dart';
 
 /// Order Repository Implementation
 /// Implementación concreta del repositorio de órdenes
 class OrderRepositoryImpl implements OrderRepository {
   final OrderRemoteDataSource remoteDataSource;
+  final OrderLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   OrderRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -41,6 +44,19 @@ class OrderRepositoryImpl implements OrderRepository {
           page: page,
           limit: limit,
         );
+        // Cache the raw list for offline viewing.
+        // Only cache when no filters are applied so the cache represents
+        // the full recent list (filtering is done client-side anyway).
+        if (status == null &&
+            orderType == null &&
+            tableId == null &&
+            customerId == null &&
+            startDate == null &&
+            endDate == null) {
+          await localDataSource.cacheOrders(
+            result.map((m) => m.toJson()).toList(),
+          );
+        }
         return Right(result.map((model) => model.toEntity()).toList());
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
@@ -54,6 +70,11 @@ class OrderRepositoryImpl implements OrderRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
+      // Offline: serve from cache if available
+      final cached = await localDataSource.getCachedOrders();
+      if (cached != null) {
+        return Right(cached.map((m) => m.toEntity()).toList());
+      }
       return const Left(NetworkFailure());
     }
   }
@@ -204,44 +225,38 @@ class OrderRepositoryImpl implements OrderRepository {
     int? estimatedTime,
     Map<String, dynamic>? metadata,
   }) async {
+    final orderData = <String, dynamic>{
+      'order_type': orderType.value,
+      'order_source': orderSource.value,
+      'items': items,
+      'discount_amount': discountAmount,
+      'delivery_fee': deliveryFee,
+      'tip_amount': tipAmount,
+    };
+
+    if (tableId != null) orderData['table_id'] = tableId;
+    if (tableElementId != null) orderData['table_element_id'] = tableElementId;
+    if (tableLabel != null) orderData['table_label'] = tableLabel;
+    if (tabSessionId != null) orderData['tab_session_id'] = tabSessionId;
+    if (customerId != null) orderData['customer_id'] = customerId;
+    if (customerName != null) orderData['customer_name'] = customerName;
+    if (customerPhone != null) orderData['customer_phone'] = customerPhone;
+    if (customerEmail != null) orderData['customer_email'] = customerEmail;
+    if (deliveryAddress != null) orderData['delivery_address'] = deliveryAddress;
+    if (assignedTo != null) orderData['assigned_to'] = assignedTo;
+    if (specialInstructions != null) {
+      orderData['special_instructions'] = specialInstructions;
+    }
+    if (discountPercentage != null) {
+      orderData['discount_percentage'] = discountPercentage;
+    }
+    if (taxAmount != null) orderData['tax_amount'] = taxAmount;
+    if (paymentMethod != null) orderData['payment_method'] = paymentMethod.value;
+    if (estimatedTime != null) orderData['estimated_time'] = estimatedTime;
+    if (metadata != null) orderData['metadata'] = metadata;
+
     if (await networkInfo.isConnected) {
       try {
-        final orderData = <String, dynamic>{
-          'order_type': orderType.value,
-          'order_source': orderSource.value,
-          'items': items,
-          'discount_amount': discountAmount,
-          'delivery_fee': deliveryFee,
-          'tip_amount': tipAmount,
-        };
-
-        if (tableId != null) orderData['table_id'] = tableId;
-        if (tableElementId != null) orderData['table_element_id'] = tableElementId;
-        if (tableLabel != null) orderData['table_label'] = tableLabel;
-        if (tabSessionId != null) orderData['tab_session_id'] = tabSessionId;
-        if (customerId != null) orderData['customer_id'] = customerId;
-        if (customerName != null) orderData['customer_name'] = customerName;
-        if (customerPhone != null) orderData['customer_phone'] = customerPhone;
-        if (customerEmail != null) orderData['customer_email'] = customerEmail;
-        if (deliveryAddress != null) {
-          orderData['delivery_address'] = deliveryAddress;
-        }
-        if (assignedTo != null) orderData['assigned_to'] = assignedTo;
-        if (specialInstructions != null) {
-          orderData['special_instructions'] = specialInstructions;
-        }
-        if (discountPercentage != null) {
-          orderData['discount_percentage'] = discountPercentage;
-        }
-        if (taxAmount != null) orderData['tax_amount'] = taxAmount;
-        if (paymentMethod != null) {
-          orderData['payment_method'] = paymentMethod.value;
-        }
-        if (estimatedTime != null) {
-          orderData['estimated_time'] = estimatedTime;
-        }
-        if (metadata != null) orderData['metadata'] = metadata;
-
         final result = await remoteDataSource.createOrder(orderData);
         return Right(result.toEntity());
       } on UnauthorizedException {
@@ -254,7 +269,9 @@ class OrderRepositoryImpl implements OrderRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
-      return const Left(NetworkFailure());
+      // Offline: enqueue for later sync
+      await localDataSource.enqueueCreateOrder(orderData);
+      return const Left(OfflineQueuedFailure());
     }
   }
 
@@ -279,7 +296,10 @@ class OrderRepositoryImpl implements OrderRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
-      return const Left(NetworkFailure());
+      // Status changes require connectivity — cannot queue reliably
+      return const Left(NetworkFailure(
+        'Sin conexión. Los cambios de estado requieren internet.',
+      ));
     }
   }
 
