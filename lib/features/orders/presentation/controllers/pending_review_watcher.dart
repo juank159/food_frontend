@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../../core/di/injection_container.dart';
-import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/app_dialog.dart';
 import '../../data/datasources/order_remote_datasource.dart';
 
 /// **Servicio singleton** que vigila la cola de self-orders pendientes
@@ -131,19 +133,80 @@ class PendingReviewWatcher extends GetxService {
   }
 
   void _notifyArrivals(int n) {
-    // Feedback físico (vibración / pop según OS).
-    HapticFeedback.heavyImpact();
-    // Sonido nativo del sistema — funciona sin packages adicionales,
-    // respeta volumen del usuario, no requiere asset.
-    SystemSound.play(SystemSoundType.alert);
+    // Ráfagas de vibración + sonido repetidas mientras el dialog está abierto.
+    // Se cancelan cuando el usuario toca cualquier botón.
+    int vibeCount = 0;
+    Timer? vibeTimer;
 
-    AppSnackbar.show(
-      n == 1 ? 'Nuevo pedido por QR' : '$n pedidos nuevos por QR',
-      n == 1
-          ? 'Un cliente envió su pedido. Tocá para aprobarlo.'
-          : '$n clientes esperan aprobación.',
-      duration: const Duration(seconds: 5),
-    );
+    void buzz() {
+      HapticFeedback.heavyImpact();
+      SystemSound.play(SystemSoundType.alert);
+      vibeCount++;
+      if (vibeCount >= 12) vibeTimer?.cancel();
+    }
+
+    buzz(); // primera ráfaga inmediata
+    vibeTimer =
+        Timer.periodic(const Duration(milliseconds: 700), (_) => buzz());
+
+    final title = n == 1 ? '¡Nuevo pedido QR!' : '¡$n pedidos nuevos QR!';
+    final body = n == 1
+        ? 'Un cliente envió su pedido desde el menú QR.\nAprobalo para enviarlo a cocina.'
+        : '$n clientes están esperando aprobación desde el menú QR.';
+
+    AppDialog.show<void>(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.notifications_active,
+                  color: Colors.red.shade700, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(body, style: const TextStyle(fontSize: 15)),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          OutlinedButton(
+            onPressed: () {
+              vibeTimer?.cancel();
+              Get.back();
+            },
+            child: const Text('Ahora no'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Ver pedidos'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            onPressed: () {
+              vibeTimer?.cancel();
+              Get.back();
+              Get.toNamed(AppRoutes.pendingReviewOrders);
+            },
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    ).then((_) => vibeTimer?.cancel());
   }
 
   @override
