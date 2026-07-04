@@ -33,7 +33,7 @@ class CategoryModel {
   final String? parentId;
   @JsonKey(name: 'prints_kitchen')
   final bool printsKitchen;
-  @JsonKey(name: 'quick_notes')
+  @JsonKey(name: 'quick_notes', fromJson: _quickNotesFromJson)
   final List<String>? quickNotes;
   @JsonKey(name: 'flavor_label')
   final String? flavorLabel;
@@ -110,6 +110,12 @@ class CategoryModel {
 
   /// Serialización a JSON
   Map<String, dynamic> toJson() => _$CategoryModelToJson(this);
+}
+
+// El backend puede mandar quick_notes como [] o como {} (Map vacío).
+List<String> _quickNotesFromJson(dynamic value) {
+  if (value is List) return value.map((e) => e.toString()).toList();
+  return const [];
 }
 
 /// Lee `subcategories` o `children` del JSON, lo que esté disponible.

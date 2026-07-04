@@ -1004,6 +1004,18 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   bool _flavorsLoading = false;
   List<String?> _selectedFlavors = [];
 
+  // Combos staged para batch (solo heladería con scoops)
+  final List<_CartItemEntry> _pendingCombos = [];
+
+  bool get _currentFlavorsComplete =>
+      _scoopCount > 0 &&
+      _selectedFlavors.isNotEmpty &&
+      _selectedFlavors.every((f) => f != null);
+  bool get _currentFlavorsPartial =>
+      _scoopCount > 0 &&
+      _selectedFlavors.any((f) => f != null) &&
+      _selectedFlavors.any((f) => f == null);
+
   int get _scoopCount => _selectedVariant?.scoopCount ?? 0;
 
   static const _defaultQuickTags = [
@@ -1044,6 +1056,42 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       _selectedFlavors = List<String?>.filled(n, null);
     }
   }
+
+  void _stageCurrentCombo() {
+    if (widget.product.hasVariants && _selectedVariant == null) {
+      AppSnackbar.show('Variante requerida', 'Selecciona una variante primero');
+      return;
+    }
+    final label = widget.categoryFlavorLabel ?? 'Cremas';
+    if (_selectedFlavors.any((f) => f == null)) {
+      AppSnackbar.show('Elegí las $label', 'Selecciona todas las $label del combo.');
+      return;
+    }
+    final flavorIds = <String>[];
+    final flavorNames = <String>[];
+    for (final id in _selectedFlavors) {
+      if (id == null) continue;
+      flavorIds.add(id);
+      flavorNames.add(_flavors.firstWhere((f) => f.id == id).name);
+    }
+    final note = _singleNoteCtrl.text.trim();
+    final modifiers = _modifierKey.currentState?.getSelectedModifiers();
+    setState(() {
+      _pendingCombos.add(_CartItemEntry(
+        quantity: _quantity,
+        variant: _selectedVariant,
+        modifiers: modifiers,
+        note: note.isEmpty ? null : note,
+        flavorIds: flavorIds,
+        flavorNames: flavorNames,
+      ));
+      _selectedFlavors = List<String?>.filled(_scoopCount, null);
+      _quantity = 1;
+      _singleNoteCtrl.clear();
+    });
+  }
+
+  void _removeCombo(int index) => setState(() => _pendingCombos.removeAt(index));
 
   void _setQty(int v) {
     setState(() {
@@ -1213,6 +1261,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                   // Cremas heladería
                   if (_scoopCount > 0) ...[
                     _buildFlavorSelector(theme),
+                    if (_pendingCombos.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _buildPendingCombosSection(theme),
+                    ],
                     const SizedBox(height: 16),
                   ],
 
@@ -1256,6 +1308,13 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
             onDecrement: _quantity > 1 ? () => _setQty(_quantity - 1) : null,
             onIncrement: () => _setQty(_quantity + 1),
             onAdd: _handleAdd,
+            addLabel: _pendingCombos.isEmpty
+                ? null
+                : () {
+                    final n = _pendingCombos.length +
+                        (_currentFlavorsComplete ? 1 : 0);
+                    return 'Agregar $n combo${n == 1 ? '' : 's'} al carrito';
+                  }(),
           ),
         ],
       ),
@@ -1263,6 +1322,49 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   }
 
   void _handleAdd() {
+    // ── MODO BATCH HELADERÍA: hay combos staged ──
+    if (_scoopCount > 0 && _pendingCombos.isNotEmpty) {
+      if (_currentFlavorsPartial) {
+        final label = widget.categoryFlavorLabel ?? 'Cremas';
+        AppSnackbar.show(
+          'Combo incompleto',
+          'Completa las $label o déjalas en blanco para confirmar los ${_pendingCombos.length} guardados.',
+        );
+        return;
+      }
+      if (_currentFlavorsComplete) {
+        if (widget.product.hasVariants && _selectedVariant == null) {
+          AppSnackbar.show('Variante requerida', 'Selecciona la variante del combo actual.');
+          return;
+        }
+        final flavorIds = <String>[];
+        final flavorNames = <String>[];
+        for (final id in _selectedFlavors) {
+          if (id == null) continue;
+          flavorIds.add(id);
+          flavorNames.add(_flavors.firstWhere((f) => f.id == id).name);
+        }
+        final modifiers = _modifierKey.currentState?.getSelectedModifiers();
+        final note = _singleNoteCtrl.text.trim();
+        widget.onAddItems([
+          ..._pendingCombos,
+          _CartItemEntry(
+            quantity: _quantity,
+            variant: _selectedVariant,
+            modifiers: modifiers,
+            note: note.isEmpty ? null : note,
+            flavorIds: flavorIds,
+            flavorNames: flavorNames,
+          ),
+        ]);
+      } else {
+        // Todos los sabores en null (form limpio tras staging) → solo pending
+        widget.onAddItems([..._pendingCombos]);
+      }
+      return;
+    }
+
+    // ── FLUJO NORMAL ──
     if (widget.product.hasVariants) {
       final ok = _variantKey.currentState?.validate() ?? true;
       if (!ok || _selectedVariant == null) {
@@ -1300,13 +1402,11 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       for (final id in _selectedFlavors) {
         if (id == null) continue;
         flavorIds.add(id);
-        flavorNames
-            .add(_flavors.firstWhere((f) => f.id == id).name);
+        flavorNames.add(_flavors.firstWhere((f) => f.id == id).name);
       }
     }
 
     if (_splitMode) {
-      // N ítems individuales, qty=1 cada uno
       widget.onAddItems([
         for (int i = 0; i < _quantity; i++)
           _CartItemEntry(
@@ -1394,6 +1494,108 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
               ],
             ),
           ),
+        if (_currentFlavorsComplete)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _stageCurrentCombo,
+                icon: const Icon(Icons.add_circle_outline, size: 16),
+                label: const Text('Añadir y pedir otro'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPendingCombosSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 20),
+        Row(
+          children: [
+            Icon(Icons.shopping_cart_checkout,
+                size: 15, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text('Combos a agregar (${_pendingCombos.length})',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                )),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...List.generate(_pendingCombos.length, (i) {
+          final entry = _pendingCombos[i];
+          final variantName = entry.variant?.name ?? '';
+          final flavorsText = entry.flavorNames.join(', ');
+          final unitPrice =
+              entry.variant?.calculateFinalPrice(widget.product.basePrice) ??
+                  widget.product.basePrice;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('${entry.quantity}×',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.bold,
+                      )),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (variantName.isNotEmpty)
+                        Text(variantName,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1),
+                      if (flavorsText.isNotEmpty)
+                        Text(flavorsText,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1),
+                    ],
+                  ),
+                ),
+                Text(
+                  CurrencyFormatter.format(unitPrice * entry.quantity),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close,
+                      size: 16, color: theme.colorScheme.error),
+                  onPressed: () => _removeCombo(i),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
@@ -1664,6 +1866,7 @@ class _AddFooter extends StatelessWidget {
   final VoidCallback? onDecrement;
   final VoidCallback onIncrement;
   final VoidCallback onAdd;
+  final String? addLabel;
 
   const _AddFooter({
     required this.quantity,
@@ -1673,6 +1876,7 @@ class _AddFooter extends StatelessWidget {
     required this.onDecrement,
     required this.onIncrement,
     required this.onAdd,
+    this.addLabel,
   });
 
   @override
@@ -1728,15 +1932,17 @@ class _AddFooter extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Agregar al carrito',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(
-                    CurrencyFormatter.format(total),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  Text(addLabel ?? 'Agregar al carrito',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center),
+                  if (addLabel == null)
+                    Text(
+                      CurrencyFormatter.format(total),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

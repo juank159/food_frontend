@@ -189,12 +189,6 @@ class EscPosGenerator {
     );
 
     // ─── Destino (GRANDE) ───
-    // Mostramos la etiqueta del destino: mesa ("Mesa 5"), cuenta libre
-    // ("papa") o, si no hay etiqueta, el tipo en coloquial. NO repetimos
-    // "PARA LLEVAR" cuando ya hay una etiqueta propia (era confuso: salía
-    // "para llevar" en cuentas que no eran para llevar).
-    // (Sin feed: va pegado a la categoría — distinto tamaño lo separa, y
-    // ahorra papel.)
     final destination = _destinationLabel(data);
     bytes.addAll(
       gen.text(
@@ -208,11 +202,28 @@ class EscPosGenerator {
       ),
     );
 
+    // ─── Nombre del cliente (justo bajo el destino) ───
+    // Para pedidos QR siempre lo imprimimos en tamaño grande para que
+    // el mesero identifique al cliente de un vistazo. Para pedidos del
+    // POS lo imprimimos solo si difiere del destino (evita repetir
+    // "Mostrador / Mostrador").
+    final hasCustomer = data.customerName != null &&
+        data.customerName!.trim().isNotEmpty &&
+        data.customerName!.trim() != destination;
+    if (hasCustomer) {
+      bytes.addAll(
+        gen.text(
+          data.customerName!.trim(),
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size2,
+            bold: true,
+          ),
+        ),
+      );
+    }
+
     // ─── Badge de tipo (para llevar / domicilio) ───
-    // Cuando el destino es una etiqueta propia (mesa/cuenta) PERO el ticket
-    // es para llevar o domicilio, la cocina necesita verlo para empacarlo.
-    // Ej: "papa" + ">> PARA LLEVAR <<". No lo repetimos si el destino YA es
-    // el tipo (takeaway suelto sin etiqueta → el destino ya dice PARA LLEVAR).
     final hasOwnLabel =
         data.tableLabel != null && data.tableLabel!.trim().isNotEmpty;
     if (hasOwnLabel &&
@@ -231,7 +242,7 @@ class EscPosGenerator {
       );
     }
 
-    // ─── Nº orden + hora (pegado, sin feed) ───
+    // ─── Nº orden + hora ───
     bytes.addAll(
       gen.text(
         '${data.orderNumber}  ·  ${_hhmm(data.createdAt)}',
@@ -239,7 +250,7 @@ class EscPosGenerator {
       ),
     );
 
-    // ─── Si vino por QR, badge destacado ───
+    // ─── Badge QR ───
     if (data.orderSource == 'qr_self_order') {
       bytes.addAll(
         gen.text(
@@ -249,16 +260,11 @@ class EscPosGenerator {
       );
     }
 
-    // ─── Cliente (si hay y no es el mismo destino) ───
-    // En venta de mostrador el cliente es "Mostrador", que ya salió como
-    // destino arriba — no lo repetimos.
-    if (data.customerName != null &&
-        data.customerName!.isNotEmpty &&
-        data.customerName!.trim() != _destinationLabel(data)) {
-      bytes.addAll(gen.text('Cliente: ${data.customerName}'));
-      if (data.customerPhone != null && data.customerPhone!.isNotEmpty) {
-        bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
-      }
+    // ─── Teléfono (solo si hay, y solo en QR) ───
+    if (data.orderSource == 'qr_self_order' &&
+        data.customerPhone != null &&
+        data.customerPhone!.isNotEmpty) {
+      bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
     }
 
     bytes.addAll(gen.hr());
@@ -390,16 +396,16 @@ class EscPosGenerator {
           styles: const PosStyles(bold: true)),
     );
     bytes.addAll(gen.text('Fecha: ${_fullDate(data.createdAt)}'));
+    final recDest = _destinationLabel(data);
     if (data.customerName != null &&
-        data.customerName!.isNotEmpty &&
-        data.customerName!.trim() != _destinationLabel(data)) {
+        data.customerName!.trim().isNotEmpty &&
+        data.customerName!.trim() != recDest) {
       bytes.addAll(gen.text('Cliente: ${data.customerName}'));
+      if (data.customerPhone != null && data.customerPhone!.isNotEmpty) {
+        bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
+      }
     }
-    // Referencia del pedido: etiqueta propia (mesa "Mesa 5" / cuenta
-    // libre "papa") o, si no hay, el tipo en coloquial. NO imprimimos
-    // "PARA LLEVAR" cuando la cuenta tiene nombre propio (era el bug:
-    // una cuenta libre salía como "para llevar" sin haberlo elegido).
-    bytes.addAll(gen.text('Atención: ${_destinationLabel(data)}'));
+    bytes.addAll(gen.text('Atención: $recDest'));
 
     bytes.addAll(gen.hr());
 

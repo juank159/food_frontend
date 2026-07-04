@@ -964,63 +964,81 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // "Ilustración" minimal — círculo grande con icono. Suficiente
-            // para que el espacio no se sienta vacío sin meter assets PNG.
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.receipt_long_outlined,
-                size: 44,
-                color: AppColors.primary,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 240;
+        final iconSize = compact ? 56.0 : 96.0;
+        final iconInner = compact ? 28.0 : 44.0;
+        final gap1 = compact ? 10.0 : 20.0;
+        final gap2 = compact ? 4.0 : 6.0;
+        final gap3 = compact ? 10.0 : 20.0;
+        final titleSize = compact ? 15.0 : 18.0;
+        final subtitleSize = compact ? 12.0 : 14.0;
+
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 16 : 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: iconSize,
+                  height: iconSize,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.receipt_long_outlined,
+                    size: iconInner,
+                    color: AppColors.primary,
+                  ),
+                ),
+                SizedBox(height: gap1),
+                Text(
+                  'Aún no hay órdenes',
+                  style: TextStyle(
+                    fontSize: titleSize,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: gap2),
+                Text(
+                  'Cuando crees una orden aparecerá acá.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: subtitleSize,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                SizedBox(height: gap3),
+                FilledButton.icon(
+                  onPressed: () => NavigationService.toCreateOrder(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 16 : 24,
+                      vertical: compact ? 8 : 14,
+                    ),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(
+                    'Crear primera orden',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: subtitleSize,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Aún no hay órdenes',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Cuando crees una orden aparecerá acá. Empezá tomando el primer pedido del día.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: () => NavigationService.toCreateOrder(),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              ),
-              icon: const Icon(Icons.add),
-              label: const Text(
-                'Crear primera orden',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
