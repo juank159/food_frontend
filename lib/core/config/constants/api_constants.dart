@@ -189,6 +189,10 @@ class ApiConstants {
   static const String checkFeature = '/subscriptions/check-feature';
   static const String checkLimit = '/subscriptions/check-limit';
 
+  // Push notifications — FCM token registration
+  static const String fcmRegisterToken = '/notifications/register-token';
+  static const String fcmUnregisterToken = '/notifications/device-token';
+
   // HTTP Headers
   static const String authorizationHeader = 'Authorization';
   static const String contentTypeHeader = 'Content-Type';

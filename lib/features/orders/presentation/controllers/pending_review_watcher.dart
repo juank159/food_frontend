@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:vibration/vibration.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/app_routes.dart';
@@ -133,21 +135,24 @@ class PendingReviewWatcher extends GetxService {
   }
 
   void _notifyArrivals(int n) {
-    // Ráfagas de vibración + sonido repetidas mientras el dialog está abierto.
-    // Se cancelan cuando el usuario toca cualquier botón.
-    int vibeCount = 0;
-    Timer? vibeTimer;
+    // ── 1. Vibración fuerte tipo modo silencio ──────────────────────────
+    // Patrón: [espera_ms, vibra_ms, espera_ms, vibra_ms, ...]
+    // repeat:0 → repite el patrón desde el principio hasta que se llame
+    // Vibration.cancel(). En iOS hace vibración estándar (limitación del SO).
+    _startVibration();
 
-    void buzz() {
-      HapticFeedback.heavyImpact();
-      SystemSound.play(SystemSoundType.alert);
-      vibeCount++;
-      if (vibeCount >= 12) vibeTimer?.cancel();
+    // ── 2. Sonido custom ────────────────────────────────────────────────
+    // El usuario coloca su archivo en assets/sounds/qr_alert.mp3.
+    // Si no existe, hace silencio (no crashea).
+    final player = AudioPlayer();
+    _playAlertSound(player);
+
+    // ── 3. Dialog persistente ───────────────────────────────────────────
+    void stopAll() {
+      Vibration.cancel();
+      player.stop();
+      player.dispose();
     }
-
-    buzz(); // primera ráfaga inmediata
-    vibeTimer =
-        Timer.periodic(const Duration(milliseconds: 700), (_) => buzz());
 
     final title = n == 1 ? '¡Nuevo pedido QR!' : '¡$n pedidos nuevos QR!';
     final body = n == 1
@@ -186,7 +191,7 @@ class PendingReviewWatcher extends GetxService {
         actions: [
           OutlinedButton(
             onPressed: () {
-              vibeTimer?.cancel();
+              stopAll();
               Get.back();
             },
             child: const Text('Ahora no'),
@@ -198,7 +203,7 @@ class PendingReviewWatcher extends GetxService {
               backgroundColor: Colors.red.shade700,
             ),
             onPressed: () {
-              vibeTimer?.cancel();
+              stopAll();
               Get.back();
               Get.toNamed(AppRoutes.pendingReviewOrders);
             },
@@ -206,7 +211,35 @@ class PendingReviewWatcher extends GetxService {
         ],
       ),
       barrierDismissible: false,
-    ).then((_) => vibeTimer?.cancel());
+    ).then((_) => stopAll());
+  }
+
+  /// Vibración larga con patrón repetido (modo silencio).
+  /// Patrón: vibra 800ms, pausa 200ms → repite indefinidamente.
+  Future<void> _startVibration() async {
+    try {
+      final hasVibrator = (await Vibration.hasVibrator()) == true;
+      if (!hasVibrator) return;
+      await Vibration.vibrate(
+        pattern: [0, 800, 200, 800, 200, 800, 200, 800],
+        repeat: 0,
+        intensities: [0, 255, 0, 255, 0, 255, 0, 255],
+      );
+    } catch (_) {
+      // Fallback si la plataforma no soporta el patrón extendido.
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Reproduce el sonido de alerta desde assets/sounds/qr_alert.mp3.
+  /// Si el archivo no existe, cae silenciosamente (no crashea la app).
+  Future<void> _playAlertSound(AudioPlayer player) async {
+    try {
+      await player.setReleaseMode(ReleaseMode.loop);
+      await player.play(AssetSource('sounds/qr_alert.mp3'));
+    } catch (_) {
+      // El archivo no existe todavía → sin sonido custom, OK.
+    }
   }
 
   @override

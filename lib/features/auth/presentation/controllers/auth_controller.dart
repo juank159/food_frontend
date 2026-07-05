@@ -1,7 +1,9 @@
 //lib/features/auth/presentation/controllers/auth_controller.dart
+import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
@@ -136,6 +138,8 @@ class AuthController extends GetxController {
           email: email,
           name: displayName.isEmpty ? email : displayName,
         );
+        // Registrar token FCM para push notifications (fire-and-forget).
+        PushNotificationService.registerToken(sl<Dio>()).ignore();
         NavigationService.toHome(clearStack: true);
         return null;
       },
@@ -209,6 +213,8 @@ class AuthController extends GetxController {
   void _clearAuthState() {
     _isAuthenticated.value = false;
     _currentUser.value = null;
+    // Desregistrar token FCM antes de limpiar el estado (fire-and-forget).
+    PushNotificationService.unregisterToken(sl<Dio>()).ignore();
     // Detener el watcher global cuando el usuario cierra sesión —
     // sin esto seguiría poleando sin auth válida y generando 401.
     try {

@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'core/config/theme/app_theme.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/routes/app_pages.dart';
+import 'core/services/push_notification_service.dart';
 import 'core/services/sync_handlers.dart';
 import 'features/orders/presentation/controllers/pending_review_watcher.dart';
 
@@ -13,6 +14,11 @@ void main() async {
 
   // Inicializar Hive (base de datos local para modo offline)
   await Hive.initFlutter();
+
+  // FCM — inicializa Firebase y crea el canal de notificaciones Android.
+  // Si google-services.json / GoogleService-Info.plist no están presentes,
+  // cae silenciosamente y el sistema de polling sigue activo.
+  await PushNotificationService.init();
 
   // Initialize dependency injection
   await di.init();

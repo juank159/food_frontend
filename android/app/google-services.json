@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "314108027147",
+    "project_id": "menuplat-e9cc1",
+    "storage_bucket": "menuplat-e9cc1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:314108027147:android:ae86ca9c60128d7b2d020e",
+        "android_client_info": {
+          "package_name": "com.foodplatform.food_platform_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJHS9knSVniWz6ZMu81QyKQCbiMgR11ww"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
