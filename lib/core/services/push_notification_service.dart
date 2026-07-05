@@ -12,17 +12,13 @@ import '../config/constants/api_constants.dart';
 import '../routes/app_routes.dart';
 import '../utils/api_response_utils.dart';
 
-/// Canal de Android que recibe las alertas QR.
-/// v2: renombrado para forzar recreación con sonido correcto (el canal original
-/// fue creado sin sonido y Android cachea los ajustes del canal).
-/// No-const porque vibrationPattern requiere Int64List.
+/// Canal v5: IMPORTANCE_HIGH con sonido del sistema (sin URI custom).
+/// Creado por MainApplication.onCreate() con vibración fuerte.
 final _kQrChannel = AndroidNotificationChannel(
-  'qr_orders_v2',
+  'qr_orders_v5',
   'Pedidos QR',
   description: 'Alertas de nuevos pedidos enviados por clientes desde el menú QR.',
   importance: Importance.max,
-  playSound: true,
-  sound: const RawResourceAndroidNotificationSound('qr_alert'),
   enableVibration: true,
   vibrationPattern: Int64List.fromList([0, 800, 200, 800, 200, 800]),
 );
@@ -30,8 +26,6 @@ final _kQrChannel = AndroidNotificationChannel(
 final FlutterLocalNotificationsPlugin _localNotifs =
     FlutterLocalNotificationsPlugin();
 
-/// Handler en segundo plano — solo inicializa Firebase.
-/// Android muestra la notificación automáticamente desde el payload FCM.
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) {
@@ -39,22 +33,11 @@ Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
   }
 }
 
-/// Servicio singleton de push notifications (FCM).
-///
-/// Flujo:
-///   1. `init()` en main.dart → inicializa Firebase + canal Android + handlers.
-///   2. `registerToken(dio)` tras login → obtiene FCM token y lo envía al backend.
-///   3. `unregisterToken(dio)` al logout → elimina el token del backend.
-///
-/// Si Firebase no está configurado (falta google-services.json), todo cae
-/// silenciosamente y el sistema de alertas in-app sigue funcionando.
 class PushNotificationService {
   PushNotificationService._();
 
   static bool _initialized = false;
 
-  /// Inicializa Firebase, crea el canal de notificaciones de Android y
-  /// configura los handlers. Llamar una sola vez en `main()`.
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -62,19 +45,15 @@ class PushNotificationService {
       await Firebase.initializeApp();
       _initialized = true;
     } catch (e) {
-      // Firebase no configurado todavía (falta google-services.json / plist).
-      // El sistema de alertas in-app (polling) sigue funcionando normalmente.
       debugPrint('[FCM] Firebase no inicializado: $e');
       return;
     }
 
-    // ── Canal Android (alta prioridad, sonido custom) ──────────────────────
     await _localNotifs
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_kQrChannel);
 
-    // ── Inicializar flutter_local_notifications ────────────────────────────
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -90,29 +69,22 @@ class PushNotificationService {
       onDidReceiveNotificationResponse: _onNotifTap,
     );
 
-    // ── Permisos ───────────────────────────────────────────────────────────
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       sound: true,
       badge: true,
     );
 
-    // ── Foreground: mostrar como heads-up via flutter_local_notifications ──
+    // Foreground: mostrar heads-up via flutter_local_notifications
     FirebaseMessaging.onMessage.listen(_showForegroundNotif);
 
-    // ── Tap en notificación cuando app estaba en background (no terminada) ─
     FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
-
-    // ── Handler de background / terminated ────────────────────────────────
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
 
-    // ── Tap en notificación que abrió la app desde terminada ───────────────
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) _handleMessageOpen(initial);
   }
 
-  /// Obtiene el FCM token y lo registra en el backend.
-  /// Llama en `AuthController` justo después de login exitoso.
   static Future<void> registerToken(Dio dio) async {
     if (!_initialized) return;
     try {
@@ -127,7 +99,6 @@ class PushNotificationService {
         },
       );
 
-      // Escuchar renovaciones de token (FCM puede rotar el token).
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
         try {
           await dio.post(ApiConstants.fcmRegisterToken, data: {
@@ -141,7 +112,6 @@ class PushNotificationService {
     }
   }
 
-  /// Elimina el token FCM del backend al hacer logout.
   static Future<void> unregisterToken(Dio dio) async {
     if (!_initialized) return;
     try {
@@ -150,8 +120,6 @@ class PushNotificationService {
       await dio.delete(ApiConstants.fcmUnregisterToken, data: {'token': token});
     } catch (_) {}
   }
-
-  // ── Helpers privados ───────────────────────────────────────────────────────
 
   static void _showForegroundNotif(RemoteMessage message) {
     final notif = message.notification;
@@ -168,16 +136,13 @@ class PushNotificationService {
           channelDescription: _kQrChannel.description,
           importance: Importance.max,
           priority: Priority.max,
-          sound: const RawResourceAndroidNotificationSound('qr_alert'),
           enableVibration: true,
           vibrationPattern: Int64List.fromList([0, 800, 200, 800, 200, 800]),
-          // Ícono pequeño en la barra de estado (debe ser monochrome/blanco).
           icon: '@drawable/ic_notification',
-          // Ícono grande (color completo) en la bandeja de notificaciones.
           largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
           color: const Color(0xFFFF6B35),
         ),
-        iOS: const DarwinNotificationDetails(sound: 'qr_alert.aiff'),
+        iOS: const DarwinNotificationDetails(),
       ),
       payload: message.data['type'] as String?,
     );
@@ -191,7 +156,6 @@ class PushNotificationService {
 
   static void _handleMessageOpen(RemoteMessage message) {
     if (message.data['type'] == 'qr_order') {
-      // Diferir hasta que el árbol de widgets esté listo.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Get.toNamed(AppRoutes.pendingReviewOrders);
       });
