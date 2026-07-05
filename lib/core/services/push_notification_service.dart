@@ -30,61 +30,13 @@ final _kQrChannel = AndroidNotificationChannel(
 final FlutterLocalNotificationsPlugin _localNotifs =
     FlutterLocalNotificationsPlugin();
 
-/// Handler en segundo plano — DEBE ser función top-level (no método de clase).
-///
-/// Se llama cuando la app está en background o terminada Y el mensaje FCM es
-/// data-only (sin 'notification' en el payload). Nosotros mostramos la
-/// notificación manualmente para tener control total del sonido y vibración.
+/// Handler en segundo plano — solo inicializa Firebase.
+/// Android muestra la notificación automáticamente desde el payload FCM.
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
-  WidgetsFlutterBinding.ensureInitialized();
-
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();
   }
-
-  // Crear el canal con sonido custom antes de mostrar la notificación.
-  // Cada isolate tiene su propio estado — inicializar el plugin aquí.
-  final plugin = FlutterLocalNotificationsPlugin();
-
-  await plugin
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(_kQrChannel);
-
-  await plugin.initialize(
-    const InitializationSettings(
-      android: AndroidInitializationSettings('@drawable/ic_notification'),
-    ),
-  );
-
-  final title =
-      message.data['title'] as String? ?? '¡Nuevo pedido QR! 🔔';
-  final body =
-      message.data['body'] as String? ?? 'Nuevo pedido pendiente de aprobación.';
-
-  await plugin.show(
-    message.hashCode,
-    title,
-    body,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _kQrChannel.id,
-        _kQrChannel.name,
-        channelDescription: _kQrChannel.description,
-        importance: Importance.max,
-        priority: Priority.max,
-        sound: const RawResourceAndroidNotificationSound('qr_alert'),
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList([0, 800, 200, 800, 200, 800]),
-        icon: '@drawable/ic_notification',
-        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-        color: const Color(0xFFFF6B35),
-        playSound: true,
-      ),
-    ),
-    payload: message.data['type'] as String?,
-  );
 }
 
 /// Servicio singleton de push notifications (FCM).
