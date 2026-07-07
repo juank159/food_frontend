@@ -12,6 +12,7 @@ import '../../../../core/widgets/modern_card.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../payments/domain/usecases/process_tab_payment_usecase.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
 import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import '../../domain/entities/tab_session.dart';
@@ -127,6 +128,8 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       },
       (payments) {
         AppSnackbar.show('Cobro exitoso', 'Cuenta cobrada completa');
+        // Cobro total — todos los tickets de la cuenta quedaron pagados.
+        PrintingOrchestrator.autoPrintTabSessionReceipt(session);
         if (mounted) Navigator.of(context).pop(true);
       },
     );
@@ -174,6 +177,11 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
           'Cobro exitoso',
           '${CurrencyFormatter.format(selectedAmount)} cobrado',
         );
+        // Si el monto seleccionado cubrió todo el saldo pendiente,
+        // la cuenta quedó saldada → imprimir recibo.
+        if (selectedAmount >= session.balance - 0.01) {
+          PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+        }
         if (mounted) Navigator.of(context).pop(true);
       },
     );
@@ -983,7 +991,7 @@ class _SelectableItem {
     this.variantName,
     required this.maxQuantity,
     required this.unitPrice,
-  }) : selectedQty = maxQuantity;
+  }) : selectedQty = 0;
 
   bool get isSelected => selectedQty > 0;
   double get subtotal => unitPrice * selectedQty;

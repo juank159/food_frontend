@@ -549,6 +549,24 @@ class PrintingOrchestrator {
   static bool _hasKitchenItems(OrderModel order) =>
       order.items.any((i) => i.requiresPreparation && i.categoryPrintsKitchen);
 
+  /// Imprime el recibo combinado de una cuenta abierta respetando
+  /// la configuración `auto_print`. Si está desactivado, pregunta al
+  /// usuario antes de imprimir.
+  static Future<PrintResult> autoPrintTabSessionReceipt(
+    TabSession session,
+  ) async {
+    final printer = await _resolveDefault(PrinterPurpose.receipt);
+    if (printer == null) return PrintResult.noPrinterConfigured;
+    if (!_userCanPrint(printer)) return PrintResult.roleNotAllowed;
+
+    if (!printer.autoPrint) {
+      final should = await _askUser('factura');
+      if (!should) return PrintResult.cancelled;
+    }
+
+    return _runTabSessionPrint(session, printer, silent: printer.autoPrint);
+  }
+
   /// Imprime un recibo unificado de una cuenta abierta (tab session).
   /// Combina TODOS los tickets no-cancelados en un solo recibo.
   static Future<PrintResult> printTabSessionReceiptManual(
@@ -564,6 +582,14 @@ class PrintingOrchestrator {
       return PrintResult.roleNotAllowed;
     }
 
+    return _runTabSessionPrint(session, printer, silent: false);
+  }
+
+  static Future<PrintResult> _runTabSessionPrint(
+    TabSession session,
+    PrinterConfigModel printer, {
+    required bool silent,
+  }) async {
     // Parsear órdenes crudas del tab, excluir canceladas
     final orders = session.orders
         .whereType<Map<String, dynamic>>()
@@ -621,7 +647,11 @@ class PrintingOrchestrator {
             printer: printer,
           );
           if (ok) {
-            _snackOk('Cuenta', printer);
+            if (silent) {
+              _snackOkSilent('Cuenta', printer);
+            } else {
+              _snackOk('Cuenta', printer);
+            }
             return PrintResult.success;
           }
           _snackError('cuenta', printer, 'Sin conexión');

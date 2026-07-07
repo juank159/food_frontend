@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -690,9 +692,12 @@ class _PreviousPaymentRow extends StatelessWidget {
 
 class _OrderSelectableItem {
   final OrderItem item;
+  final int maxQty; // puede ser < item.quantity si hay pagos parciales previos
   int selectedQty;
 
-  _OrderSelectableItem({required this.item}) : selectedQty = item.quantity;
+  _OrderSelectableItem({required this.item, int? maxQty})
+      : maxQty = maxQty ?? item.quantity,
+        selectedQty = 0;
 
   bool get isSelected => selectedQty > 0;
   double get subtotal => item.unitPrice * selectedQty;
@@ -720,7 +725,7 @@ class _OrderItemSelectionSheet extends StatefulWidget {
 }
 
 class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
-  late final List<_OrderSelectableItem> _selectables;
+  late List<_OrderSelectableItem> _selectables;
   bool _processing = false;
   // Campo "recibido" inline para efectivo
   final _cashCtrl = TextEditingController();
@@ -728,10 +733,48 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
   @override
   void initState() {
     super.initState();
-    _selectables = widget.items
-        .where((i) => i.unitPrice > 0)
-        .map((i) => _OrderSelectableItem(item: i))
-        .toList();
+    _selectables = _buildSelectables();
+    // Si los pagos aún no estaban cargados, cargarlos y reconstruir
+    // la lista para filtrar ítems ya pagados.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final ctrl = widget.controller;
+      final needsLoad = ctrl.payments.isEmpty ||
+          ctrl.payments.first.orderId != widget.orderId;
+      if (needsLoad) {
+        await ctrl.loadPaymentsByOrder(widget.orderId);
+        if (mounted) setState(() => _selectables = _buildSelectables());
+      }
+    });
+  }
+
+  /// Construye la lista de ítems seleccionables excluyendo los que ya
+  /// fueron cobrados en pagos anteriores (buscando JSON de ítems en
+  /// el campo `notes` de cada pago completado).
+  List<_OrderSelectableItem> _buildSelectables() {
+    final paidQtyById = <String, int>{};
+    for (final p in widget.controller.payments) {
+      if (p.status != PaymentStatus.completed) continue;
+      if (p.orderId != widget.orderId) continue;
+      try {
+        final decoded = jsonDecode(p.notes ?? '') as Map<String, dynamic>?;
+        final items = decoded?['__items__'] as List?;
+        if (items != null) {
+          for (final raw in items) {
+            final m = raw as Map<String, dynamic>;
+            final id = m['id'] as String?;
+            final qty = (m['qty'] as num?)?.toInt() ?? 0;
+            if (id != null) paidQtyById[id] = (paidQtyById[id] ?? 0) + qty;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return widget.items.where((i) => i.unitPrice > 0).expand((i) {
+      final paidQty = paidQtyById[i.id] ?? 0;
+      final remaining = i.quantity - paidQty;
+      if (remaining <= 0) return const <_OrderSelectableItem>[];
+      return [_OrderSelectableItem(item: i, maxQty: remaining)];
+    }).toList();
   }
 
   @override
@@ -762,11 +805,20 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
       }
       widget.controller.receivedAmount.value = rec;
     }
+    // Serializar los ítems pagados en `notes` para poder filtrarlos
+    // la próxima vez que se abra el sheet "cobrar por ítems".
+    final itemsJson = jsonEncode({
+      '__items__': _selectables
+          .where((s) => s.selectedQty > 0)
+          .map((s) => {'id': s.item.id, 'qty': s.selectedQty})
+          .toList(),
+    });
     setState(() => _processing = true);
     final payment = await widget.controller.addPartialPayment(
       orderId: widget.orderId,
       paymentMethod: widget.controller.selectedPaymentMethod.value,
       amount: total,
+      notes: itemsJson,
       receivedAmount: _isCash ? widget.controller.receivedAmount.value : null,
       tenantPaymentAccountId: widget.controller.selectedTenantAccountId.value,
     );
@@ -821,6 +873,27 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      final allFull = _selectables
+                          .every((i) => i.selectedQty == i.maxQty);
+                      for (final i in _selectables) {
+                        i.selectedQty = allFull ? 0 : i.maxQty;
+                      }
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: Text(
+                    _selectables.every((i) => i.selectedQty == i.maxQty)
+                        ? 'Quitar todos'
+                        : 'Todos',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.close),
                   visualDensity: VisualDensity.compact,
@@ -841,7 +914,7 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                 final s = _selectables[i];
                 return _OrderItemTile(
                   selectable: s,
-                  onIncrement: s.selectedQty < s.item.quantity
+                  onIncrement: s.selectedQty < s.maxQty
                       ? () => setState(() => s.selectedQty++)
                       : null,
                   onDecrement: s.selectedQty > 0
@@ -1031,7 +1104,7 @@ class _OrderItemTile extends StatelessWidget {
           SizedBox(
             width: 52,
             child: Text(
-              '${selectable.selectedQty}/${selectable.item.quantity}',
+              '${selectable.selectedQty}/${selectable.maxQty}',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w800,

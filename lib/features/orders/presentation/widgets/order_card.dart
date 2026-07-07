@@ -12,7 +12,7 @@ import '../../domain/entities/order.dart' as order_entity;
 ///   - Línea informativa con cliente / mesa / cantidad de items.
 ///   - Footer con total prominente, badge de pago y "hace X min".
 ///
-/// El objetivo es que un mozo pueda escanear 20 tarjetas y entender el
+/// El objetivo es que un mesero pueda escanear 20 tarjetas y entender el
 /// estado de cada orden sin leer texto.
 class OrderCard extends StatelessWidget {
   final order_entity.Order order;
@@ -87,7 +87,11 @@ class OrderCard extends StatelessWidget {
                         const SizedBox(height: 10),
                         _buildContextRow(),
                         const SizedBox(height: 12),
-                        const Divider(height: 1, thickness: 1, color: AppColors.divider),
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: AppColors.divider,
+                        ),
                         const SizedBox(height: 12),
                         _buildFooter(),
                       ],
@@ -195,13 +199,11 @@ class OrderCard extends StatelessWidget {
           ),
         _InfoChip(
           icon: Icons.shopping_bag_outlined,
-          label: '${order.totalItems} ${order.totalItems == 1 ? "item" : "items"}',
+          label:
+              '${order.totalItems} ${order.totalItems == 1 ? "item" : "items"}',
         ),
         if (order.estimatedTime != null && order.estimatedTime! > 0)
-          _InfoChip(
-            icon: Icons.schedule,
-            label: '${order.estimatedTime} min',
-          ),
+          _InfoChip(icon: Icons.schedule, label: '${order.estimatedTime} min'),
       ],
     );
   }
@@ -406,10 +408,7 @@ class _StatusPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(

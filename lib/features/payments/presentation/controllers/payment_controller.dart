@@ -1,7 +1,10 @@
 // lib/features/payments/presentation/controllers/payment_controller.dart
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/utils/api_response_utils.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/payment.dart';
@@ -284,25 +287,42 @@ class PaymentController extends GetxController {
   /// `_printedReceiptIds` evita re-imprimir si hay varios cobros
   /// parciales que terminan completando.
   void _notifyOrderChanged(String orderId, {bool tryPrintReceipt = false}) {
-    if (!Get.isRegistered<OrdersController>()) {
-      // Edge case: cobramos antes de que la lista esté montada. La
-      // próxima vez que se abra ya hará un GET fresco al onInit.
-      return;
+    if (Get.isRegistered<OrdersController>()) {
+      final orders = Get.find<OrdersController>();
+      orders.reloadAndApply(orderId).then((updated) async {
+        if (updated == null) return;
+        if (!tryPrintReceipt) return;
+        if (!updated.isPaymentCompleted) return;
+        if (_printedReceiptIds.contains(updated.id)) return;
+        _printedReceiptIds.add(updated.id);
+        await PrintingOrchestrator.autoPrintReceipt(
+          orderId: updated.id,
+          subtitle: updated.displayTableLabel,
+        );
+      });
+    } else if (tryPrintReceipt) {
+      // OrdersController no está montado (ej. usuario entró directo al
+      // detalle). Hacemos fetch propio para verificar si quedó pagada.
+      _fetchAndTryPrint(orderId);
     }
-    final orders = Get.find<OrdersController>();
-    orders.reloadAndApply(orderId).then((updated) async {
-      if (updated == null) return;
-      if (!tryPrintReceipt) return;
-      if (!updated.isPaymentCompleted) return;
-      if (_printedReceiptIds.contains(updated.id)) return;
-      _printedReceiptIds.add(updated.id);
-      // Await para que el dialog de "¿Imprimir factura?" aparezca en el
-      // contexto activo. Si auto_print=true imprime sin dialog.
+  }
+
+  Future<void> _fetchAndTryPrint(String orderId) async {
+    if (_printedReceiptIds.contains(orderId)) return;
+    try {
+      final dio = sl<Dio>();
+      final res = await dio.get('/orders/$orderId');
+      final data = ApiResponseUtils.object(res);
+      if ((data['payment_status'] as String?) != 'paid') return;
+      _printedReceiptIds.add(orderId);
+      final tableLabel = (data['table_label'] as String?)?.isNotEmpty == true
+          ? data['table_label'] as String
+          : (data['table_name'] as String?);
       await PrintingOrchestrator.autoPrintReceipt(
-        orderId: updated.id,
-        subtitle: updated.displayTableLabel,
+        orderId: orderId,
+        subtitle: tableLabel,
       );
-    });
+    } catch (_) {}
   }
 
   /// IDs de órdenes para las cuales ya disparamos auto-print del
