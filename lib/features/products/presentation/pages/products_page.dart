@@ -1,10 +1,13 @@
 // lib/features/products/presentation/pages/products_page.dart
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:printing/printing.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/menu_pdf_builder.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
@@ -98,6 +101,8 @@ class _ProductsHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              // Botón para descargar/compartir el PDF de la carta completa.
+              _PdfDownloadButton(),
               // Menú "+" — adaptado al tab activo. Ofrecemos la creación
               // de los 3 tipos siempre, así no hace falta saber en qué tab
               // está el usuario para crear algo.
@@ -236,6 +241,72 @@ class _ProductsHeader extends StatelessWidget {
           const SizedBox(height: 14),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────── Botón PDF: genera y comparte la carta ────────────────
+
+class _PdfDownloadButton extends StatefulWidget {
+  @override
+  State<_PdfDownloadButton> createState() => _PdfDownloadButtonState();
+}
+
+class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
+  bool _loading = false;
+
+  Future<void> _share() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    try {
+      final products = SafeGet.find<ProductsController>()?.products.toList() ?? [];
+      final categories = SafeGet.find<CategoriesController>()?.categories.toList() ?? [];
+
+      if (products.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No hay productos para generar el PDF.')),
+          );
+        }
+        return;
+      }
+
+      final bytes = await MenuPdfBuilder.build(
+        products: products,
+        categories: categories,
+      );
+
+      await Printing.sharePdf(
+        bytes: Uint8List.fromList(bytes),
+        filename: 'carta.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo generar el PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Descargar carta PDF',
+      onPressed: _loading ? null : _share,
+      icon: _loading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+          : const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
     );
   }
 }
