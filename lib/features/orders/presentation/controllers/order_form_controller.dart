@@ -82,6 +82,7 @@ class CartItem {
       'unit_price': effectiveBasePrice, // Enviar precio con variante ya calculado
       'special_instructions': specialInstructions,
       if (selectedVariant != null) 'variant_id': selectedVariant!.id,
+      if (selectedVariant != null) 'variant_name': selectedVariant!.name,
       if (selectedModifiers.isNotEmpty)
         'modifiers': selectedModifiers.map((m) => m.toJson()).toList(),
       if (flavorIds.isNotEmpty) 'flavor_ids': flavorIds,

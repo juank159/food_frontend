@@ -12,6 +12,8 @@ Map<String, dynamic> _$OrderItemModelToJson(OrderItemModel instance) =>
       'order_id': instance.orderId,
       'product_id': instance.productId,
       'product_name': instance.productName,
+      'variant_id': instance.variantId,
+      'variant_name': instance.variantName,
       'unit_price': instance.unitPrice,
       'quantity': instance.quantity,
       'subtotal': instance.subtotal,

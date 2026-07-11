@@ -522,18 +522,21 @@ class PrintingOrchestrator {
   }
 
   static TicketItem _toTicketItem(OrderItemModel item) {
-    // Concatenamos los modifiers en `variantName` para que aparezcan
-    // visibles aunque el item no tenga una variant explícita.
+    // Combina variante + modificadores en una sola línea descriptiva.
+    // Ej: "2 bolas · Extra crema" o solo "2 bolas" o solo "Extra crema".
     final modifiersText = item.modifiers
         ?.map((m) => m.modifierName ?? '')
         .where((s) => s.isNotEmpty)
         .join(', ');
+    final parts = [
+      if (item.variantName != null && item.variantName!.isNotEmpty)
+        item.variantName!,
+      if (modifiersText != null && modifiersText.isNotEmpty) modifiersText,
+    ];
     return TicketItem(
       quantity: item.quantity,
       name: item.productName,
-      variantName: (modifiersText != null && modifiersText.isNotEmpty)
-          ? modifiersText
-          : null,
+      variantName: parts.isNotEmpty ? parts.join(' · ') : null,
       unitPrice: item.unitPrice,
       subtotal: item.subtotal,
       specialInstructions: item.specialInstructions,

@@ -17,6 +17,10 @@ class OrderItemModel {
   final String productId;
   @JsonKey(name: 'product_name')
   final String productName;
+  @JsonKey(name: 'variant_id', includeToJson: true)
+  final String? variantId;
+  @JsonKey(name: 'variant_name', includeToJson: true)
+  final String? variantName;
   @JsonKey(name: 'unit_price', fromJson: JsonParsers.parseDouble)
   final double unitPrice;
   final int quantity;
@@ -61,6 +65,8 @@ class OrderItemModel {
     required this.orderId,
     required this.productId,
     required this.productName,
+    this.variantId,
+    this.variantName,
     required this.unitPrice,
     required this.quantity,
     required this.subtotal,
@@ -86,6 +92,8 @@ class OrderItemModel {
       orderId: orderId,
       productId: productId,
       productName: productName,
+      variantId: variantId,
+      variantName: variantName,
       unitPrice: unitPrice,
       quantity: quantity,
       subtotal: subtotal,
@@ -112,6 +120,8 @@ class OrderItemModel {
       orderId: item.orderId,
       productId: item.productId,
       productName: item.productName,
+      variantId: item.variantId,
+      variantName: item.variantName,
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       subtotal: item.subtotal,
@@ -144,6 +154,14 @@ class OrderItemModel {
     final productName =
         (json['product_name'] as String?) ?? product?['name'] as String? ?? '';
 
+    // Nombre de variante: primero el campo plano (snapshot guardado en DB),
+    // luego el objeto anidado `variant` (cuando el backend hace JOIN).
+    final variantObj = json['variant'] as Map<String, dynamic>?;
+    final variantId =
+        (json['variant_id'] as String?) ?? variantObj?['id'] as String?;
+    final variantName =
+        (json['variant_name'] as String?) ?? variantObj?['name'] as String?;
+
     final modifiersJson = json['modifiers'] as List<dynamic>?;
 
     // `requires_preparation` puede venir en dos lugares:
@@ -168,6 +186,8 @@ class OrderItemModel {
           (product?['id'] as String?) ??
           '',
       productName: productName,
+      variantId: variantId,
+      variantName: variantName,
       unitPrice: parseNum(json['unit_price']),
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       subtotal: parseNum(json['subtotal']),

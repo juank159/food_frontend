@@ -10,6 +10,8 @@ class OrderItem extends Equatable {
   final String orderId;
   final String productId;
   final String productName;
+  final String? variantId;
+  final String? variantName;
   final double unitPrice;
   final int quantity;
   final double subtotal;
@@ -32,6 +34,8 @@ class OrderItem extends Equatable {
     required this.orderId,
     required this.productId,
     required this.productName,
+    this.variantId,
+    this.variantName,
     required this.unitPrice,
     required this.quantity,
     required this.subtotal,
@@ -88,6 +92,8 @@ class OrderItem extends Equatable {
         orderId,
         productId,
         productName,
+        variantId,
+        variantName,
         unitPrice,
         quantity,
         subtotal,
@@ -108,12 +114,18 @@ class OrderItem extends Equatable {
     String? orderId,
     String? productId,
     String? productName,
+    String? variantId,
+    String? variantName,
     double? unitPrice,
     int? quantity,
     double? subtotal,
     String? specialInstructions,
     Map<String, dynamic>? customizations,
     List<OrderItemModifier>? modifiers,
+    OrderStatus? status,
+    bool? requiresPreparation,
+    DateTime? preparedAt,
+    DateTime? deliveredAt,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -122,12 +134,18 @@ class OrderItem extends Equatable {
       orderId: orderId ?? this.orderId,
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
+      variantId: variantId ?? this.variantId,
+      variantName: variantName ?? this.variantName,
       unitPrice: unitPrice ?? this.unitPrice,
       quantity: quantity ?? this.quantity,
       subtotal: subtotal ?? this.subtotal,
       specialInstructions: specialInstructions ?? this.specialInstructions,
       customizations: customizations ?? this.customizations,
       modifiers: modifiers ?? this.modifiers,
+      status: status ?? this.status,
+      requiresPreparation: requiresPreparation ?? this.requiresPreparation,
+      preparedAt: preparedAt ?? this.preparedAt,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

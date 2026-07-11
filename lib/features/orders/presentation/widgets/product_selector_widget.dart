@@ -1051,9 +1051,15 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   }
 
   void _syncFlavorSlots() {
-    final n = _scoopCount;
-    if (_selectedFlavors.length != n) {
-      _selectedFlavors = List<String?>.filled(n, null);
+    final n = _scoopCount > 0 ? _scoopCount * _quantity : 0;
+    if (_selectedFlavors.length == n) return;
+    if (_selectedFlavors.length < n) {
+      _selectedFlavors = [
+        ..._selectedFlavors,
+        ...List<String?>.filled(n - _selectedFlavors.length, null),
+      ];
+    } else {
+      _selectedFlavors = _selectedFlavors.sublist(0, n);
     }
   }
 
@@ -1097,6 +1103,7 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     setState(() {
       _quantity = v;
       _syncItemCtrls();
+      if (_scoopCount > 0) _syncFlavorSlots();
     });
   }
 
@@ -1396,6 +1403,33 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     }
 
     final modifiers = _modifierKey.currentState?.getSelectedModifiers();
+
+    // ── PER-UNIT SCOOP MODE: una entrada por unidad, cada una con sus sabores ──
+    if (_scoopCount > 0 && _quantity > 1) {
+      final note = _singleNoteCtrl.text.trim();
+      final entries = <_CartItemEntry>[];
+      for (int unit = 0; unit < _quantity; unit++) {
+        final start = unit * _scoopCount;
+        final unitFlavorIds = <String>[];
+        final unitFlavorNames = <String>[];
+        for (int s = 0; s < _scoopCount; s++) {
+          final id = _selectedFlavors[start + s]!;
+          unitFlavorIds.add(id);
+          unitFlavorNames.add(_flavors.firstWhere((f) => f.id == id).name);
+        }
+        entries.add(_CartItemEntry(
+          quantity: 1,
+          variant: _selectedVariant,
+          modifiers: modifiers,
+          note: note.isEmpty ? null : note,
+          flavorIds: unitFlavorIds,
+          flavorNames: unitFlavorNames,
+        ));
+      }
+      widget.onAddItems(entries);
+      return;
+    }
+
     final flavorIds = <String>[];
     final flavorNames = <String>[];
     if (_scoopCount > 0) {
@@ -1448,6 +1482,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
         ),
       );
     }
+    // Con cantidad > 1 mostramos selectores por unidad, no uno global.
+    if (_quantity > 1) return _buildPerUnitFlavorSelector(theme, label);
+
+    // Unidad única — layout clásico con "Bola 1, Bola 2…"
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1509,6 +1547,89 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 ),
               ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Cuando el usuario pide más de 1 unidad de un producto con scoops,
+  /// muestra una tarjeta por unidad, cada una con sus propios selectores.
+  Widget _buildPerUnitFlavorSelector(ThemeData theme, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.icecream, size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              '$label por unidad',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (int unit = 0; unit < _quantity; unit++)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Unidad ${unit + 1}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (int s = 0; s < _scoopCount; s++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 60,
+                          child: Text(
+                            _scoopCount > 1 ? 'Bola ${s + 1}' : label,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                _selectedFlavors[unit * _scoopCount + s],
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              hintText: 'Elegí…',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            items: [
+                              for (final f in _flavors)
+                                DropdownMenuItem(
+                                    value: f.id, child: Text(f.name)),
+                            ],
+                            onChanged: (v) => setState(() =>
+                                _selectedFlavors[unit * _scoopCount + s] = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
       ],

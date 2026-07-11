@@ -1,5 +1,4 @@
 // lib/features/products/presentation/pages/products_page.dart
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -101,8 +100,6 @@ class _ProductsHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              // Botón para descargar/compartir el PDF de la carta completa.
-              _PdfDownloadButton(),
               // Menú "+" — adaptado al tab activo. Ofrecemos la creación
               // de los 3 tipos siempre, así no hace falta saber en qué tab
               // está el usuario para crear algo.
@@ -278,7 +275,7 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
       );
 
       await Printing.sharePdf(
-        bytes: Uint8List.fromList(bytes),
+        bytes: bytes,
         filename: 'carta.pdf',
       );
     } catch (e) {

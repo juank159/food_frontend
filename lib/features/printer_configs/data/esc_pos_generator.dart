@@ -281,7 +281,12 @@ class EscPosGenerator {
         ),
       );
       if (item.variantName != null && item.variantName!.isNotEmpty) {
-        bytes.addAll(gen.text('  -> ${item.variantName}'));
+        bytes.addAll(
+          gen.text(
+            '  -> ${item.variantName!.toUpperCase()}',
+            styles: const PosStyles(bold: true, height: PosTextSize.size2),
+          ),
+        );
       }
       if (item.selectedFlavors.isNotEmpty) {
         bytes.addAll(

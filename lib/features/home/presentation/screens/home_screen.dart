@@ -3,10 +3,19 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:dio/dio.dart' as dio_pkg;
+import 'package:printing/printing.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/api_response_utils.dart';
+import '../../../../core/utils/menu_pdf_builder.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../categories/domain/entities/category.dart';
+import '../../../categories/domain/usecases/get_active_categories_usecase.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
+import '../../../products/domain/entities/product.dart';
+import '../../../products/domain/usecases/get_products_usecase.dart';
 import '../../../products/presentation/pages/products_page.dart';
 import '../../../tables/presentation/pages/floor_plans_list_page.dart';
 import '../../../../core/routes/app_routes.dart';
@@ -204,6 +213,7 @@ class HomeScreen extends GetView<HomeController> {
         final access = UiAccess.from(user);
 
         final managementItems = <Widget>[
+          if (access.canSeeProducts) const _CartaPdfTile(),
           if (access.canSeeCustomers)
             _buildMenuItem(
               icon: FontAwesomeIcons.users,
@@ -531,4 +541,138 @@ class _HomeTab {
     required this.label,
     required this.body,
   });
+}
+
+/// Ítem del menú "Más" para descargar/compartir la carta en PDF.
+/// Tiene estado propio para mostrar un spinner mientras genera el archivo.
+class _CartaPdfTile extends StatefulWidget {
+  const _CartaPdfTile();
+
+  @override
+  State<_CartaPdfTile> createState() => _CartaPdfTileState();
+}
+
+class _CartaPdfTileState extends State<_CartaPdfTile> {
+  bool _loading = false;
+
+  Future<void> _download() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      // Lanzar los tres requests en paralelo (se inician antes del primer await)
+      final tenantFuture     = sl<dio_pkg.Dio>().get('/tenants/me');
+      final productsFuture   = sl<GetProductsUseCase>().call(isAvailable: true, limit: 500);
+      final categoriesFuture = sl<GetActiveCategoriesUseCase>().call();
+
+      final tenantResp       = await tenantFuture;
+      final productsResult   = await productsFuture;
+      final categoriesResult = await categoriesFuture;
+
+      // Datos del negocio
+      final tenant  = ApiResponseUtils.object(tenantResp);
+      final settings = (tenant['settings'] as Map?)?.cast<String, dynamic>() ?? {};
+      final contact  = (settings['contact'] as Map?)?.cast<String, dynamic>() ?? {};
+      final receipt  = (settings['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
+
+      final restaurantName = ((tenant['business_name'] as String?)?.trim().isNotEmpty == true
+              ? tenant['business_name'] as String
+              : null) ??
+          'Mi Restaurante';
+      final address = (contact['address'] as String?)?.trim();
+      final phone   = (contact['phone'] as String?)?.trim();
+      final logoUrl = (receipt['logo_url'] as String?)?.trim();
+
+      // Productos y categorías — tipos preservados porque no hay List<dynamic> intermedia
+      final products   = productsResult.fold<List<Product>>(
+        (_) => <Product>[], (list) => list,
+      );
+      final categories = categoriesResult.fold<List<Category>>(
+        (_) => <Category>[], (list) => list,
+      );
+
+      if (products.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No hay productos para generar la carta.')),
+          );
+        }
+        return;
+      }
+
+      final bytes = await MenuPdfBuilder.build(
+        products: products,
+        categories: categories,
+        restaurantName: restaurantName,
+        restaurantAddress: address?.isNotEmpty == true ? address : null,
+        restaurantPhone: phone?.isNotEmpty == true ? phone : null,
+        logoUrl: logoUrl?.isNotEmpty == true ? logoUrl : null,
+      );
+
+      await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo generar el PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _loading ? null : _download,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.picture_as_pdf_outlined,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Descargar carta PDF',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Carta completa con imágenes y precios para compartir',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
 }

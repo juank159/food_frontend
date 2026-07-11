@@ -251,6 +251,17 @@ class OrderItemsList extends StatelessWidget {
                         : null,
                   ),
                 ),
+                if (item.variantName != null &&
+                    item.variantName!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.variantName!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 _StatusBadge(visuals: status),
                 if (item.hasModifiers) ...[
@@ -895,6 +906,17 @@ class _ItemActionsSheet extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
+            if (item.variantName != null && item.variantName!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                item.variantName!,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Estado actual: ${_ItemStatusVisuals.of(item).label}',
@@ -1331,13 +1353,29 @@ class _UndoDeliveryDialog extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      item.productName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: AppColors.textPrimary,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          item.productName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        if (item.variantName != null &&
+                            item.variantName!.isNotEmpty)
+                          Text(
+                            item.variantName!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
