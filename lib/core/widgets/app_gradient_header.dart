@@ -38,6 +38,9 @@ class AppGradientHeader extends StatelessWidget {
   /// de las pantallas.
   final double horizontalPadding;
 
+  /// Si se pasa, el título se vuelve tappable y muestra un ícono de edición.
+  final VoidCallback? onTitleTap;
+
   /// Controla si se muestra el botón de back auto-generado cuando NO se
   /// pasa `leading`:
   /// - `null` (default): auto. Muestra back si la pantalla NO es root
@@ -57,6 +60,7 @@ class AppGradientHeader extends StatelessWidget {
     this.chips,
     this.horizontalPadding = 20,
     this.showBackButton,
+    this.onTitleTap,
   });
 
   /// Decide si renderizar el back button automático. Lógica:
@@ -116,34 +120,53 @@ class AppGradientHeader extends StatelessWidget {
                 const SizedBox(width: 12),
               ],
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                        height: 1.1,
+                child: GestureDetector(
+                  onTap: onTitleTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                          if (onTitleTap != null) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.edit_outlined,
+                              color: Colors.white60,
+                              size: 14,
+                            ),
+                          ],
+                        ],
                       ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               if (trailing != null) trailing!,

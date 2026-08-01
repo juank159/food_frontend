@@ -8,6 +8,7 @@ abstract class TabSessionRemoteDataSource {
   Future<TabSessionModel> open(Map<String, dynamic> body);
   Future<List<TabSessionModel>> findOpen();
   Future<TabSessionModel> findOne(String id);
+  Future<TabSessionModel> update(String id, Map<String, dynamic> body);
   Future<TabSessionModel> close(String id, Map<String, dynamic> body);
   Future<void> voidSession(String id);
 }
@@ -64,6 +65,19 @@ class TabSessionRemoteDataSourceImpl implements TabSessionRemoteDataSource {
   Future<TabSessionModel> findOne(String id) async {
     try {
       final response = await dio.get(ApiConstants.tabSessionById(id));
+      return TabSessionModel.fromJson(_extractObject(response));
+    } on DioException catch (e) {
+      throw _handle(e);
+    }
+  }
+
+  @override
+  Future<TabSessionModel> update(String id, Map<String, dynamic> body) async {
+    try {
+      final response = await dio.patch(
+        ApiConstants.tabSessionById(id),
+        data: body,
+      );
       return TabSessionModel.fromJson(_extractObject(response));
     } on DioException catch (e) {
       throw _handle(e);

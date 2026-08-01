@@ -20,6 +20,14 @@ abstract class TabSessionRepository {
   /// Detalle completo con tickets y pagos.
   Future<Either<Failure, TabSession>> findOne(String id);
 
+  /// Actualiza metadata editable (nombre cliente, notas, comensales).
+  Future<Either<Failure, TabSession>> update(
+    String id, {
+    String? customerName,
+    String? notes,
+    int? partySize,
+  });
+
   /// Cierra la cuenta. `force=true` permite cerrar con balance > 0
   /// (admin override).
   Future<Either<Failure, TabSession>> close({

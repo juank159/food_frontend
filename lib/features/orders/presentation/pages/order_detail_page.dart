@@ -6,6 +6,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/app_error_state.dart';
+import '../../../../core/widgets/edit_customer_sheet.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/widgets.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
@@ -109,7 +110,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 120),
               children: [
-                _OrderHeader(order: order, onRefresh: controller.refresh),
+                _OrderHeader(
+                  order: order,
+                  onRefresh: controller.refresh,
+                  onEditCustomer: () => _showEditCustomerSheet(context),
+                ),
                 const SizedBox(height: 12),
                 _StatusTimeline(order: order),
                 const SizedBox(height: 12),
@@ -312,6 +317,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     // por cada cobro.
   }
 
+  void _showEditCustomerSheet(BuildContext context) {
+    final order = controller.currentOrder;
+    if (order == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditCustomerSheet(
+        currentName: order.customerName ?? '',
+        onSave: (name) => controller.updateCustomerName(name),
+      ),
+    );
+  }
+
   void _showPaymentHistory(BuildContext context) {
     final order = controller.currentOrder!;
     showModalBottomSheet(
@@ -369,7 +389,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 class _OrderHeader extends StatelessWidget {
   final Order order;
   final Future<void> Function() onRefresh;
-  const _OrderHeader({required this.order, required this.onRefresh});
+  final VoidCallback onEditCustomer;
+  const _OrderHeader({
+    required this.order,
+    required this.onRefresh,
+    required this.onEditCustomer,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -580,11 +605,18 @@ class _OrderHeader extends StatelessWidget {
             runSpacing: 8,
             children: [
               _buildOriginChip(order),
-              if (order.hasCustomer)
-                _ContextChip(
-                  icon: Icons.person_outline,
-                  label: order.customerName ?? 'Cliente',
+              GestureDetector(
+                onTap: onEditCustomer,
+                child: _ContextChip(
+                  icon: order.hasCustomer
+                      ? Icons.person
+                      : Icons.person_add_outlined,
+                  label: order.hasCustomer
+                      ? (order.customerName ?? 'Cliente')
+                      : 'Agregar cliente',
+                  isEditable: true,
                 ),
+              ),
               _ContextChip(
                 icon: Icons.shopping_bag_outlined,
                 label:
@@ -663,15 +695,25 @@ class _OrderHeader extends StatelessWidget {
 class _ContextChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _ContextChip({required this.icon, required this.label});
+  final bool isEditable;
+  const _ContextChip({
+    required this.icon,
+    required this.label,
+    this.isEditable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: isEditable
+            ? Colors.white.withValues(alpha: 0.28)
+            : Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
+        border: isEditable
+            ? Border.all(color: Colors.white.withValues(alpha: 0.5))
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -686,6 +728,10 @@ class _ContextChip extends StatelessWidget {
               color: Colors.white,
             ),
           ),
+          if (isEditable) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.edit, size: 10, color: Colors.white70),
+          ],
         ],
       ),
     );
@@ -1263,3 +1309,4 @@ class _PendingReviewBanner extends StatelessWidget {
     }
   }
 }
+

@@ -61,6 +61,46 @@ class TabSessionDetailController extends GetxController {
     );
   }
 
+  Future<bool> updateCustomerName(String name) async {
+    if (_sessionId == null) return false;
+    isMutating.value = true;
+    final result = await useCases.update(
+      _sessionId!,
+      customerName: name.trim().isEmpty ? '' : name.trim(),
+    );
+    isMutating.value = false;
+    return result.fold(
+      (failure) {
+        AppSnackbar.show('Error', failure.message);
+        return false;
+      },
+      (updated) {
+        session.value = updated;
+        return true;
+      },
+    );
+  }
+
+  Future<bool> updateNotes(String notes) async {
+    if (_sessionId == null) return false;
+    isMutating.value = true;
+    final result = await useCases.update(
+      _sessionId!,
+      notes: notes.trim(),
+    );
+    isMutating.value = false;
+    return result.fold(
+      (failure) {
+        AppSnackbar.show('Error', failure.message);
+        return false;
+      },
+      (updated) {
+        session.value = updated;
+        return true;
+      },
+    );
+  }
+
   Future<bool> voidSession() async {
     if (_sessionId == null) return false;
     isMutating.value = true;

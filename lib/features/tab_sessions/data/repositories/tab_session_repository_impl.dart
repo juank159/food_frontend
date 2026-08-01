@@ -72,6 +72,23 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
   }
 
   @override
+  Future<Either<Failure, TabSession>> update(
+    String id, {
+    String? customerName,
+    String? notes,
+    int? partySize,
+  }) {
+    return _run(() async {
+      final body = <String, dynamic>{};
+      if (customerName != null) body['customer_name'] = customerName;
+      if (notes != null) body['notes'] = notes;
+      if (partySize != null) body['party_size'] = partySize;
+      final model = await remoteDataSource.update(id, body);
+      return model.toEntity();
+    });
+  }
+
+  @override
   Future<Either<Failure, TabSession>> close({
     required String id,
     bool force = false,

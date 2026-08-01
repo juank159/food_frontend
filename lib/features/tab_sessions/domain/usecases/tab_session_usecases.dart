@@ -29,6 +29,15 @@ class TabSessionUseCases {
   Future<Either<Failure, TabSession>> findOne(String id) =>
       repository.findOne(id);
 
+  Future<Either<Failure, TabSession>> update(
+    String id, {
+    String? customerName,
+    String? notes,
+    int? partySize,
+  }) {
+    return repository.update(id, customerName: customerName, notes: notes, partySize: partySize);
+  }
+
   Future<Either<Failure, TabSession>> close({
     required String id,
     bool force = false,

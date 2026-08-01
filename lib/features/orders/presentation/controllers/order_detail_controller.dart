@@ -10,6 +10,7 @@ import '../../domain/entities/order_item.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/update_order_item_status_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
+import '../../domain/usecases/update_order_usecase.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import 'orders_controller.dart';
@@ -593,6 +594,37 @@ class OrderDetailController extends GetxController {
       return false;
     } finally {
       updatingItemIds.remove(item.id);
+    }
+  }
+
+  /// Actualiza solo el nombre del cliente en la orden. No navega a la
+  /// pantalla de edición completa — es una acción rápida en un dialog.
+  Future<bool> updateCustomerName(String name) async {
+    if (!hasOrder) return false;
+    final orderId = currentOrder!.id;
+    try {
+      final usecase = sl<UpdateOrderUseCase>();
+      final result = await usecase(
+        id: orderId,
+        customerName: name.trim().isEmpty ? null : name.trim(),
+      );
+      return result.fold(
+        (failure) {
+          AppSnackbar.show('Error', failure.message);
+          return false;
+        },
+        (updated) {
+          order.value = updated;
+          order.refresh();
+          if (Get.isRegistered<OrdersController>()) {
+            Get.find<OrdersController>().applyOrderUpdate(updated);
+          }
+          return true;
+        },
+      );
+    } catch (e) {
+      AppSnackbar.show('Error', e.toString());
+      return false;
     }
   }
 

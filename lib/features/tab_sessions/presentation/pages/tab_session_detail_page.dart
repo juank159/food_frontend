@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/widgets/edit_customer_sheet.dart';
+import '../../../../core/widgets/edit_text_sheet.dart';
 import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
@@ -93,9 +95,20 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
 
   Widget _buildHeader(TabSession s) {
     final accent = _statusColor(s.status);
+    // Para cuentas libres el título es editable.
+    // Si tiene customerName → el título ES el nombre, tap abre nombre.
+    // Si no tiene customerName → el título es la 1ra línea de notes, tap abre notas/etiqueta.
+    VoidCallback? onTitleTap;
+    if (!s.hasTable) {
+      final hasCustomer = s.customerName != null && s.customerName!.isNotEmpty;
+      onTitleTap = hasCustomer
+          ? () => _showEditCustomerSheet(s)
+          : () => _showEditNotesSheet(s);
+    }
     return AppGradientHeader(
       title: s.displayLabel(),
       subtitle: _headerSubtitle(s),
+      onTitleTap: onTitleTap,
       leading: GestureDetector(
         onTap: () => Navigator.of(context).pop(),
         child: Container(
@@ -155,18 +168,6 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   // ─────────────────────────── Body ────────────────────────────
 
   Widget _buildBody(TabSession s) {
-    // Para cuentas libres (sin mesa) la primera línea de `notes` es la
-    // etiqueta de la cuenta — ya se muestra en el header, no tiene
-    // sentido repetirla como bloque "Notas". Si hay líneas adicionales
-    // las mostramos como notas reales.
-    final showNotesCard = s.notes != null &&
-        s.notes!.trim().isNotEmpty &&
-        // Si tiene mesa, las notas son notas de verdad.
-        (s.hasTable ||
-            // Si NO tiene mesa, mostramos solo si hay más que una sola
-            // línea (la 1ra es el label).
-            s.notes!.contains('\n'));
-
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView(
@@ -174,15 +175,11 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
         children: [
           _buildTotalsCard(s),
           const SizedBox(height: 16),
-          if (s.customerName != null && s.customerName!.isNotEmpty) ...[
-            _buildCustomerCard(s),
-            const SizedBox(height: 16),
-          ],
+          _buildCustomerCard(s),
+          const SizedBox(height: 8),
+          _buildEtiquetaCard(s),
+          const SizedBox(height: 16),
           _buildTicketsSection(s),
-          if (showNotesCard) ...[
-            const SizedBox(height: 16),
-            _buildNotesCard(s),
-          ],
         ],
       ),
     );
@@ -256,50 +253,83 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   }
 
   Widget _buildCustomerCard(TabSession s) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+    final hasCustomer = s.customerName != null && s.customerName!.isNotEmpty;
+    return GestureDetector(
+      onTap: () => _showEditCustomerSheet(s),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: hasCustomer
+              ? AppColors.info.withValues(alpha: 0.08)
+              : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasCustomer
+                ? AppColors.info.withValues(alpha: 0.25)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: hasCustomer
+                    ? AppColors.info.withValues(alpha: 0.15)
+                    : AppColors.border,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                hasCustomer ? Icons.person : Icons.person_add_outlined,
+                size: 18,
+                color:
+                    hasCustomer ? AppColors.info : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasCustomer ? s.customerName! : 'Agregar cliente',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: hasCustomer
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasCustomer ? 'Cliente titular · Toca para editar' : 'Toca para agregar',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.person, size: 18, color: AppColors.info),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.customerName!,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Cliente titular',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    );
+  }
+
+  void _showEditCustomerSheet(TabSession s) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditCustomerSheet(
+        currentName: s.customerName ?? '',
+        onSave: (name) => controller.updateCustomerName(name),
       ),
     );
   }
@@ -416,32 +446,112 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     );
   }
 
-  Widget _buildNotesCard(TabSession s) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Notas',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textSecondary,
-              letterSpacing: 0.4,
+  /// Card siempre visible para editar la etiqueta (cuentas libres) o
+  /// las notas de la cuenta (mesas). Tappable en cualquier estado.
+  Widget _buildEtiquetaCard(TabSession s) {
+    // Para cuentas libres la etiqueta es la primera línea de notes.
+    // Para mesas las notes son notas genéricas.
+    final isFreAccount = !s.hasTable;
+    final cardTitle = isFreAccount ? 'Etiqueta de la cuenta' : 'Notas';
+    final currentNotes = s.notes ?? '';
+    final hasNotes = currentNotes.trim().isNotEmpty;
+
+    // Texto a mostrar: para cuentas libres mostramos la etiqueta (1ra
+    // línea de notes) separada del resto si hay más líneas.
+    String displayText = '';
+    if (hasNotes) {
+      displayText = isFreAccount
+          ? currentNotes.split('\n').first.trim()
+          : currentNotes;
+    }
+
+    return GestureDetector(
+      onTap: () => _showEditNotesSheet(s),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: hasNotes
+              ? AppColors.warning.withValues(alpha: 0.06)
+              : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasNotes
+                ? AppColors.warning.withValues(alpha: 0.3)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: hasNotes
+                    ? AppColors.warning.withValues(alpha: 0.15)
+                    : AppColors.border,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                isFreAccount ? Icons.label_outline : Icons.notes_outlined,
+                size: 18,
+                color: hasNotes ? AppColors.warning : AppColors.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            s.notes!,
-            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasNotes ? displayText : 'Agregar ${cardTitle.toLowerCase()}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: hasNotes
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasNotes
+                        ? '$cardTitle · Toca para editar'
+                        : 'Toca para agregar',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined,
+                size: 16, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditNotesSheet(TabSession s) {
+    final isFreAccount = !s.hasTable;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditTextSheet(
+        title: isFreAccount ? 'Etiqueta de la cuenta' : 'Notas',
+        currentValue: s.notes ?? '',
+        hint: isFreAccount
+            ? 'Ej: Domicilio norte, Cumpleaños mesa central...'
+            : 'Ej: Sin cebolla, alergia mariscos...',
+        icon: isFreAccount ? Icons.label_outline : Icons.notes_outlined,
+        maxLines: null,
+        onSave: (notes) => controller.updateNotes(notes),
       ),
     );
   }
