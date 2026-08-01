@@ -117,6 +117,13 @@ class OrderItemsList extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              _AddItemButton(
+                icon: Icons.remove_circle_outline,
+                label: 'Agregar descuento',
+                color: Colors.green.shade700,
+                onTap: () => _showAddDiscountSheet(context),
+              ),
             ],
             const Divider(height: 24),
 
@@ -203,12 +210,13 @@ class OrderItemsList extends StatelessWidget {
 
   Widget _buildOrderItem(BuildContext context, OrderItem item) {
     final theme = Theme.of(context);
+    final isDiscount = item.unitPrice < 0;
     final status = _ItemStatusVisuals.of(item);
-    final nextStatus = _nextStatusForRole(item);
+    final nextStatus = isDiscount ? null : _nextStatusForRole(item);
     final perms = _permissions;
-    final canForward = _canInteract && nextStatus != null;
+    final canForward = !isDiscount && _canInteract && nextStatus != null;
     final canUndoDelivery =
-        _canInteract && item.isDelivered && perms.canDeliver;
+        !isDiscount && _canInteract && item.isDelivered && perms.canDeliver;
 
     // Layout pasivo del item — el ÚNICO punto tappable es el círculo
     // grande (52x52) a la derecha. Tocar el nombre o el precio no
@@ -262,8 +270,10 @@ class OrderItemsList extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(height: 4),
-                _StatusBadge(visuals: status),
+                if (!isDiscount) ...[
+                  const SizedBox(height: 4),
+                  _StatusBadge(visuals: status),
+                ],
                 if (item.hasModifiers) ...[
                   const SizedBox(height: 6),
                   ...item.modifiers
@@ -295,10 +305,16 @@ class OrderItemsList extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${CurrencyFormatter.format(item.unitPrice)} c/u · '
-                  '${CurrencyFormatter.format(item.subtotal)}',
+                  isDiscount
+                      ? '− ${CurrencyFormatter.format(-item.subtotal)}'
+                      : '${CurrencyFormatter.format(item.unitPrice)} c/u · '
+                          '${CurrencyFormatter.format(item.subtotal)}',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: isDiscount
+                        ? Colors.green.shade700
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight:
+                        isDiscount ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -324,15 +340,27 @@ class OrderItemsList extends StatelessWidget {
             }),
           ],
           const SizedBox(width: 4),
-          _DeliveryTapTarget(
-            item: item,
-            nextStatus: nextStatus,
-            canForward: canForward,
-            canUndoDelivery: canUndoDelivery,
-            canShowSheet: _canInteract,
-            onTap: () => _onItemTap(context, item),
-            onLongPress: () => _onItemLongPress(context, item),
-          ),
+          if (isDiscount)
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.remove_circle_outline,
+                  color: Colors.green.shade700, size: 22),
+            )
+          else
+            _DeliveryTapTarget(
+              item: item,
+              nextStatus: nextStatus,
+              canForward: canForward,
+              canUndoDelivery: canUndoDelivery,
+              canShowSheet: _canInteract,
+              onTap: () => _onItemTap(context, item),
+              onLongPress: () => _onItemLongPress(context, item),
+            ),
         ],
       ),
     );
@@ -342,15 +370,20 @@ class OrderItemsList extends StatelessWidget {
   /// dentro del círculo tappable a la derecha, donde el usuario está
   /// mirando cuando ejecuta la acción).
   Widget _buildLeading(ThemeData theme, OrderItem item) {
+    final isDiscount = item.unitPrice < 0;
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
+        color: isDiscount
+            ? Colors.green.shade100
+            : theme.colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Center(
-        child: Text(
+        child: isDiscount
+            ? Icon(Icons.money_off, size: 18, color: Colors.green.shade700)
+            : Text(
           '${item.quantity}x',
           style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.bold,
@@ -541,6 +574,19 @@ class OrderItemsList extends StatelessWidget {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddItemSheet(
+        orderId: order.id,
+        controller: controller!,
+      ),
+    );
+  }
+
+  void _showAddDiscountSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddDiscountSheet(
         orderId: order.id,
         controller: controller!,
       ),
@@ -1708,6 +1754,170 @@ class _AddItemSheetState extends State<_AddItemSheet> {
                     label: const Text('Agregar'),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────── Sheet de descuento ───────────────────────────────────
+
+class _AddDiscountSheet extends StatefulWidget {
+  final String orderId;
+  final OrderDetailController controller;
+
+  const _AddDiscountSheet({required this.orderId, required this.controller});
+
+  @override
+  State<_AddDiscountSheet> createState() => _AddDiscountSheetState();
+}
+
+class _AddDiscountSheetState extends State<_AddDiscountSheet> {
+  final _nameCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _parsedAmount {
+    final raw = _amountCtrl.text.replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(raw) ?? 0;
+  }
+
+  bool get _canSubmit =>
+      _nameCtrl.text.trim().isNotEmpty && _parsedAmount > 0;
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() => _saving = true);
+    final ok = await widget.controller.addItem(
+      productName: _nameCtrl.text.trim(),
+      unitPrice: -_parsedAmount,
+      quantity: 1,
+    );
+    setState(() => _saving = false);
+    if (ok && mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mq = MediaQuery.of(context);
+    final kb = mq.viewInsets.bottom;
+    final safeBottom = mq.viewPadding.bottom;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: mq.size.height * 0.88 - safeBottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom + 20 + kb),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Icon(Icons.remove_circle_outline,
+                    color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Agregar descuento',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'El descuento se resta del total y aparece en el recibo.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Motivo del descuento *',
+                hintText: 'Ej: Sin gaseosa del combo',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.label_outline),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Valor a descontar *',
+                hintText: '2.000',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.money_off),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _canSubmit && !_saving ? _submit : null,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check),
+                    label: const Text('Aplicar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                      backgroundColor: Colors.green.shade700,
                     ),
                   ),
                 ),

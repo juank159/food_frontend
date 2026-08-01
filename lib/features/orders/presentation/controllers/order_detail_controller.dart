@@ -228,10 +228,20 @@ class OrderDetailController extends GetxController {
           return false;
         },
         (updatedOrder) {
-          order.value = updatedOrder;
+          // Preservar el orden original de ítems para que chulear un
+          // producto no lo mueva de posición en la lista.
+          final idToIndex = {
+            for (var i = 0; i < previousOrder.items.length; i++)
+              previousOrder.items[i].id: i,
+          };
+          final sorted = [...updatedOrder.items]
+            ..sort((a, b) =>
+                (idToIndex[a.id] ?? 9999).compareTo(idToIndex[b.id] ?? 9999));
+          final stableOrder = updatedOrder.copyWith(items: sorted);
+          order.value = stableOrder;
           order.refresh();
           if (Get.isRegistered<OrdersController>()) {
-            Get.find<OrdersController>().applyOrderUpdate(updatedOrder);
+            Get.find<OrdersController>().applyOrderUpdate(stableOrder);
           }
           return true;
         },

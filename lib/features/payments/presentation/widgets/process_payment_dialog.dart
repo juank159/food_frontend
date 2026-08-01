@@ -14,8 +14,8 @@ import '../controllers/payment_controller.dart';
 import '../controllers/nequi_payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../orders/domain/entities/order.dart';
-import '../../../orders/domain/entities/order_item.dart';
 import '../../domain/entities/payment.dart';
+import 'item_selection_sheet.dart';
 import 'nequi_payment_dialog.dart';
 import 'payment_method_selector.dart';
 import 'split_payment_dialog.dart';
@@ -93,12 +93,15 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     }
 
     if (method == PaymentMethod.cash) {
-      if (!_cashReady) {
+      // Recibido es opcional; solo bloquear si ingresó un monto insuficiente
+      if (_received > 0 && _received < _effectiveAmount) {
         AppSnackbar.show('Monto insuficiente',
-            'El monto recibido debe ser al menos ${CurrencyFormatter.format(_effectiveAmount)}');
+            'El recibido debe ser al menos ${CurrencyFormatter.format(_effectiveAmount)}');
         return;
       }
-      widget.controller.receivedAmount.value = _received;
+      if (_received > 0) {
+        widget.controller.receivedAmount.value = _received;
+      }
     }
     await _executePayment(context);
   }
@@ -134,21 +137,69 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   }
 
   Future<void> _openItemSelection(BuildContext context) async {
-    final payment = await showModalBottomSheet<Payment>(
+    final ctrl = widget.controller;
+    // Siempre recargar para tener datos frescos (no cachear el estado previo)
+    await ctrl.loadPaymentsByOrder(widget.orderId);
+    if (!context.mounted) return;
+
+    // Calcular cuántos de cada ítem ya fueron cobrados en pagos anteriores
+    final paidQtyById = <String, int>{};
+    for (final p in ctrl.payments) {
+      if (p.status != PaymentStatus.completed) continue;
+      if (p.orderId != widget.orderId) continue;
+      try {
+        final decoded = jsonDecode(p.notes ?? '') as Map<String, dynamic>?;
+        final rawItems = decoded?['__items__'] as List?;
+        if (rawItems != null) {
+          for (final raw in rawItems) {
+            final m = raw as Map<String, dynamic>;
+            final id = m['id'] as String?;
+            final qty = (m['qty'] as num?)?.toInt() ?? 0;
+            if (id != null) paidQtyById[id] = (paidQtyById[id] ?? 0) + qty;
+          }
+        }
+      } catch (_) {}
+    }
+
+    final items = widget.order!.items
+        .where((i) => i.unitPrice > 0)
+        .map((i) => SelectableItemEntry(
+              itemId: i.id,
+              name: i.productName,
+              unitPrice: i.unitPrice,
+              totalQty: i.quantity,
+              paidQty: paidQtyById[i.id] ?? 0,
+            ))
+        .toList();
+
+    final paid = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _OrderItemSelectionSheet(
-        items: widget.order!.items,
-        maxAmount: _effectiveAmount,
-        orderId: widget.orderId,
-        controller: widget.controller,
+      builder: (_) => ItemSelectionSheet(
+        items: items,
+        balance: _effectiveAmount,
+        onPay: (req) async {
+          if (req.method == PaymentMethod.cash) {
+            ctrl.receivedAmount.value = req.receivedAmount ?? 0;
+          }
+          final payment = await ctrl.addPartialPayment(
+            orderId: widget.orderId,
+            paymentMethod: req.method,
+            amount: req.amount,
+            notes: req.notesJson,
+            receivedAmount:
+                req.method == PaymentMethod.cash ? req.receivedAmount : null,
+            tenantPaymentAccountId: req.tenantAccountId,
+          );
+          return payment != null;
+        },
       ),
     );
-    if (payment != null && context.mounted) {
+    if (paid == true && context.mounted) {
       HapticFeedback.mediumImpact();
-      Navigator.pop(context, payment);
+      Navigator.pop(context);
     }
   }
 
@@ -688,477 +739,3 @@ class _PreviousPaymentRow extends StatelessWidget {
 
 }
 
-// ────────────────── Selección de ítems + pago directo ──────────────────
-
-class _OrderSelectableItem {
-  final OrderItem item;
-  final int maxQty; // puede ser < item.quantity si hay pagos parciales previos
-  int selectedQty;
-
-  _OrderSelectableItem({required this.item, int? maxQty})
-      : maxQty = maxQty ?? item.quantity,
-        selectedQty = 0;
-
-  bool get isSelected => selectedQty > 0;
-  double get subtotal => item.unitPrice * selectedQty;
-}
-
-/// Sheet que combina selección de ítems + método de pago + procesamiento
-/// en un solo paso. No devuelve un monto — devuelve el `Payment` ya
-/// registrado para que el caller cierre el dialog padre directamente.
-class _OrderItemSelectionSheet extends StatefulWidget {
-  final List<OrderItem> items;
-  final double maxAmount;
-  final String orderId;
-  final PaymentController controller;
-
-  const _OrderItemSelectionSheet({
-    required this.items,
-    required this.maxAmount,
-    required this.orderId,
-    required this.controller,
-  });
-
-  @override
-  State<_OrderItemSelectionSheet> createState() =>
-      _OrderItemSelectionSheetState();
-}
-
-class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
-  late List<_OrderSelectableItem> _selectables;
-  bool _processing = false;
-  // Campo "recibido" inline para efectivo
-  final _cashCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _selectables = _buildSelectables();
-    // Si los pagos aún no estaban cargados, cargarlos y reconstruir
-    // la lista para filtrar ítems ya pagados.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final ctrl = widget.controller;
-      final needsLoad = ctrl.payments.isEmpty ||
-          ctrl.payments.first.orderId != widget.orderId;
-      if (needsLoad) {
-        await ctrl.loadPaymentsByOrder(widget.orderId);
-        if (mounted) setState(() => _selectables = _buildSelectables());
-      }
-    });
-  }
-
-  /// Construye la lista de ítems seleccionables excluyendo los que ya
-  /// fueron cobrados en pagos anteriores (buscando JSON de ítems en
-  /// el campo `notes` de cada pago completado).
-  List<_OrderSelectableItem> _buildSelectables() {
-    final paidQtyById = <String, int>{};
-    for (final p in widget.controller.payments) {
-      if (p.status != PaymentStatus.completed) continue;
-      if (p.orderId != widget.orderId) continue;
-      try {
-        final decoded = jsonDecode(p.notes ?? '') as Map<String, dynamic>?;
-        final items = decoded?['__items__'] as List?;
-        if (items != null) {
-          for (final raw in items) {
-            final m = raw as Map<String, dynamic>;
-            final id = m['id'] as String?;
-            final qty = (m['qty'] as num?)?.toInt() ?? 0;
-            if (id != null) paidQtyById[id] = (paidQtyById[id] ?? 0) + qty;
-          }
-        }
-      } catch (_) {}
-    }
-
-    return widget.items.where((i) => i.unitPrice > 0).expand((i) {
-      final paidQty = paidQtyById[i.id] ?? 0;
-      final remaining = i.quantity - paidQty;
-      if (remaining <= 0) return const <_OrderSelectableItem>[];
-      return [_OrderSelectableItem(item: i, maxQty: remaining)];
-    }).toList();
-  }
-
-  @override
-  void dispose() {
-    _cashCtrl.dispose();
-    super.dispose();
-  }
-
-  double get _total => _selectables.fold(0, (s, i) => s + i.subtotal);
-
-  bool get _isCash =>
-      widget.controller.selectedPaymentMethod.value == PaymentMethod.cash;
-
-  double get _parsedReceived =>
-      (NumberFormatHelper.parseFormattedInt(_cashCtrl.text) ?? 0).toDouble();
-
-  Future<void> _confirm() async {
-    final total = _total;
-    if (total <= 0 || total > widget.maxAmount + 0.01) return;
-    if (_isCash) {
-      final rec = _parsedReceived;
-      if (rec < total) {
-        AppSnackbar.show('Monto insuficiente',
-            'El recibido debe ser ≥ ${CurrencyFormatter.format(total)}');
-        return;
-      }
-      widget.controller.receivedAmount.value = rec;
-    }
-    // Serializar los ítems pagados en `notes` para poder filtrarlos
-    // la próxima vez que se abra el sheet "cobrar por ítems".
-    final itemsJson = jsonEncode({
-      '__items__': _selectables
-          .where((s) => s.selectedQty > 0)
-          .map((s) => {'id': s.item.id, 'qty': s.selectedQty})
-          .toList(),
-    });
-    setState(() => _processing = true);
-    final payment = await widget.controller.addPartialPayment(
-      orderId: widget.orderId,
-      paymentMethod: widget.controller.selectedPaymentMethod.value,
-      amount: total,
-      notes: itemsJson,
-      receivedAmount: _isCash ? widget.controller.receivedAmount.value : null,
-      tenantPaymentAccountId: widget.controller.selectedTenantAccountId.value,
-    );
-    if (!mounted) return;
-    setState(() => _processing = false);
-    if (payment != null) Navigator.pop(context, payment);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mq = MediaQuery.of(context);
-    // Cuando el teclado sube, reducimos maxHeight para que el sheet
-    // se achique y el footer quede visible encima del teclado.
-    final kb = mq.viewInsets.bottom;
-    final safeBottom = mq.viewPadding.bottom;
-    final isSmall = mq.size.height < 700;
-    final vPad = isSmall ? 8.0 : 12.0;
-
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: mq.size.height * 0.92 - kb,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: EdgeInsets.symmetric(vertical: isSmall ? 8 : 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // Header
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 8, isSmall ? 4 : 8),
-            child: Row(
-              children: [
-                Icon(Icons.checklist_rtl,
-                    color: AppColors.primary, size: isSmall ? 20 : 24),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Cobrar por ítems',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      final allFull = _selectables
-                          .every((i) => i.selectedQty == i.maxQty);
-                      for (final i in _selectables) {
-                        i.selectedQty = allFull ? 0 : i.maxQty;
-                      }
-                    });
-                  },
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: Text(
-                    _selectables.every((i) => i.selectedQty == i.maxQty)
-                        ? 'Quitar todos'
-                        : 'Todos',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Lista — Expanded llena el espacio disponible y hace scroll
-          // internamente. shrinkWrap:true causaba que la lista reportara
-          // su alto real sin límite → la Column superaba maxHeight.
-          Expanded(
-            child: ListView.separated(
-              itemCount: _selectables.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final s = _selectables[i];
-                return _OrderItemTile(
-                  selectable: s,
-                  onIncrement: s.selectedQty < s.maxQty
-                      ? () => setState(() => s.selectedQty++)
-                      : null,
-                  onDecrement: s.selectedQty > 0
-                      ? () => setState(() => s.selectedQty--)
-                      : null,
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1),
-          // Footer — padding compacto en pantallas pequeñas
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, vPad, 16, vPad + safeBottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Método de pago
-                Obx(() => PaymentMethodSelector(
-                      selectedMethod:
-                          widget.controller.selectedPaymentMethod.value,
-                      onMethodSelected: (m) =>
-                          widget.controller.selectedPaymentMethod.value = m,
-                    )),
-                // Campo recibido para efectivo
-                Obx(() {
-                  if (widget.controller.selectedPaymentMethod.value !=
-                      PaymentMethod.cash) {
-                    return const SizedBox.shrink();
-                  }
-                  final total = _total;
-                  if (total <= 0) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: TextField(
-                      controller: _cashCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsSeparatorInputFormatter()],
-                      decoration: InputDecoration(
-                        labelText: 'Recibido del cliente',
-                        prefixText: '\$ ',
-                        hintText: NumberFormatHelper.formatNumber(total.toInt()),
-                        prefixIcon: const Icon(Icons.payments_outlined),
-                        isDense: true,
-                        border: const OutlineInputBorder(),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  );
-                }),
-                SizedBox(height: vPad),
-                // Total a cobrar
-                Builder(builder: (_) {
-                  final total = _total;
-                  final tooMuch = total > widget.maxAmount + 0.01;
-                  return Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Total a cobrar',
-                              style: theme.textTheme.titleSmall),
-                          Flexible(
-                            child: Text(
-                              CurrencyFormatter.format(total),
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: tooMuch
-                                    ? theme.colorScheme.error
-                                    : AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (tooMuch) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Supera el saldo '
-                          '(${CurrencyFormatter.format(widget.maxAmount)})',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.error),
-                        ),
-                      ],
-                    ],
-                  );
-                }),
-                SizedBox(height: vPad),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _processing
-                            ? null
-                            : () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(0, 44)),
-                        child: const Text('Cancelar'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: StatefulBuilder(
-                        builder: (_, ss) => FilledButton.icon(
-                          icon: _processing
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Icon(Icons.check, size: 18),
-                          label: Text(
-                            _processing
-                                ? 'Procesando…'
-                                : 'Cobrar ${CurrencyFormatter.format(_total)}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onPressed: _processing ||
-                                  _total <= 0 ||
-                                  _total > widget.maxAmount + 0.01
-                              ? null
-                              : _confirm,
-                          style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 44)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderItemTile extends StatelessWidget {
-  final _OrderSelectableItem selectable;
-  final VoidCallback? onIncrement;
-  final VoidCallback? onDecrement;
-
-  const _OrderItemTile({
-    required this.selectable,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final active = selectable.isSelected;
-    final nameColor = active
-        ? theme.colorScheme.onSurface
-        : theme.colorScheme.onSurfaceVariant;
-    final amtColor = active
-        ? AppColors.primary
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  selectable.item.productName,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: nameColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  CurrencyFormatter.format(selectable.item.unitPrice),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          _StepperBtn(icon: Icons.remove, onTap: onDecrement),
-          SizedBox(
-            width: 52,
-            child: Text(
-              '${selectable.selectedQty}/${selectable.maxQty}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: amtColor,
-              ),
-            ),
-          ),
-          _StepperBtn(icon: Icons.add, onTap: onIncrement),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 68,
-            child: Text(
-              CurrencyFormatter.format(selectable.subtotal),
-              textAlign: TextAlign.end,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: amtColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepperBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _StepperBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: onTap == null
-          ? theme.colorScheme.surfaceContainerHighest
-          : AppColors.primary.withValues(alpha: 0.12),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Icon(
-            icon,
-            size: 16,
-            color: onTap == null
-                ? theme.colorScheme.onSurfaceVariant
-                : AppColors.primary,
-          ),
-        ),
-      ),
-    );
-  }
-}

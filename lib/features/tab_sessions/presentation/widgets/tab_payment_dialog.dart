@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,6 +9,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../payments/presentation/widgets/item_selection_sheet.dart';
 import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
@@ -143,48 +146,117 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     if (res == true && mounted) Navigator.of(context).pop(true);
   }
 
+  static double _parseNum(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
   Future<void> _openItemSelection() async {
-    final selectedAmount = await showModalBottomSheet<double>(
+    // Construir la lista de ítems con tracking de pagados por ítem
+    final items = <SelectableItemEntry>[];
+    int orderIndex = 1;
+    for (final orderRaw in session.orders) {
+      final order = orderRaw as Map<String, dynamic>?;
+      if (order == null) continue;
+      final orderNum =
+          order['order_number']?.toString() ?? 'Ticket $orderIndex';
+      final label = 'Ticket #$orderNum';
+
+      // Calcular qty pagado por ítem desde los notes de cada pago
+      final paidQtyById = <String, int>{};
+      final paymentsRaw = order['payments'] as List<dynamic>? ?? [];
+      for (final pRaw in paymentsRaw) {
+        final p = pRaw as Map<String, dynamic>?;
+        if (p == null) continue;
+        if (p['status'] != 'completed') continue;
+        try {
+          final decoded =
+              jsonDecode(p['notes'] as String? ?? '') as Map<String, dynamic>?;
+          final iList = decoded?['__items__'] as List?;
+          if (iList != null) {
+            for (final raw in iList) {
+              final m = raw as Map<String, dynamic>;
+              final id = m['id'] as String?;
+              final qty = (m['qty'] as num?)?.toInt() ?? 0;
+              if (id != null) paidQtyById[id] = (paidQtyById[id] ?? 0) + qty;
+            }
+          }
+        } catch (_) {}
+      }
+
+      final itemsList = order['items'] as List<dynamic>? ?? [];
+      for (final itemRaw in itemsList) {
+        final item = itemRaw as Map<String, dynamic>?;
+        if (item == null) continue;
+        final product = item['product'] as Map<String, dynamic>?;
+        final variant = item['variant'] as Map<String, dynamic>?;
+        final name = (item['product_name'] as String?) ??
+            product?['name'] as String? ??
+            '—';
+        final variantName = variant?['name'] as String?;
+        final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+        final unitPrice = _parseNum(item['unit_price']);
+        final itemId = item['id'] as String? ?? '';
+        items.add(SelectableItemEntry(
+          itemId: itemId,
+          orderLabel: label,
+          name: name,
+          variantName: variantName,
+          unitPrice: unitPrice,
+          totalQty: qty,
+          paidQty: paidQtyById[itemId] ?? 0,
+        ));
+      }
+      orderIndex++;
+    }
+
+    if (!mounted) return;
+    final useCase = sl<ProcessTabPaymentUseCase>();
+
+    final paid = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ItemSelectionSheet(session: session),
+      builder: (_) => ItemSelectionSheet(
+        items: items,
+        balance: session.balance,
+        subtitle: session.displayLabel(),
+        onPay: (req) async {
+          final result = await useCase(
+            tabSessionId: session.id,
+            amount: req.amount,
+            paymentMethod: req.method,
+            tenantPaymentAccountId: req.tenantAccountId,
+          );
+          return result.fold(
+            (failure) {
+              if (isCashSessionRequiredError(failure.message)) {
+                handleCashSessionError(failure.message);
+              } else {
+                AppSnackbar.show('Error al cobrar', failure.message);
+              }
+              return false;
+            },
+            (_) => true,
+          );
+        },
+      ),
     );
-    if (selectedAmount == null || !mounted) return;
-    // Pre-llenamos el monto con el subtotal de ítems seleccionados.
-    // El backend distribuye FIFO — el cajero solo necesita el monto correcto.
-    final useCase = sl<ProcessTabPaymentUseCase>();
-    setState(() => _isProcessing = true);
-    final result = await useCase(
-      tabSessionId: session.id,
-      amount: selectedAmount,
-      paymentMethod: _selectedMethod,
-      tenantPaymentAccountId: _selectedAccount?.id,
-    );
-    if (!mounted) return;
-    setState(() => _isProcessing = false);
-    result.fold(
-      (failure) {
-        if (isCashSessionRequiredError(failure.message)) {
-          handleCashSessionError(failure.message);
-          return;
-        }
-        AppSnackbar.show('Error al cobrar', failure.message);
-      },
-      (_) {
-        AppSnackbar.show(
-          'Cobro exitoso',
-          '${CurrencyFormatter.format(selectedAmount)} cobrado',
-        );
-        // Si el monto seleccionado cubrió todo el saldo pendiente,
-        // la cuenta quedó saldada → imprimir recibo.
-        if (selectedAmount >= session.balance - 0.01) {
-          PrintingOrchestrator.autoPrintTabSessionReceipt(session);
-        }
-        if (mounted) Navigator.of(context).pop(true);
-      },
-    );
+
+    if (paid == true && mounted) {
+      // selectedSubtotal sigue seteado en los objetos (mutados por el sheet)
+      final paidAmount = items.fold(0.0, (s, i) => s + i.selectedSubtotal);
+      AppSnackbar.show(
+        'Cobro exitoso',
+        '${CurrencyFormatter.format(paidAmount)} cobrado',
+      );
+      if (paidAmount >= session.balance - 0.01) {
+        PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+      }
+      Navigator.of(context).pop(true);
+    }
   }
 
   @override
@@ -974,404 +1046,3 @@ class _AccountSelector extends StatelessWidget {
   }
 }
 
-// ══════════════════════════ Selección de ítems ══════════════════════════
-
-/// Modelo interno para un ítem de la cuenta con su estado de selección.
-class _SelectableItem {
-  final String orderId;
-  final String orderLabel;
-  final String name;
-  final String? variantName;
-  final int maxQuantity;
-  final double unitPrice;
-  int selectedQty;
-
-  _SelectableItem({
-    required this.orderId,
-    required this.orderLabel,
-    required this.name,
-    this.variantName,
-    required this.maxQuantity,
-    required this.unitPrice,
-  }) : selectedQty = 0;
-
-  bool get isSelected => selectedQty > 0;
-  double get subtotal => unitPrice * selectedQty;
-}
-
-/// Sheet que muestra todos los ítems de los tickets de la cuenta para
-/// que el cajero seleccione cuáles quiere cobrar en esta pasada.
-/// Retorna el subtotal de los ítems seleccionados via `Navigator.pop`.
-class _ItemSelectionSheet extends StatefulWidget {
-  final TabSession session;
-  const _ItemSelectionSheet({required this.session});
-
-  @override
-  State<_ItemSelectionSheet> createState() => _ItemSelectionSheetState();
-}
-
-class _ItemSelectionSheetState extends State<_ItemSelectionSheet> {
-  late List<_SelectableItem> _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _items = _parseItems(widget.session);
-  }
-
-  static double _parseNum(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
-  }
-
-  static List<_SelectableItem> _parseItems(TabSession session) {
-    final result = <_SelectableItem>[];
-    int orderIndex = 1;
-    for (final orderRaw in session.orders) {
-      final order = orderRaw as Map<String, dynamic>?;
-      if (order == null) continue;
-      final orderNum =
-          order['order_number']?.toString() ?? 'Ticket $orderIndex';
-      final label = 'Ticket #$orderNum';
-      final items = order['items'] as List<dynamic>? ?? [];
-      for (final itemRaw in items) {
-        final item = itemRaw as Map<String, dynamic>?;
-        if (item == null) continue;
-        final product = item['product'] as Map<String, dynamic>?;
-        final variant = item['variant'] as Map<String, dynamic>?;
-        final name =
-            (item['product_name'] as String?) ?? product?['name'] as String? ?? '—';
-        final variantName = variant?['name'] as String?;
-        final qty = (item['quantity'] as num?)?.toInt() ?? 1;
-        final unitPrice = _parseNum(item['unit_price']);
-        result.add(_SelectableItem(
-          orderId: order['id'] as String? ?? '',
-          orderLabel: label,
-          name: name,
-          variantName: variantName,
-          maxQuantity: qty,
-          unitPrice: unitPrice,
-        ));
-      }
-      orderIndex++;
-    }
-    return result;
-  }
-
-  double get _selectedTotal =>
-      _items.fold(0.0, (s, i) => s + i.subtotal);
-
-  int get _selectedCount => _items.where((i) => i.isSelected).length;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final total = _selectedTotal;
-    final canConfirm = total > 0.01;
-
-    // Agrupa por ticket.
-    final byOrder = <String, List<_SelectableItem>>{};
-    for (final item in _items) {
-      (byOrder[item.orderLabel] ??= []).add(item);
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12, bottom: 4),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.checklist_rtl,
-                      color: AppColors.primary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Seleccionar qué cobrar',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        widget.session.displayLabel(),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      final allFull = _items.every(
-                          (i) => i.selectedQty == i.maxQuantity);
-                      for (final i in _items) {
-                        i.selectedQty = allFull ? 0 : i.maxQuantity;
-                      }
-                    });
-                  },
-                  child: Text(
-                    _items.every((i) => i.selectedQty == i.maxQuantity)
-                        ? 'Quitar todos'
-                        : 'Todos',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Lista de ítems
-          if (_items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                'No hay ítems en esta cuenta.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else
-            Flexible(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shrinkWrap: true,
-                children: byOrder.entries.map((entry) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Encabezado del ticket
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(
-                          entry.key,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                      ...entry.value.map((item) => _ItemTile(
-                            item: item,
-                            onIncrement: item.selectedQty < item.maxQuantity
-                                ? () => setState(
-                                    () => item.selectedQty++)
-                                : null,
-                            onDecrement: item.selectedQty > 0
-                                ? () => setState(
-                                    () => item.selectedQty--)
-                                : null,
-                          )),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-          const Divider(height: 1),
-          // Footer con total y botón
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '$_selectedCount ítem${_selectedCount == 1 ? '' : 's'} seleccionado${_selectedCount == 1 ? '' : 's'}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        CurrencyFormatter.format(total),
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed:
-                        canConfirm ? () => Navigator.of(context).pop(total) : null,
-                    icon: const Icon(Icons.check_circle, size: 20),
-                    label: Text(
-                      'Cobrar ${CurrencyFormatter.format(total)}',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 52),
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ItemTile extends StatelessWidget {
-  final _SelectableItem item;
-  final VoidCallback? onIncrement;
-  final VoidCallback? onDecrement;
-
-  const _ItemTile({
-    required this.item,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final active = item.isSelected;
-    final nameColor = active
-        ? theme.colorScheme.onSurface
-        : theme.colorScheme.onSurfaceVariant;
-    final amountColor = active
-        ? AppColors.primary
-        : theme.colorScheme.onSurfaceVariant;
-    final stepperColor = active
-        ? AppColors.primary
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: nameColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (item.variantName != null)
-                  Text(
-                    item.variantName!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                Text(
-                  CurrencyFormatter.format(item.unitPrice),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          _StepBtn(icon: Icons.remove, onTap: onDecrement),
-          SizedBox(
-            width: 52,
-            child: Text(
-              '${item.selectedQty}/${item.maxQuantity}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: stepperColor,
-              ),
-            ),
-          ),
-          _StepBtn(icon: Icons.add, onTap: onIncrement),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 68,
-            child: Text(
-              CurrencyFormatter.format(item.subtotal),
-              textAlign: TextAlign.end,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: amountColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _StepBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: onTap == null
-          ? theme.colorScheme.surfaceContainerHighest
-          : AppColors.primary.withValues(alpha: 0.12),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Icon(
-            icon,
-            size: 16,
-            color: onTap == null
-                ? theme.colorScheme.onSurfaceVariant
-                : AppColors.primary,
-          ),
-        ),
-      ),
-    );
-  }
-}
