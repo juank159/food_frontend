@@ -9,6 +9,8 @@ import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/utils/safe_get.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../cash_sessions/presentation/controllers/cash_session_guard.dart';
+import '../../../cash_sessions/presentation/widgets/open_cash_dialog.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../controllers/home_controller.dart';
 
@@ -48,6 +50,7 @@ class DashboardTab extends GetView<HomeController> {
               children: [
                 _buildHeader(authController,
                     isAdminOrManager: access.isAdminOrManager),
+                const _CashSessionStatusBanner(),
                 const SizedBox(height: 18),
                 _buildPrimaryActions(),
                 const SizedBox(height: 22),
@@ -652,5 +655,167 @@ class _PendingReviewActionTile extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+/// Banner de estado de caja en el dashboard.
+///
+/// - Sin caja abierta → card naranja invitando a abrir el turno.
+/// - Caja abierta desde ayer → card amarilla de advertencia con botón
+///   "Ir a cerrar caja".
+/// - Caja abierta hoy → invisible (no carga el header de Inicio).
+class _CashSessionStatusBanner extends StatefulWidget {
+  const _CashSessionStatusBanner();
+
+  @override
+  State<_CashSessionStatusBanner> createState() =>
+      _CashSessionStatusBannerState();
+}
+
+class _CashSessionStatusBannerState extends State<_CashSessionStatusBanner> {
+  @override
+  void initState() {
+    super.initState();
+    ensureCashGuardRegistered();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) cashGuard().refreshState();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final guard = cashGuard();
+      final state = guard.hasOpen.value;
+      final session = guard.currentSession.value;
+
+      // Estado desconocido → no mostramos nada todavía.
+      if (state == null) return const SizedBox.shrink();
+
+      // Caja abierta hoy → invisible.
+      if (state == true && (session == null || !session.isFromPreviousDay)) {
+        return const SizedBox.shrink();
+      }
+
+      // Caja abierta desde ayer.
+      if (state == true && session != null && session.isFromPreviousDay) {
+        return _BannerCard(
+          color: AppColors.warning,
+          icon: Icons.access_time_filled,
+          title: 'Caja de turno anterior',
+          subtitle:
+              'La caja lleva abierta desde ayer. Cerrá el turno anterior antes de iniciar el nuevo.',
+          actionLabel: 'Ir a cerrar',
+          onAction: () => Get.toNamed(AppRoutes.cashRegister),
+        );
+      }
+
+      // Sin caja abierta → invitar a abrir turno.
+      return _BannerCard(
+        color: AppColors.primary,
+        icon: Icons.point_of_sale,
+        title: 'Iniciá tu turno',
+        subtitle:
+            'Abrí la caja registradora para empezar a cobrar y llevar el control de efectivo.',
+        actionLabel: 'Abrir caja',
+        onAction: () async {
+          final opened = await Get.dialog<bool>(
+            const OpenCashDialog(),
+            barrierDismissible: false,
+          );
+          if (opened == true) cashGuard().markOpened();
+        },
+      );
+    });
+  }
+}
+
+class _BannerCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  const _BannerCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 34,
+                  child: FilledButton(
+                    onPressed: onAction,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    child: Text(actionLabel),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

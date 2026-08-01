@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -596,6 +597,11 @@ class _BottomBar extends StatelessWidget {
     // los modos, incluida cuenta libre/mesa donde acá `order` sería null).
 
     if (mode.autoPayAfterSubmit) {
+      // Verificar caja antes de mostrar el dialog de cobro.
+      if (!context.mounted) return;
+      if (!await ensureOpenCash(context)) return;
+      if (!context.mounted) return;
+
       // Mostrador, takeaway, delivery: cobramos directo.
       final paymentController = Get.find<PaymentController>();
       final result = await showDialog(

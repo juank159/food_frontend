@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../domain/entities/cash_session.dart';
 import '../../domain/usecases/cash_session_usecases.dart';
 
 /// Guardia global de estado de caja.
@@ -25,6 +26,7 @@ class CashSessionGuardController extends GetxController {
   CashSessionGuardController({required this.useCases});
 
   final Rxn<bool> hasOpen = Rxn<bool>();
+  final Rx<CashSession?> currentSession = Rx<CashSession?>(null);
   final RxBool isChecking = false.obs;
 
   @override
@@ -48,6 +50,7 @@ class CashSessionGuardController extends GetxController {
         // por fallos transitorios.
       },
       (session) {
+        currentSession.value = (session != null && session.isOpen) ? session : null;
         hasOpen.value = session != null && session.isOpen;
       },
     );
@@ -63,6 +66,7 @@ class CashSessionGuardController extends GetxController {
   /// Marca que se acaba de cerrar — para que cualquier pantalla de
   /// cobro abierta vea el cambio al instante.
   void markClosed() {
+    currentSession.value = null;
     hasOpen.value = false;
   }
 }

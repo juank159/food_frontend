@@ -5,6 +5,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/edit_customer_sheet.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
@@ -298,7 +299,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     });
   }
 
-  void _showPaymentDialog(BuildContext context) {
+  Future<void> _showPaymentDialog(BuildContext context) async {
+    // Verificar caja antes de abrir el dialog de cobro.
+    if (!await ensureOpenCash(context)) return;
+    if (!context.mounted) return;
+
     final order = controller.currentOrder!;
     final paymentController = Get.find<PaymentController>();
     showDialog(

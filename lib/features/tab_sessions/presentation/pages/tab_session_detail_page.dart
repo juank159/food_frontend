@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/widgets/edit_customer_sheet.dart';
 import '../../../../core/widgets/edit_text_sheet.dart';
 import '../../../orders/presentation/models/sell_mode.dart';
@@ -681,15 +682,18 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     });
   }
 
-  void _onPayTab(TabSession s) {
+  Future<void> _onPayTab(TabSession s) async {
+    // Verificar caja antes de cobrar.
+    if (!await ensureOpenCash(context)) return;
+    if (!mounted) return;
+
     // Se cobra IGUAL que una orden: un dialog en contexto (no una
     // pantalla aparte). Por debajo distribuye FIFO entre los tickets.
-    showDialog<bool>(
+    final paid = await showDialog<bool>(
       context: context,
       builder: (_) => TabPaymentDialog(session: s),
-    ).then((paid) {
-      if (paid == true) controller.load();
-    });
+    );
+    if (paid == true) controller.load();
   }
 
   Future<void> _confirmClose() async {

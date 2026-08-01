@@ -62,6 +62,17 @@ class CashSession extends Equatable {
   bool get isClosed => status == CashSessionStatus.closed;
   bool get isVoided => status == CashSessionStatus.voided;
 
+  /// True si la caja está abierta Y se abrió en un día diferente al de hoy
+  /// (hora local del dispositivo). Indica turno olvidado del día anterior.
+  bool get isFromPreviousDay {
+    if (!isOpen) return false;
+    final now = DateTime.now();
+    final opened = openedAt.toLocal();
+    return opened.year != now.year ||
+        opened.month != now.month ||
+        opened.day != now.day;
+  }
+
   /// Monto esperado en vivo (para sesiones abiertas: opening + cash
   /// collected; para cerradas: el snapshot almacenado).
   double get currentExpectedAmount =>

@@ -76,6 +76,7 @@ class TabSessionDetailController extends GetxController {
       },
       (updated) {
         session.value = updated;
+        session.refresh(); // fuerza Obx aunque Equatable diga equal
         return true;
       },
     );
@@ -96,6 +97,7 @@ class TabSessionDetailController extends GetxController {
       },
       (updated) {
         session.value = updated;
+        session.refresh(); // fuerza Obx aunque Equatable diga equal
         return true;
       },
     );
