@@ -93,6 +93,16 @@ class SettingsScreen extends StatelessWidget {
                         onTap: () =>
                             Get.toNamed(AppRoutes.paymentAccountsSettings),
                       ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.campaign_outlined,
+                        title: 'Banner de promoción',
+                        subtitle:
+                            'Imagen que se muestra al abrir el menú QR — '
+                            'para destacar ofertas o platos especiales',
+                        accent: const Color(0xFFE67E22),
+                        onTap: () => Get.toNamed(AppRoutes.promoBanner),
+                      ),
                     ],
 
                     // Sección "Operaciones" — admin/manager. El manager

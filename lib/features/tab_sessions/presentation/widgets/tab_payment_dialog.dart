@@ -190,18 +190,19 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screen = MediaQuery.of(context).size;
+    final mq = MediaQuery.of(context);
+    final screen = mq.size;
+    final kb = mq.viewInsets.bottom;
+    final hPad = screen.width < 600 ? 16.0 : 40.0;
+    final vPad = screen.height < 700 ? 16.0 : 24.0;
     final maxW = screen.width < 600
         ? screen.width * 0.92
         : (screen.width < 900 ? 480.0 : 500.0);
-    final maxH = screen.height < 700 ? screen.height * 0.92 : 700.0;
+    final maxH = (screen.height - kb - 2 * vPad).clamp(0.0, 700.0);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 600 ? 16 : 40,
-        vertical: screen.height < 700 ? 16 : 24,
-      ),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(
@@ -514,18 +515,19 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screen = MediaQuery.of(context).size;
+    final mq = MediaQuery.of(context);
+    final screen = mq.size;
+    final kb = mq.viewInsets.bottom;
+    final hPad = screen.width < 600 ? 16.0 : 40.0;
+    final vPad = screen.height < 700 ? 16.0 : 24.0;
     final maxW = screen.width < 600
         ? screen.width * 0.92
         : (screen.width < 900 ? 480.0 : 520.0);
-    final maxH = screen.height < 700 ? screen.height * 0.92 : 720.0;
+    final maxH = (screen.height - kb - 2 * vPad).clamp(0.0, 720.0);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 600 ? 16 : 40,
-        vertical: screen.height < 700 ? 16 : 24,
-      ),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(

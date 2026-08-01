@@ -66,21 +66,19 @@ class _CashPaymentDialogState extends State<CashPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screen = MediaQuery.of(context).size;
-    // Acotamos ancho Y alto + scroll: en pantallas chicas el contenido
-    // (input + denominaciones + cambio + botones) superaba el alto del
-    // dialog y desbordaba 126px. Ahora scrollea y nunca desborda.
+    final mq = MediaQuery.of(context);
+    final screen = mq.size;
+    final kb = mq.viewInsets.bottom;
+    final hPad = screen.width < 600 ? 16.0 : 40.0;
+    const vPad = 24.0;
     final maxW = screen.width < 600 ? screen.width * 0.92 : 500.0;
-    final maxH = screen.height * 0.9;
+    final maxH = (screen.height - kb - 2 * vPad).clamp(0.0, screen.height * 0.9);
 
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 600 ? 16 : 40,
-        vertical: 24,
-      ),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: SingleChildScrollView(

@@ -13,6 +13,7 @@ import '../../../core/utils/safe_get.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../orders/data/models/order_item_model.dart';
 import '../../orders/data/models/order_model.dart';
+import '../../tab_sessions/data/models/tab_session_model.dart';
 import '../../tab_sessions/domain/entities/tab_session.dart';
 import '../../thermal_print/data/thermal_print_service.dart';
 import '../presentation/controllers/printer_configs_controller.dart';
@@ -497,6 +498,17 @@ class PrintingOrchestrator {
     final logoBytes = kind == PrintJobKind.receipt
         ? await _getLogoBytes(tenant.logoUrl)
         : null;
+
+    // Si la orden no tiene cliente pero pertenece a una cuenta abierta,
+    // heredamos el nombre del cliente de la cuenta. Esto cubre el caso
+    // donde el mesero agrega un ticket manual a una cuenta QR existente:
+    // ese ticket no tiene customer_id propio pero la cuenta sí lo tiene.
+    String? customerName = order.customerName;
+    if ((customerName == null || customerName.trim().isEmpty) &&
+        order.tabSessionId != null) {
+      customerName = await _fetchTabCustomerName(order.tabSessionId!);
+    }
+
     return TicketData(
       businessName: tenant.businessName,
       address: tenant.address,
@@ -508,7 +520,7 @@ class PrintingOrchestrator {
       tableLabel: order.tableLabel ?? order.tableName,
       orderType: order.orderType,
       orderSource: order.orderSource,
-      customerName: order.customerName,
+      customerName: customerName,
       customerPhone: order.customerPhone,
       items: order.items.map(_toTicketItem).toList(),
       subtotal: order.subtotal,
@@ -519,6 +531,22 @@ class PrintingOrchestrator {
       paymentMethod: order.paymentMethod,
       notes: order.specialInstructions,
     );
+  }
+
+  /// Devuelve el nombre del cliente de una cuenta abierta, o `null` si
+  /// no se puede obtener. Nunca lanza excepción — la impresión no debe
+  /// abortar por un fallo en esta consulta secundaria.
+  static Future<String?> _fetchTabCustomerName(String tabSessionId) async {
+    try {
+      final dio = sl<Dio>();
+      final response = await dio.get('/tab-sessions/$tabSessionId');
+      final json = ApiResponseUtils.object(response);
+      final tab = TabSessionModel.fromJson(json);
+      final name = tab.customerName?.trim();
+      return (name != null && name.isNotEmpty) ? name : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static TicketItem _toTicketItem(OrderItemModel item) {
@@ -706,9 +734,24 @@ class PrintingOrchestrator {
     Object err,
   ) {
     final isNetwork = p.connectionType == PrinterConnectionType.network;
-    final reason = isNetwork
-        ? 'Sin conexión con ${p.host}:${p.port}. Revisá la impresora.'
-        : 'No se pudo enviar al SO.';
+    // Distinguir error de red (socket) de error en generación del ticket
+    // (ej. emoji en notas que el encoder ESC/POS no puede representar).
+    final errStr = err.toString().toLowerCase();
+    final isConnErr = errStr.contains('socket') ||
+        errStr.contains('connection') ||
+        errStr.contains('timeout') ||
+        errStr.contains('refused');
+    final String reason;
+    if (isNetwork && isConnErr) {
+      reason = 'Sin conexión con ${p.host}:${p.port}. Revisá la impresora.';
+    } else if (isNetwork) {
+      // Error en generación de ticket — mostrar causa para depuración.
+      final short = err.toString();
+      reason =
+          'Error al generar ticket: ${short.length > 80 ? short.substring(0, 80) : short}';
+    } else {
+      reason = 'No se pudo enviar al SO.';
+    }
     AppSnackbar.show(
       'No se imprimió $document',
       reason,

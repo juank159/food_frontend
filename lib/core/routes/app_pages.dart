@@ -59,6 +59,7 @@ import '../../features/qr_tokens/presentation/bindings/qr_tokens_binding.dart';
 import '../../features/menu_schedules/presentation/pages/menu_schedules_page.dart';
 import '../../features/menu_schedules/presentation/bindings/menu_schedules_binding.dart';
 import '../../features/settings/presentation/screens/business_info_screen.dart';
+import '../../features/settings/presentation/screens/promo_banner_screen.dart';
 import '../../features/products/presentation/bindings/modifier_form_binding.dart';
 import '../../features/products/presentation/bindings/modifiers_binding.dart';
 import '../../features/products/presentation/bindings/product_detail_binding.dart';
@@ -283,6 +284,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.businessInfo,
       page: () => const BusinessInfoScreen(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.promoBanner,
+      page: () => const PromoBannerScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

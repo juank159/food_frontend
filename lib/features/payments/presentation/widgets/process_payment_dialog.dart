@@ -170,16 +170,16 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     final theme = Theme.of(context);
     final mq = MediaQuery.of(context);
     final screen = mq.size;
+    final kb = mq.viewInsets.bottom;
     final safeV = mq.viewPadding.top + mq.viewPadding.bottom;
+    final hPad = screen.width < 600 ? 10.0 : 40.0;
+    const vPad = 16.0;
     final maxW = screen.width < 600 ? screen.width * 0.94 : 480.0;
-    final maxH = (screen.height - safeV - 32).clamp(0.0, 680.0);
+    final maxH = (screen.height - safeV - kb - 2 * vPad).clamp(0.0, 680.0);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 600 ? 10 : 40,
-        vertical: mq.viewPadding.bottom + 16,
-      ),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(
@@ -788,10 +788,8 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
   bool get _isCash =>
       widget.controller.selectedPaymentMethod.value == PaymentMethod.cash;
 
-  double get _parsedReceived {
-    final raw = _cashCtrl.text.replaceAll('.', '').replaceAll(',', '.');
-    return double.tryParse(raw) ?? 0;
-  }
+  double get _parsedReceived =>
+      (NumberFormatHelper.parseFormattedInt(_cashCtrl.text) ?? 0).toDouble();
 
   Future<void> _confirm() async {
     final total = _total;
@@ -951,9 +949,11 @@ class _OrderItemSelectionSheetState extends State<_OrderItemSelectionSheet> {
                     child: TextField(
                       controller: _cashCtrl,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [ThousandsSeparatorInputFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Recibido del cliente',
-                        hintText: CurrencyFormatter.format(total),
+                        prefixText: '\$ ',
+                        hintText: NumberFormatHelper.formatNumber(total.toInt()),
                         prefixIcon: const Icon(Icons.payments_outlined),
                         isDense: true,
                         border: const OutlineInputBorder(),
