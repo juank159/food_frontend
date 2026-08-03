@@ -12,10 +12,11 @@ import '../config/constants/api_constants.dart';
 import '../routes/app_routes.dart';
 import '../utils/api_response_utils.dart';
 
-/// Canal v5: IMPORTANCE_HIGH con sonido del sistema (sin URI custom).
-/// Creado por MainApplication.onCreate() con vibración fuerte.
+/// Canal v6: IMPORTANCE_HIGH con sonido del sistema (sin URI custom).
+/// Creado por MainApplication.setupQrChannel() — solo si no existe, para que
+/// Android no degrade la importancia al borrar/recrear con el mismo ID.
 final _kQrChannel = AndroidNotificationChannel(
-  'qr_orders_v5',
+  'qr_orders_v6',
   'Pedidos QR',
   description: 'Alertas de nuevos pedidos enviados por clientes desde el menú QR.',
   importance: Importance.max,
@@ -30,6 +31,21 @@ final FlutterLocalNotificationsPlugin _localNotifs =
 Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();
+  }
+
+  // Cuando otro dispositivo del mismo tenant aprobó/rechazó el pedido,
+  // cancelamos la notificación local para que no siga visible en la bandeja.
+  if (message.data['action'] == 'dismiss_notification') {
+    final orderId = message.data['order_id'] as String?;
+    if (orderId != null) {
+      WidgetsFlutterBinding.ensureInitialized();
+      final notifs = FlutterLocalNotificationsPlugin();
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await notifs.initialize(
+        const InitializationSettings(android: androidSettings),
+      );
+      await notifs.cancel(orderId.hashCode);
+    }
   }
 }
 
@@ -122,11 +138,22 @@ class PushNotificationService {
   }
 
   static void _showForegroundNotif(RemoteMessage message) {
+    // Señal de dismiss: otro dispositivo del mismo tenant ya atendió el pedido.
+    if (message.data['action'] == 'dismiss_notification') {
+      final orderId = message.data['order_id'] as String?;
+      if (orderId != null) _localNotifs.cancel(orderId.hashCode);
+      return;
+    }
+
     final notif = message.notification;
     if (notif == null) return;
 
+    // Usar order_id como ID de notificación para poder cancelarla luego.
+    final orderId = message.data['order_id'] as String?;
+    final notifId = orderId?.hashCode ?? notif.hashCode;
+
     _localNotifs.show(
-      notif.hashCode,
+      notifId,
       notif.title,
       notif.body,
       NotificationDetails(
