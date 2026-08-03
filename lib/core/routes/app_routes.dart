@@ -55,6 +55,9 @@ class AppRoutes {
 
   // Caja registradora (apertura / cierre / conciliación)
   static const String cashRegister = '/cash-register';
+  // Historial de sesiones de caja
+  static const String cashHistory = '/cash-history';
+  static const String cashSessionDetail = '/cash-history/:id';
 
   // Turnos del empleado logueado (clock-in / clock-out)
   static const String shiftClock = '/shifts/clock';

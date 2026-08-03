@@ -2,9 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../features/cash_sessions/domain/usecases/cash_session_usecases.dart';
+import '../../features/cash_sessions/presentation/controllers/cash_session_controller.dart';
 import '../../features/cash_sessions/presentation/controllers/cash_session_guard.dart';
 import '../../features/cash_sessions/presentation/widgets/open_cash_dialog.dart';
 import '../config/theme/app_colors.dart';
+import '../di/injection_container.dart';
+
+/// Registra el CashSessionController on-demand.
+/// OpenCashDialog tiene un Obx que lee isMutating del controller; si
+/// el controller no existe al montar el Obx, GetX lanza el error
+/// "improper use of GetX" porque no hay ninguna variable reactiva leída.
+void _ensureCashControllerRegistered() {
+  if (!Get.isRegistered<CashSessionController>()) {
+    Get.put<CashSessionController>(
+      CashSessionController(useCases: sl<CashSessionUseCases>()),
+    );
+  }
+}
 
 /// Verifica que haya una caja abierta antes de proceder al cobro.
 ///
@@ -43,6 +58,9 @@ Future<bool> ensureOpenCash(BuildContext context) async {
 
   // No hay caja abierta → mostrar diálogo para abrir.
   if (!context.mounted) return false;
+  // Pre-registrar el controller: OpenCashDialog tiene un Obx que lo necesita
+  // al montar; si no existe GetX falla con "improper use of GetX".
+  _ensureCashControllerRegistered();
   final opened = await Get.dialog<bool>(
     const _NoCashDialog(),
     barrierDismissible: false,
@@ -65,6 +83,10 @@ class _NoCashDialogState extends State<_NoCashDialog> {
 
   Future<void> _onOpenCash() async {
     setState(() => _opening = true);
+    // OpenCashDialog.Obx lee CashSessionController.isMutating al montar.
+    // Si el controller no existe en ese momento, GetX falla con
+    // "improper use of GetX". Lo registramos antes de abrir el dialog.
+    _ensureCashControllerRegistered();
     final ok = await Get.dialog<bool>(
       const OpenCashDialog(),
       barrierDismissible: false,

@@ -36,6 +36,8 @@ import '../../features/orders/presentation/pages/order_detail_page.dart';
 import '../../features/orders/presentation/pages/sell_page.dart';
 import '../../features/cash_sessions/presentation/bindings/cash_session_binding.dart';
 import '../../features/cash_sessions/presentation/pages/cash_register_page.dart';
+import '../../features/cash_sessions/presentation/pages/cash_session_history_page.dart';
+import '../../features/cash_sessions/presentation/pages/cash_session_detail_page.dart';
 import '../../features/roles/presentation/bindings/role_binding.dart';
 import '../../features/roles/presentation/pages/roles_list_page.dart';
 import '../../features/shifts/presentation/bindings/shift_binding.dart';
@@ -345,6 +347,23 @@ class AppPages {
       name: AppRoutes.cashRegister,
       page: () => const CashRegisterPage(),
       binding: CashSessionBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.cashHistory,
+      page: () => const CashSessionHistoryPage(),
+      binding: CashSessionHistoryBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.cashSessionDetail,
+      page: () => const CashSessionDetailPage(),
+      // Reutiliza el history controller ya registrado por la ruta padre.
+      binding: CashSessionHistoryBinding(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),

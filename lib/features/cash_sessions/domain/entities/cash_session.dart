@@ -32,6 +32,16 @@ class CashSession extends Equatable {
 
   final double totalCashCollected;
   final int totalPaymentsCount;
+
+  /// Gastos registrados durante esta sesión que salieron de la caja.
+  /// Reducen el efectivo esperado: expected = opening + cash_in - expenses.
+  final double totalCashExpenses;
+
+  /// Cobros recibidos por métodos distintos a efectivo durante esta sesión
+  /// (tarjeta, transferencia, billetera digital, etc.).
+  final double totalOtherCollected;
+  final int totalOtherCount;
+
   final double? expectedAmount;
   final double? difference;
 
@@ -51,6 +61,9 @@ class CashSession extends Equatable {
     this.closingAmountCounted,
     required this.totalCashCollected,
     required this.totalPaymentsCount,
+    this.totalCashExpenses = 0,
+    this.totalOtherCollected = 0,
+    this.totalOtherCount = 0,
     this.expectedAmount,
     this.difference,
     required this.status,
@@ -73,10 +86,11 @@ class CashSession extends Equatable {
         opened.day != now.day;
   }
 
-  /// Monto esperado en vivo (para sesiones abiertas: opening + cash
-  /// collected; para cerradas: el snapshot almacenado).
+  /// Monto esperado en vivo (para sesiones abiertas: opening + cash_in - gastos;
+  /// para cerradas: el snapshot almacenado al momento del cierre).
   double get currentExpectedAmount =>
-      expectedAmount ?? (openingAmount + totalCashCollected);
+      expectedAmount ??
+      (openingAmount + totalCashCollected - totalCashExpenses);
 
   /// Diferencia "qué tan lejos del cuadre estamos" — solo útil para
   /// sesiones ya cerradas. Null en sesiones abiertas.
@@ -101,6 +115,9 @@ class CashSession extends Equatable {
         closingAmountCounted,
         totalCashCollected,
         totalPaymentsCount,
+        totalCashExpenses,
+        totalOtherCollected,
+        totalOtherCount,
         expectedAmount,
         difference,
         status,

@@ -19,8 +19,26 @@ import '../widgets/open_cash_dialog.dart';
 ///      del cierre con la diferencia, opción de empezar nueva.
 ///   3. **Caja abierta** (currentSession != null) → dashboard con
 ///      rollups en vivo + botón "Cerrar caja".
-class CashRegisterPage extends GetView<CashSessionController> {
+class CashRegisterPage extends StatefulWidget {
   const CashRegisterPage({super.key});
+
+  @override
+  State<CashRegisterPage> createState() => _CashRegisterPageState();
+}
+
+class _CashRegisterPageState extends State<CashRegisterPage> {
+  late final CashSessionController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<CashSessionController>();
+    // Siempre recargamos al entrar a la pantalla para ver pagos o cambios
+    // que ocurrieron desde otras pantallas mientras el controller estaba vivo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.reloadCurrent();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +48,7 @@ class CashRegisterPage extends GetView<CashSessionController> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(context),
+            _buildHeader(),
             Expanded(
               child: Obx(() {
                 if (controller.isLoading.value &&
@@ -66,7 +84,7 @@ class CashRegisterPage extends GetView<CashSessionController> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader() {
     return AppGradientHeader(
       title: 'Caja',
       subtitle: 'Apertura, cierre y conciliación',
@@ -87,35 +105,55 @@ class CashRegisterPage extends GetView<CashSessionController> {
           ),
         ),
       ),
-      trailing: Obx(() {
-        if (controller.isLoading.value) {
-          return const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          );
-        }
-        return GestureDetector(
-          onTap: controller.reloadCurrent,
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.refresh,
-              color: Colors.white,
-              size: 20,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Historial: siempre visible, no depende del estado de carga
+          GestureDetector(
+            onTap: () => Get.toNamed('/cash-history'),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.history, color: Colors.white, size: 20),
             ),
           ),
-        );
-      }),
+          const SizedBox(width: 8),
+          // Refresh: muestra spinner mientras carga, botón cuando libre
+          Obx(() {
+            if (controller.isLoading.value) {
+              return Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                child: const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                ),
+              );
+            }
+            return GestureDetector(
+              onTap: controller.reloadCurrent,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.refresh, color: Colors.white, size: 20),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
@@ -244,7 +282,15 @@ class _ActiveSession extends StatelessWidget {
           children: [
             _buildStatusBanner(),
             const SizedBox(height: 16),
-            _buildKpiCard(),
+            _buildCashCard(),
+            if (session.totalOtherCollected > 0) ...[
+              const SizedBox(height: 12),
+              _buildOtherMethodsCard(),
+            ],
+            if (session.totalCashExpenses > 0) ...[
+              const SizedBox(height: 12),
+              _buildExpensesCard(),
+            ],
             const SizedBox(height: 16),
             _buildDetailsCard(),
             const SizedBox(height: 24),
@@ -310,46 +356,91 @@ class _ActiveSession extends StatelessWidget {
     );
   }
 
-  Widget _buildKpiCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _kpiRow(
-            label: 'Fondo inicial',
-            value: session.openingAmount,
-            icon: Icons.savings_outlined,
-            accent: AppColors.info,
-          ),
+  // ── Tarjeta principal: efectivo ──────────────────────────────────────
+
+  Widget _buildCashCard() {
+    return _SectionCard(
+      children: [
+        _kpiRow(
+          label: 'Fondo inicial',
+          value: session.openingAmount,
+          icon: Icons.savings_outlined,
+          accent: AppColors.info,
+        ),
+        const Divider(height: 18, color: AppColors.divider),
+        _kpiRow(
+          label: 'Cobros en efectivo (${session.totalPaymentsCount})',
+          value: session.totalCashCollected,
+          icon: Icons.payments_outlined,
+          accent: AppColors.success,
+        ),
+        if (session.totalCashExpenses > 0) ...[
           const Divider(height: 18, color: AppColors.divider),
           _kpiRow(
-            label: 'Cobros en efectivo (${session.totalPaymentsCount})',
-            value: session.totalCashCollected,
-            icon: Icons.payments_outlined,
-            accent: AppColors.success,
-          ),
-          const Divider(height: 18, color: AppColors.divider),
-          _kpiRow(
-            label: 'Esperado en caja',
-            value: session.currentExpectedAmount,
-            icon: Icons.account_balance_wallet_outlined,
-            accent: AppColors.primary,
-            isHero: true,
+            label: 'Gastos del turno',
+            value: -session.totalCashExpenses,
+            icon: Icons.remove_circle_outline,
+            accent: AppColors.error,
           ),
         ],
-      ),
+        const Divider(height: 18, color: AppColors.divider),
+        _kpiRow(
+          label: 'Esperado en caja',
+          value: session.currentExpectedAmount,
+          icon: Icons.account_balance_wallet_outlined,
+          accent: AppColors.primary,
+          isHero: true,
+        ),
+      ],
+    );
+  }
+
+  // ── Tarjeta: otros métodos de pago ───────────────────────────────────
+
+  Widget _buildOtherMethodsCard() {
+    return _SectionCard(
+      header: 'OTROS MEDIOS DE PAGO',
+      headerIcon: Icons.credit_card_outlined,
+      headerColor: AppColors.info,
+      children: [
+        _kpiRow(
+          label: 'Tarjeta / Transferencia / Digital (${session.totalOtherCount})',
+          value: session.totalOtherCollected,
+          icon: Icons.swap_horiz_outlined,
+          accent: AppColors.info,
+          isHero: true,
+        ),
+      ],
+    );
+  }
+
+  // ── Tarjeta: gastos del turno ────────────────────────────────────────
+
+  Widget _buildExpensesCard() {
+    return _SectionCard(
+      header: 'GASTOS DEL TURNO',
+      headerIcon: Icons.receipt_long_outlined,
+      headerColor: AppColors.error,
+      children: [
+        _kpiRow(
+          label: 'Total gastado este turno',
+          value: session.totalCashExpenses,
+          icon: Icons.money_off_outlined,
+          accent: AppColors.error,
+          isHero: true,
+          negativeSign: true,
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Incluye los gastos registrados mientras la caja estaba abierta. '
+          'Ya están descontados del efectivo esperado.',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
 
@@ -359,7 +450,10 @@ class _ActiveSession extends StatelessWidget {
     required IconData icon,
     required Color accent,
     bool isHero = false,
+    bool negativeSign = false,
   }) {
+    final displayValue = value.abs();
+    final prefix = negativeSign ? '−' : (value < 0 ? '−' : '');
     return Row(
       children: [
         Container(
@@ -384,7 +478,7 @@ class _ActiveSession extends StatelessWidget {
           ),
         ),
         Text(
-          CurrencyFormatter.format(value),
+          '$prefix${CurrencyFormatter.format(displayValue)}',
           style: TextStyle(
             fontSize: isHero ? 22 : 16,
             fontWeight: FontWeight.w800,
@@ -450,6 +544,66 @@ class _ActiveSession extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────── Section card ───────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final String? header;
+  final IconData? headerIcon;
+  final Color? headerColor;
+  final List<Widget> children;
+
+  const _SectionCard({
+    this.header,
+    this.headerIcon,
+    this.headerColor,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (header != null) ...[
+            Row(
+              children: [
+                if (headerIcon != null)
+                  Icon(headerIcon, size: 14, color: headerColor ?? AppColors.textSecondary),
+                if (headerIcon != null) const SizedBox(width: 6),
+                Text(
+                  header!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: headerColor ?? AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          ...children,
+        ],
       ),
     );
   }
@@ -528,6 +682,19 @@ class _ClosedSummary extends StatelessWidget {
                   'Cobros en efectivo (${session.totalPaymentsCount})',
                   session.totalCashCollected,
                 ),
+                if (session.totalCashExpenses > 0)
+                  _summaryRow(
+                    'Gastos del turno',
+                    -session.totalCashExpenses,
+                    color: AppColors.error,
+                  ),
+                if (session.totalOtherCollected > 0)
+                  _summaryRow(
+                    'Otros métodos (${session.totalOtherCount})',
+                    session.totalOtherCollected,
+                    color: AppColors.info,
+                    note: 'No afecta cuadre de caja',
+                  ),
                 const Divider(height: 16),
                 _summaryRow(
                   'Esperado en caja',
@@ -604,23 +771,40 @@ class _ClosedSummary extends StatelessWidget {
     bool bold = false,
     Color? color,
     bool showSign = false,
+    String? note,
   }) {
     final prefix = showSign && value >= 0 ? '+' : '';
+    final absValue = value.abs();
+    final signPrefix = value < 0 ? '−' : prefix;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: bold ? 14 : 13,
-              fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-              color: color ?? AppColors.textPrimary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: bold ? 14 : 13,
+                    fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                    color: color ?? AppColors.textPrimary,
+                  ),
+                ),
+                if (note != null)
+                  Text(
+                    note,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
             ),
           ),
           Text(
-            '$prefix${CurrencyFormatter.format(value)}',
+            '$signPrefix${CurrencyFormatter.format(absValue)}',
             style: TextStyle(
               fontSize: bold ? 16 : 14,
               fontWeight: FontWeight.w800,

@@ -17,6 +17,9 @@ class CashSessionModel {
 
   final double totalCashCollected;
   final int totalPaymentsCount;
+  final double totalCashExpenses;
+  final double totalOtherCollected;
+  final int totalOtherCount;
   final double? expectedAmount;
   final double? difference;
 
@@ -36,6 +39,9 @@ class CashSessionModel {
     this.closingAmountCounted,
     required this.totalCashCollected,
     required this.totalPaymentsCount,
+    this.totalCashExpenses = 0,
+    this.totalOtherCollected = 0,
+    this.totalOtherCount = 0,
     this.expectedAmount,
     this.difference,
     required this.status,
@@ -95,6 +101,10 @@ class CashSessionModel {
       totalCashCollected: parseNum(json['total_cash_collected']),
       totalPaymentsCount:
           (json['total_payments_count'] as num?)?.toInt() ?? 0,
+      totalCashExpenses: parseNum(json['total_cash_expenses']),
+      totalOtherCollected: parseNum(json['total_other_collected']),
+      totalOtherCount:
+          (json['total_other_count'] as num?)?.toInt() ?? 0,
       expectedAmount: parseNumNullable(json['expected_amount']),
       difference: parseNumNullable(json['difference']),
       status: json['status'] as String? ?? 'open',
@@ -116,6 +126,9 @@ class CashSessionModel {
       closingAmountCounted: closingAmountCounted,
       totalCashCollected: totalCashCollected,
       totalPaymentsCount: totalPaymentsCount,
+      totalCashExpenses: totalCashExpenses,
+      totalOtherCollected: totalOtherCollected,
+      totalOtherCount: totalOtherCount,
       expectedAmount: expectedAmount,
       difference: difference,
       status: CashSessionStatus.fromString(status),

@@ -9,6 +9,9 @@ import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/utils/safe_get.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../cash_sessions/domain/usecases/cash_session_usecases.dart';
+import '../../../cash_sessions/presentation/controllers/cash_session_controller.dart';
 import '../../../cash_sessions/presentation/controllers/cash_session_guard.dart';
 import '../../../cash_sessions/presentation/widgets/open_cash_dialog.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
@@ -719,6 +722,12 @@ class _CashSessionStatusBannerState extends State<_CashSessionStatusBanner> {
             'Abrí la caja registradora para empezar a cobrar y llevar el control de efectivo.',
         actionLabel: 'Abrir caja',
         onAction: () async {
+          // Pre-registrar: OpenCashDialog.Obx necesita el controller al montar.
+          if (!Get.isRegistered<CashSessionController>()) {
+            Get.put<CashSessionController>(
+              CashSessionController(useCases: sl<CashSessionUseCases>()),
+            );
+          }
           final opened = await Get.dialog<bool>(
             const OpenCashDialog(),
             barrierDismissible: false,
