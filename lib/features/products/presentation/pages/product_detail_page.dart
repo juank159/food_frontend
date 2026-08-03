@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
@@ -183,10 +184,11 @@ class _ImageBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: AspectRatio(
           aspectRatio: 16 / 9,
-          child: Image.network(
-            url,
+          child: CachedNetworkImage(
+            imageUrl: url,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
+            placeholder: (_, __) => Container(color: AppColors.background),
+            errorWidget: (_, __, ___) => Container(
               color: AppColors.background,
               alignment: Alignment.center,
               child: const Icon(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
@@ -446,10 +447,11 @@ class ProductFormPage extends GetView<ProductFormController> {
               ),
               clipBehavior: Clip.antiAlias,
               child: hasImg
-                  ? Image.network(
-                      url,
+                  ? CachedNetworkImage(
+                      imageUrl: url,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) => const Icon(
                         Icons.restaurant_menu,
                         color: AppColors.textHint,
                         size: 34,

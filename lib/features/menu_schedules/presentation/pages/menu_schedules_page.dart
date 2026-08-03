@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -467,10 +468,11 @@ class _ProductRow extends StatelessWidget {
                   width: 52,
                   height: 52,
                   child: item.product.imageUrl != null
-                      ? Image.network(
-                          item.product.imageUrl!,
+                      ? CachedNetworkImage(
+                          imageUrl: item.product.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder(),
+                          placeholder: (_, __) => _placeholder(),
+                          errorWidget: (_, __, ___) => _placeholder(),
                         )
                       : _placeholder(),
                 ),

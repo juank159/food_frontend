@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'core/config/theme/app_theme.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/routes/app_pages.dart';
@@ -11,6 +12,9 @@ import 'features/orders/presentation/controllers/pending_review_watcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar datos de locale para DateFormat en español (DateFormat('...', 'es')).
+  await initializeDateFormatting('es', null);
 
   // Inicializar Hive (base de datos local para modo offline)
   await Hive.initFlutter();

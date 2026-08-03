@@ -7,6 +7,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/image_upload_service.dart';
+import '../../../../core/widgets/app_filter_chip.dart';
 
 /// Configuración del banner de promoción que aparece al abrir el menú QR.
 ///
@@ -197,7 +198,7 @@ class _PromoBannerScreenState extends State<PromoBannerScreen> {
           child: SwitchListTile(
             value: _enabled,
             onChanged: (v) => setState(() => _enabled = v),
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             title: const Text(
               'Mostrar banner al abrir el menú',
               style: TextStyle(
@@ -331,25 +332,13 @@ class _PromoBannerScreenState extends State<PromoBannerScreen> {
               ),
               const SizedBox(height: 12),
               Wrap(
-                spacing: 8,
+                spacing: 0,
                 runSpacing: 8,
                 children: _secOptions.map((s) {
-                  final selected = _displaySeconds == s;
-                  final label =
-                      s == 0 ? 'Manual' : '$s seg';
-                  return ChoiceChip(
-                    label: Text(label),
-                    selected: selected,
-                    selectedColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    side: BorderSide(
-                      color: selected ? AppColors.primary : AppColors.border,
-                    ),
-                    onSelected: (_) => setState(() => _displaySeconds = s),
+                  return AppFilterChip(
+                    label: s == 0 ? 'Manual' : '$s seg',
+                    selected: _displaySeconds == s,
+                    onTap: () => setState(() => _displaySeconds = s),
                   );
                 }).toList(),
               ),

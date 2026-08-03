@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
@@ -159,10 +160,11 @@ class ProductCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   Container(color: AppColors.background),
-                  Image.network(
-                    product.imageUrl!,
+                  CachedNetworkImage(
+                    imageUrl: product.imageUrl!,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => _buildPlaceholder(),
                   ),
                   if (!product.isAvailable)
                     Container(

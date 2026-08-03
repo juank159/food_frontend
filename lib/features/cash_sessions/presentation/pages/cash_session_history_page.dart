@@ -1,3 +1,5 @@
+// lib/features/cash_sessions/presentation/pages/cash_session_history_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -87,7 +89,10 @@ class _CashSessionHistoryPageState extends State<CashSessionHistoryPage> {
             return const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             );
           }
           return GestureDetector(
@@ -121,44 +126,50 @@ class _CashSessionHistoryPageState extends State<CashSessionHistoryPage> {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: Obx(() => Row(
-                    children: _periods
-                        .map((p) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: AppFilterChip(
-                                label: p.shortLabel,
-                                selected: controller.period.value == p,
-                                onTap: () => controller.setPeriod(p),
-                              ),
-                            ))
-                        .toList(),
-                  )),
+              child: Obx(
+                () => Row(
+                  children: _periods
+                      .map(
+                        (p) => Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: AppFilterChip(
+                            label: p.shortLabel,
+                            selected: controller.period.value == p,
+                            onTap: () => controller.setPeriod(p),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
             ),
           ),
           // Fila 2: estados
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-            child: Obx(() => Row(
-                  children: [
-                    _statusChip(
-                      label: 'Abiertas',
-                      status: CashSessionStatus.open,
-                      accent: AppColors.success,
-                    ),
-                    const SizedBox(width: 6),
-                    _statusChip(
-                      label: 'Cerradas',
-                      status: CashSessionStatus.closed,
-                      accent: AppColors.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    _statusChip(
-                      label: 'Anuladas',
-                      status: CashSessionStatus.voided,
-                      accent: AppColors.textSecondary,
-                    ),
-                  ],
-                )),
+            child: Obx(
+              () => Row(
+                children: [
+                  _statusChip(
+                    label: 'Abiertas',
+                    status: CashSessionStatus.open,
+                    accent: AppColors.success,
+                  ),
+                  const SizedBox(width: 6),
+                  _statusChip(
+                    label: 'Cerradas',
+                    status: CashSessionStatus.closed,
+                    accent: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  _statusChip(
+                    label: 'Anuladas',
+                    status: CashSessionStatus.voided,
+                    accent: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
           ),
           const Divider(height: 1, color: AppColors.divider),
         ],
@@ -213,10 +224,8 @@ class _CashSessionHistoryPageState extends State<CashSessionHistoryPage> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _SessionCard(
                   session: s,
-                  onTap: () => Get.toNamed(
-                    '/cash-history/${s.id}',
-                    arguments: s,
-                  ),
+                  onTap: () =>
+                      Get.toNamed('/cash-history/${s.id}', arguments: s),
                 ),
               ),
             ),
@@ -250,8 +259,11 @@ class _CashSessionHistoryPageState extends State<CashSessionHistoryPage> {
           children: [
             Row(
               children: [
-                const Icon(Icons.bar_chart_rounded,
-                    size: 14, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.bar_chart_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'RESUMEN DEL PERÍODO',
@@ -407,8 +419,8 @@ class _SessionCard extends StatelessWidget {
     final diffColor = diff == null
         ? null
         : (diff.abs() <= 0.01
-            ? AppColors.success
-            : (diff < 0 ? AppColors.error : AppColors.warning));
+              ? AppColors.success
+              : (diff < 0 ? AppColors.error : AppColors.warning));
 
     return GestureDetector(
       onTap: onTap,
@@ -433,8 +445,9 @@ class _SessionCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               decoration: BoxDecoration(
                 color: _statusColor(session.status).withValues(alpha: 0.06),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
@@ -511,8 +524,7 @@ class _SessionCard extends StatelessWidget {
                         if (session.totalOtherCollected > 0)
                           Expanded(
                             child: _MetricCell(
-                              label:
-                                  'Otros (${session.totalOtherCount})',
+                              label: 'Otros (${session.totalOtherCount})',
                               amount: session.totalOtherCollected,
                               icon: Icons.credit_card_outlined,
                               color: AppColors.info,
@@ -708,8 +720,16 @@ class SessionStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
       CashSessionStatus.open => ('Abierta', AppColors.success, Icons.lock_open),
-      CashSessionStatus.closed => ('Cerrada', AppColors.primary, Icons.lock_outline),
-      CashSessionStatus.voided => ('Anulada', AppColors.textSecondary, Icons.cancel_outlined),
+      CashSessionStatus.closed => (
+        'Cerrada',
+        AppColors.primary,
+        Icons.lock_outline,
+      ),
+      CashSessionStatus.voided => (
+        'Anulada',
+        AppColors.textSecondary,
+        Icons.cancel_outlined,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

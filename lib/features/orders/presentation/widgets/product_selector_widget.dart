@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
@@ -1190,11 +1191,13 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                   if (product.imageUrl != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.network(
-                        product.imageUrl!,
+                      child: CachedNetworkImage(
+                        imageUrl: product.imageUrl!,
                         height: 160,
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(height: 160, color: Colors.grey[100]),
+                        errorWidget: (_, __, ___) => Container(height: 160, color: Colors.grey[100]),
                       ),
                     ),
                     const SizedBox(height: 14),

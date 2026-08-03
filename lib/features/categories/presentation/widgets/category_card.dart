@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/category.dart';
@@ -147,10 +148,11 @@ class CategoryCard extends StatelessWidget {
       child: category.imageUrl != null && category.imageUrl!.isNotEmpty
           ? ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                category.imageUrl!,
+              child: CachedNetworkImage(
+                imageUrl: category.imageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
+                placeholder: (_, __) => const SizedBox.shrink(),
+                errorWidget: (_, __, ___) =>
                     Icon(Icons.category, color: accent, size: 20),
               ),
             )
