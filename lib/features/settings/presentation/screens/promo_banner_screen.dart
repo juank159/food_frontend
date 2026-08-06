@@ -100,7 +100,7 @@ class _PromoBannerScreenState extends State<PromoBannerScreen> {
       // Construir lista de productos para el picker.
       final rawProducts = ApiResponseUtils.list(results[1]);
       _allProducts = rawProducts
-          .map((p) => {
+          .map((p) => <String, dynamic>{
                 'id': (p['id'] as String?) ?? '',
                 'name': (p['name'] as String?) ?? '',
                 'category_name':

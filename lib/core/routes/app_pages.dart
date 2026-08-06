@@ -75,6 +75,7 @@ import '../../features/products/presentation/pages/products_page.dart';
 import '../../features/settings/presentation/screens/business_settings_screen.dart';
 import '../../features/settings/presentation/screens/change_password_screen.dart';
 import '../../features/settings/presentation/screens/notification_settings_screen.dart';
+import '../../features/settings/presentation/screens/payment_listener_screen.dart';
 import '../../features/settings/presentation/screens/printer_settings_screen.dart';
 import '../../features/settings/presentation/screens/profile_screen.dart';
 import '../../features/settings/presentation/screens/security_settings_screen.dart';
@@ -760,6 +761,13 @@ class AppPages {
     GetPage(
       name: AppRoutes.notificationSettings,
       page: () => const NotificationSettingsScreen(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.paymentListenerSettings,
+      page: () => const PaymentListenerScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),

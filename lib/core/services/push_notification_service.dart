@@ -145,6 +145,34 @@ class PushNotificationService {
       return;
     }
 
+    // Alerta de pago bancario: mostrar heads-up con el texto del pago.
+    if (message.data['type'] == 'payment_alert') {
+      final speechText = message.data['speech_text'] as String? ?? '';
+      final bank = message.data['bank'] as String? ?? 'banco';
+      final amount = message.data['amount'] as String? ?? '';
+      if (speechText.isNotEmpty) {
+        _localNotifs.show(
+          'payment_alert'.hashCode,
+          '💰 Pago recibido',
+          speechText,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _kQrChannel.id,
+              _kQrChannel.name,
+              channelDescription: _kQrChannel.description,
+              importance: Importance.max,
+              priority: Priority.max,
+              enableVibration: true,
+              icon: '@drawable/ic_notification',
+              color: const Color(0xFF4CAF50),
+            ),
+            iOS: const DarwinNotificationDetails(),
+          ),
+        );
+      }
+      return;
+    }
+
     final notif = message.notification;
     if (notif == null) return;
 

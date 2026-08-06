@@ -9,6 +9,7 @@ import 'core/routes/app_pages.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/sync_handlers.dart';
 import 'features/orders/presentation/controllers/pending_review_watcher.dart';
+import 'features/settings/presentation/controllers/payment_listener_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,11 @@ void main() async {
   // destruya al cambiar de ruta. El AuthController lo arranca
   // (`startForRole`) según el rol del user logueado.
   Get.put(PendingReviewWatcher(), permanent: true);
+
+  // Escucha de pagos bancarios: se inicializa al arrancar para que el
+  // servicio nativo (NotificationListenerService) reciba la config guardada
+  // (bancos habilitados, template) aunque el usuario nunca abra la pantalla.
+  Get.put(PaymentListenerController(), permanent: true);
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

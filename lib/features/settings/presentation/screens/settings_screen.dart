@@ -129,6 +129,15 @@ class SettingsScreen extends StatelessWidget {
                             Get.toNamed(AppRoutes.notificationSettings),
                       ),
                       const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.hearing_outlined,
+                        title: 'Escucha de pagos',
+                        subtitle: 'Habla cuando llega un pago bancario',
+                        accent: const Color(0xFF9C27B0),
+                        onTap: () =>
+                            Get.toNamed(AppRoutes.paymentListenerSettings),
+                      ),
+                      const SizedBox(height: 10),
                       // Roles del equipo: solo admin — manager no edita
                       // permisos de su mismo nivel ni del admin.
                       if (access.isAdmin)

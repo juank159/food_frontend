@@ -135,6 +135,7 @@ class AppRoutes {
   static const String businessSettings = '/settings/business';
   static const String printerSettings = '/settings/printer';
   static const String notificationSettings = '/settings/notifications';
+  static const String paymentListenerSettings = '/settings/payment-listener';
   static const String securitySettings = '/settings/security';
   static const String paymentAccountsSettings = '/settings/payment-accounts';
 

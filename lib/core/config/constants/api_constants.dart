@@ -193,6 +193,9 @@ class ApiConstants {
   static const String fcmRegisterToken = '/notifications/register-token';
   static const String fcmUnregisterToken = '/notifications/device-token';
 
+  // Escucha de pagos bancarios
+  static const String paymentNotificationsWebhook = '/payment-notifications/webhook';
+
   // HTTP Headers
   static const String authorizationHeader = 'Authorization';
   static const String contentTypeHeader = 'Content-Type';
