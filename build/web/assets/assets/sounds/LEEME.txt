@@ -1,0 +1,9 @@
+Acá va el archivo de sonido para la alerta de pedidos QR.
+
+Nombre del archivo: qr_alert.mp3
+Formatos soportados: MP3, WAV, OGG, AAC
+
+Ejemplo:
+  assets/sounds/qr_alert.mp3
+
+Una vez que copias tu archivo, reconstruís la app (flutter run).
