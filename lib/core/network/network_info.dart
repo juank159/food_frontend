@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
 /// Interfaz de chequeo de conectividad.
@@ -6,19 +6,14 @@ abstract class NetworkInfo {
   Future<bool> get isConnected;
 }
 
-/// Implementación real. Política:
-///
-///   - **Release:** verifica conectividad real con
-///     `InternetConnectionChecker.hasConnection`. Si falla → `false`.
-///     La UI ve "Sin conexión" y bloquea acciones que dependan del
-///     backend.
-///
-///   - **Debug:** intenta verificar pero si falla devuelve `true` y
-///     loggea un warning. Esto evita falsos negativos con localhost
-///     (el checker pinga DNS públicos: si el dev está sin internet
-///     pero el API local funciona, queremos que la app igual ande).
-///
-/// Timeout de 3s para que no bloquee el splash o pantallas iniciales.
+/// En web no existe dart:io — siempre asumimos conectividad y dejamos
+/// que Dio falle con su propio error si no hay red.
+class _NetworkInfoWeb implements NetworkInfo {
+  @override
+  Future<bool> get isConnected async => true;
+}
+
+/// Implementación real para mobile/desktop.
 class NetworkInfoImpl implements NetworkInfo {
   final InternetConnectionChecker connectionChecker;
 
@@ -46,4 +41,10 @@ class NetworkInfoImpl implements NetworkInfo {
       return false;
     }
   }
+}
+
+/// Factory: devuelve la implementación correcta según la plataforma.
+NetworkInfo createNetworkInfo([InternetConnectionChecker? checker]) {
+  if (kIsWeb) return _NetworkInfoWeb();
+  return NetworkInfoImpl(checker);
 }

@@ -673,9 +673,9 @@ Future<void> init() async {
   // Core
   // ========================================
 
-  // Network Info — InternetConnectionChecker is unavailable on web
+  // Network Info — en web usa stub que siempre devuelve true
   sl.registerLazySingleton<NetworkInfo>(
-    () => kIsWeb ? NetworkInfoImpl() : NetworkInfoImpl(sl()),
+    () => kIsWeb ? createNetworkInfo() : createNetworkInfo(sl()),
   );
 
   // ========================================
