@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/safe_nav.dart';
@@ -34,6 +36,8 @@ class PaymentListenerScreen extends StatelessWidget {
                     _BanksCard(),
                     const SizedBox(height: 12),
                     _TemplateCard(),
+                    const SizedBox(height: 12),
+                    _DebugCard(),
                     const SizedBox(height: 12),
                     _HelpCard(),
                   ],
@@ -326,6 +330,155 @@ class _TemplateCard extends GetView<PaymentListenerController> {
       .replaceAll('{monto}', '\$50.000')
       .replaceAll('{banco}', 'Nequi')
       .replaceAll('{banco_nombre}', 'Nequi');
+}
+
+// ── Panel de debug ────────────────────────────────────────────────────────────
+
+class _DebugCard extends GetView<PaymentListenerController> {
+  @override
+  Widget build(BuildContext context) {
+    return AppFormSection(
+      title: 'Panel de diagnóstico',
+      subtitle: 'Notificaciones bancarias capturadas en tiempo real.',
+      icon: Icons.bug_report_outlined,
+      accent: const Color(0xFF607D8B),
+      children: [
+        Obx(() {
+          final notifs = controller.capturedNotifs;
+          if (notifs.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.radar_outlined, color: AppColors.textSecondary, size: 20),
+                  SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      'Esperando notificaciones bancarias...\nEnvía un pago de Nequi y aparecerá aquí.',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '${notifs.length} notificación(es) capturada(s)',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: controller.clearDebugLog,
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Limpiar', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      foregroundColor: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...notifs.map((n) => _DebugEntry(notif: n)),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _DebugEntry extends StatelessWidget {
+  final CapturedNotif notif;
+  const _DebugEntry({required this.notif});
+
+  @override
+  Widget build(BuildContext context) {
+    final ok = !notif.debugOnly && notif.amount.isNotEmpty;
+    final color = ok ? AppColors.success : AppColors.warning;
+    final icon = ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded;
+    final timeStr = DateFormat('HH:mm:ss').format(notif.time);
+
+    return GestureDetector(
+      onLongPress: () {
+        Clipboard.setData(ClipboardData(text: notif.rawText));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Texto copiado'), duration: Duration(seconds: 2)),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  notif.bank,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+                ),
+                const Spacer(),
+                if (ok)
+                  Text(
+                    notif.amount,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color),
+                  ),
+                const SizedBox(width: 8),
+                Text(
+                  timeStr,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+            if (!ok) ...[
+              const SizedBox(height: 4),
+              Text(
+                '⚠️ Monto no detectado — mantén presionado para copiar el texto',
+                style: TextStyle(fontSize: 11, color: color),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                notif.rawText.isEmpty ? '(sin texto)' : notif.rawText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Ayuda ─────────────────────────────────────────────────────────────────────

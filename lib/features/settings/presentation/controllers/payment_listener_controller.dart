@@ -10,12 +10,10 @@ import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/services/payment_listener_channel.dart';
 import '../../../../core/utils/api_response_utils.dart';
 
-// SharedPreferences keys
 const _kEnabled = 'pn_enabled';
 const _kTemplate = 'pn_template';
 const _kBankPrefix = 'pn_bank_';
 
-/// Bancos colombianos soportados: packageName → nombre amigable.
 const kSupportedBanks = <String, String>{
   'com.nequi.mobileapp': 'Nequi',
   'com.bancolombia.bancolombia': 'Bancolombia',
@@ -25,17 +23,34 @@ const kSupportedBanks = <String, String>{
   'co.com.bancobogota.pab': 'Banco Bogotá',
 };
 
+class CapturedNotif {
+  final String bank;
+  final String rawText;
+  final String amount;   // vacío si no se pudo extraer
+  final bool debugOnly;  // true = notif recibida pero sin monto detectado
+  final DateTime time;
+
+  CapturedNotif({
+    required this.bank,
+    required this.rawText,
+    required this.amount,
+    required this.debugOnly,
+    required this.time,
+  });
+}
+
 class PaymentListenerController extends GetxController {
   final _prefs = GetIt.instance<SharedPreferences>();
   final _dio = GetIt.instance<Dio>();
 
-  // ── Estado reactivo ──────────────────────────────────────────────────────
   final isEnabled = false.obs;
   final template = 'Llegó {monto} por {banco}'.obs;
   final enabledBanks = <String>{}.obs;
   final hasListenerPermission = false.obs;
   final hasBatteryOptimization = false.obs;
-  final isSending = false.obs;
+
+  // Panel de debug: últimas 10 notificaciones bancarias capturadas
+  final capturedNotifs = <CapturedNotif>[].obs;
 
   StreamSubscription? _sub;
 
@@ -53,8 +68,6 @@ class PaymentListenerController extends GetxController {
     super.onClose();
   }
 
-  // ── Carga inicial ────────────────────────────────────────────────────────
-
   void _loadPrefs() {
     isEnabled.value = _prefs.getBool(_kEnabled) ?? false;
     template.value = _prefs.getString(_kTemplate) ?? 'Llegó {monto} por {banco}';
@@ -71,24 +84,35 @@ class PaymentListenerController extends GetxController {
     hasBatteryOptimization.value = await PaymentListenerChannel.isBatteryOptimizationIgnored();
   }
 
-  // ── Escuchar eventos del servicio nativo ─────────────────────────────────
-
   void _listenPayments() {
     _sub = PaymentListenerChannel.paymentStream.listen(
-      (event) => _onPaymentDetected(event),
+      _onEvent,
       onError: (e) => debugPrint('[PaymentListener] error: $e'),
     );
   }
 
-  void _onPaymentDetected(Map<Object?, Object?> event) {
+  void _onEvent(Map<Object?, Object?> event) {
     final bank = event['bank']?.toString() ?? '';
     final amount = event['amount']?.toString() ?? '';
     final speechText = event['speech_text']?.toString() ?? '';
-    debugPrint('[PaymentListener] Pago detectado: $amount de $bank');
-    _sendWebhook(bank: bank, amount: amount, speechText: speechText);
-  }
+    final rawText = event['raw_text']?.toString() ?? '';
+    final debugOnly = event['debug_only'] == true;
 
-  // ── Webhook al backend ───────────────────────────────────────────────────
+    // Guardar en el panel de debug (máximo 10 entradas)
+    capturedNotifs.insert(0, CapturedNotif(
+      bank: bank,
+      rawText: rawText,
+      amount: amount,
+      debugOnly: debugOnly,
+      time: DateTime.now(),
+    ));
+    if (capturedNotifs.length > 10) capturedNotifs.removeLast();
+
+    // Solo enviar webhook si hay monto detectado
+    if (!debugOnly && amount.isNotEmpty && speechText.isNotEmpty) {
+      _sendWebhook(bank: bank, amount: amount, speechText: speechText);
+    }
+  }
 
   Future<void> _sendWebhook({
     required String bank,
@@ -105,8 +129,6 @@ class PaymentListenerController extends GetxController {
       debugPrint('[PaymentListener] webhook error: ${ApiResponseUtils.errorMessage(e)}');
     }
   }
-
-  // ── Setters ──────────────────────────────────────────────────────────────
 
   Future<void> setEnabled(bool value) async {
     isEnabled.value = value;
@@ -130,8 +152,6 @@ class PaymentListenerController extends GetxController {
     _syncNative();
   }
 
-  // ── Permisos ─────────────────────────────────────────────────────────────
-
   Future<void> openNotificationSettings() async {
     await PaymentListenerChannel.openNotificationListenerSettings();
     await Future.delayed(const Duration(milliseconds: 500));
@@ -146,6 +166,8 @@ class PaymentListenerController extends GetxController {
 
   Future<void> refreshPermissions() async => _checkPermissions();
 
+  void clearDebugLog() => capturedNotifs.clear();
+
   Future<void> testTts() async {
     final text = template.value
         .replaceAll('{monto}', '\$50.000')
@@ -153,8 +175,6 @@ class PaymentListenerController extends GetxController {
         .replaceAll('{banco_nombre}', 'Nequi');
     await PaymentListenerChannel.testTts(text);
   }
-
-  // ── Sincronizar config al servicio nativo ────────────────────────────────
 
   void _syncNative() {
     PaymentListenerChannel.updateConfig(

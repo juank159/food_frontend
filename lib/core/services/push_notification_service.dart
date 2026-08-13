@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
@@ -55,6 +55,7 @@ class PushNotificationService {
   static bool _initialized = false;
 
   static Future<void> init() async {
+    if (kIsWeb) return; // FCM + flutter_local_notifications no soportados en web
     if (_initialized) return;
 
     try {
@@ -102,24 +103,24 @@ class PushNotificationService {
   }
 
   static Future<void> registerToken(Dio dio) async {
+    if (kIsWeb) return;
     if (!_initialized) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null) return;
 
+      final platform = defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+
       await dio.post(
         ApiConstants.fcmRegisterToken,
-        data: {
-          'token': token,
-          'platform': Platform.isIOS ? 'ios' : 'android',
-        },
+        data: {'token': token, 'platform': platform},
       );
 
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
         try {
           await dio.post(ApiConstants.fcmRegisterToken, data: {
             'token': newToken,
-            'platform': Platform.isIOS ? 'ios' : 'android',
+            'platform': platform,
           });
         } catch (_) {}
       });

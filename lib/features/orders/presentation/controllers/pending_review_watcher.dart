@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -128,9 +129,15 @@ class PendingReviewWatcher extends GetxService {
         ..clear()
         ..addAll(newIds);
       count.value = batch.count;
-    } catch (_) {
-      // Errores de red transitorios — no rompemos el polling, el
-      // próximo tick puede recuperarse.
+    } catch (e) {
+      // 401/403 → token vencido o sesión cerrada: detener el watcher
+      // para no seguir spameando el servidor con requests inválidos.
+      if (e is DioException &&
+          (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
+        stop();
+        return;
+      }
+      // Otros errores de red transitorios → el próximo tick puede recuperarse.
     }
   }
 

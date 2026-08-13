@@ -128,12 +128,29 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+        val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+        val infoText = extras.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString() ?: ""
 
-        val fullText = "$title $text $bigText"
+        val fullText = listOf(title, text, bigText, subText, infoText)
+            .filter { it.isNotBlank() }
+            .joinToString(" | ")
         Log.d(TAG, "📨 Texto completo de $bankName: [$fullText]")
 
         // Extraer monto
         val amount = extractAmount(fullText)
+
+        // SIEMPRE enviar el evento a Flutter para el panel de debug,
+        // aunque no se haya podido extraer el monto.
+        val debugPayload = mapOf(
+            "bank" to bankName,
+            "bank_package" to pkg,
+            "amount" to (amount ?: ""),
+            "speech_text" to "",
+            "raw_text" to fullText.trim(),
+            "debug_only" to (amount == null),  // true = solo para debug, no hablar
+        )
+        eventSink?.success(debugPayload)
+
         if (amount == null) {
             Log.w(TAG, "❌ No se pudo extraer monto de: [$fullText]")
             return
@@ -141,24 +158,24 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         Log.d(TAG, "✅ Monto detectado: $amount de $bankName")
 
         // Construir mensaje TTS
-        val spokenAmount = formatAmountForSpeech(amount)
         val speechText = messageTemplate
-            .replace("{monto}", spokenAmount)
+            .replace("{monto}", amount)
             .replace("{banco}", bankName)
             .replace("{banco_nombre}", bankName)
 
-        // Hablar con TTS + WakeLock para pantalla bloqueada
-        speakWithWakeLock(speechText)
-
-        // Enviar evento a Flutter (para webhook al backend)
+        // Actualizar el payload del evento con los datos completos
         val payload = mapOf(
             "bank" to bankName,
             "bank_package" to pkg,
             "amount" to amount,
             "speech_text" to speechText,
             "raw_text" to fullText.trim(),
+            "debug_only" to false,
         )
         eventSink?.success(payload)
+
+        // Hablar con TTS + WakeLock para pantalla bloqueada
+        speakWithWakeLock(speechText)
     }
 
     private fun extractAmount(text: String): String? {

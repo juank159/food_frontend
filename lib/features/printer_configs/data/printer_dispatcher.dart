@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' if (dart.library.html) 'package:menu_plat/core/stubs/io_stub.dart';
 import 'dart:typed_data';
 
 import 'package:printing/printing.dart';

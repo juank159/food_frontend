@@ -1,0 +1,8 @@
+# Ignorar builds previas y caché (pesado, no se necesita)
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Git
+.git/
