@@ -1,5 +1,7 @@
 # Ignorar builds previas y caché (pesado, no se necesita)
 build/
+!build/web/
+
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
