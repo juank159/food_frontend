@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
@@ -29,6 +30,13 @@ class ConnectivityService extends GetxController {
   }
 
   void _start() {
+    // En web dart:io no está disponible — asumimos siempre online.
+    // Dio se encarga de propagar errores de red cuando falla una petición.
+    if (kIsWeb) {
+      isOnline.value = true;
+      return;
+    }
+
     final checker = InternetConnectionChecker();
 
     // Verificar estado inicial de forma no bloqueante
