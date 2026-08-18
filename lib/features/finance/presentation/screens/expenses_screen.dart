@@ -88,6 +88,7 @@ class ExpensesScreen extends StatelessWidget {
   }
 
   Widget _tile(BuildContext context, ExpensesController c, Expense e) {
+    final isCash = e.paymentSource == 'cash_register';
     return Dismissible(
       key: ValueKey('exp-${e.id}'),
       direction: DismissDirection.endToStart,
@@ -102,7 +103,7 @@ class ExpensesScreen extends StatelessWidget {
       ),
       confirmDismiss: (_) async {
         await c.remove(e);
-        return false; // la lista se recarga sola
+        return false;
       },
       child: Material(
         color: AppColors.cardBackground,
@@ -142,16 +143,56 @@ class ExpensesScreen extends StatelessWidget {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${expenseCategoryLabel(e.category)} · '
-                        '${_fmtDate(e.expenseDate)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '${expenseCategoryLabel(e.category)} · ${_fmtDate(e.expenseDate)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // Badge de fuente de pago
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isCash
+                                  ? AppColors.warning.withValues(alpha: 0.15)
+                                  : AppColors.success.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  expensePaymentSourceIcon(e.paymentSource),
+                                  size: 10,
+                                  color: isCash
+                                      ? AppColors.warning
+                                      : AppColors.success,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  expensePaymentSourceLabel(e.paymentSource),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isCash
+                                        ? AppColors.warning
+                                        : AppColors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -191,7 +232,8 @@ class ExpensesScreen extends StatelessWidget {
     );
   }
 
-  void _openForm(BuildContext context, ExpensesController c, {Expense? expense}) {
+  void _openForm(BuildContext context, ExpensesController c,
+      {Expense? expense}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -222,6 +264,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
   late final TextEditingController _amount;
   late final TextEditingController _notes;
   late String _category;
+  late String _paymentSource;
   late DateTime _date;
 
   @override
@@ -234,6 +277,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
     );
     _notes = TextEditingController(text: e?.notes ?? '');
     _category = e?.category ?? 'supplies';
+    _paymentSource = e?.paymentSource ?? 'cash_register';
     _date = e?.expenseDate ?? DateTime.now();
   }
 
@@ -262,6 +306,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
       description: desc,
       category: _category,
       amount: amount,
+      paymentSource: _paymentSource,
       expenseDate: _date,
       notes: _notes.text,
     );
@@ -327,7 +372,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _category,
+                value: _category,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Categoría',
@@ -351,6 +396,12 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                   prefixText: '\$ ',
                   border: OutlineInputBorder(),
                 ),
+              ),
+              const SizedBox(height: 12),
+              // ── Fuente de pago ─────────────────────────────────────────────
+              _PaymentSourceSelector(
+                value: _paymentSource,
+                onChanged: (v) => setState(() => _paymentSource = v),
               ),
               const SizedBox(height: 12),
               InkWell(
@@ -414,6 +465,136 @@ class _ExpenseFormState extends State<_ExpenseForm> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Selector de fuente de pago — muestra chips horizontales con ícono + label.
+/// El chip seleccionado se resalta. Si es 'cash_register', muestra aviso
+/// de que descuenta del saldo de caja.
+class _PaymentSourceSelector extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _PaymentSourceSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isCash = value == 'cash_register';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '¿De dónde salió el dinero?',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: kExpensePaymentSourceLabels.entries.map((entry) {
+            final selected = entry.key == value;
+            return GestureDetector(
+              onTap: () => onChanged(entry.key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: selected ? AppColors.primary : AppColors.border,
+                    width: selected ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      expensePaymentSourceIcon(entry.key),
+                      size: 14,
+                      color: selected ? Colors.white : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      entry.value,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            selected ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 6),
+        // Aviso contextual según la fuente seleccionada
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: isCash
+              ? _notice(
+                  key: const ValueKey('cash'),
+                  icon: Icons.info_outline,
+                  color: AppColors.warning,
+                  text:
+                      'Este gasto descuenta del efectivo en caja (afecta el cuadre del turno).',
+                )
+              : _notice(
+                  key: const ValueKey('other'),
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.success,
+                  text:
+                      'Solo afecta el estado de resultados. No descuenta de la caja.',
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _notice({
+    required Key key,
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
