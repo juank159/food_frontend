@@ -372,7 +372,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _category,
+                initialValue: _category,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Categoría',
