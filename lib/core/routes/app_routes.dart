@@ -28,6 +28,7 @@ class AppRoutes {
   // ==================== BUSINESS INFO ====================
   static const String businessInfo = '/settings/business-info';
   static const String promoBanner = '/settings/promo-banner';
+  static const String brebSettings = '/settings/breb';
 
   // ==================== ORDERS ROUTES ====================
   static const String orders = '/orders';

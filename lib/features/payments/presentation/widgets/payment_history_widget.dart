@@ -677,6 +677,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         return Icons.smartphone;
       case PaymentMethod.nequi:
         return Icons.qr_code_2;
+      case PaymentMethod.brebB:
+        return Icons.bolt;
     }
   }
 
@@ -692,6 +694,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
         return 'Billetera Digital';
       case PaymentMethod.nequi:
         return 'Nequi QR';
+      case PaymentMethod.brebB:
+        return 'Bre-B / Nequi';
     }
   }
 

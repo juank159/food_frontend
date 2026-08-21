@@ -103,6 +103,16 @@ class SettingsScreen extends StatelessWidget {
                         accent: const Color(0xFFE67E22),
                         onTap: () => Get.toNamed(AppRoutes.promoBanner),
                       ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.bolt,
+                        title: 'Bre-B / Nequi',
+                        subtitle:
+                            'Conciliación automática de transferencias — '
+                            'sin comisiones, con voz al confirmar el pago',
+                        accent: const Color(0xFF32AF60),
+                        onTap: () => Get.toNamed(AppRoutes.brebSettings),
+                      ),
                     ],
 
                     // Sección "Operaciones" — admin/manager. El manager

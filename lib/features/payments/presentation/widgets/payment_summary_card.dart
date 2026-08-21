@@ -259,6 +259,8 @@ class PaymentSummaryCard extends StatelessWidget {
         return Icons.smartphone;
       case PaymentMethod.nequi:
         return Icons.qr_code_2;
+      case PaymentMethod.brebB:
+        return Icons.bolt;
     }
   }
 
@@ -274,6 +276,8 @@ class PaymentSummaryCard extends StatelessWidget {
         return 'Billetera Digital';
       case PaymentMethod.nequi:
         return 'Nequi QR';
+      case PaymentMethod.brebB:
+        return 'Bre-B / Nequi';
     }
   }
 }

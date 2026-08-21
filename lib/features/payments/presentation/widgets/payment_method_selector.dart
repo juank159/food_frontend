@@ -57,6 +57,8 @@ IconData paymentMethodIcon(PaymentMethod m) {
       return Icons.account_balance_wallet_outlined;
     case PaymentMethod.nequi:
       return Icons.qr_code_2;
+    case PaymentMethod.brebB:
+      return Icons.bolt;
   }
 }
 
@@ -72,5 +74,7 @@ String paymentMethodName(PaymentMethod m) {
       return 'Billetera digital';
     case PaymentMethod.nequi:
       return 'Nequi QR';
+    case PaymentMethod.brebB:
+      return 'Bre-B / Nequi';
   }
 }

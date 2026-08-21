@@ -97,7 +97,8 @@ enum PaymentMethod {
   card('card', 'Tarjeta'),
   transfer('transfer', 'Transferencia'),
   digitalWallet('digital_wallet', 'Billetera Digital'),
-  nequi('nequi', 'Nequi QR');
+  nequi('nequi', 'Nequi QR'),
+  brebB('breb', 'Bre-B / Nequi');
 
   final String value;
   final String displayName;

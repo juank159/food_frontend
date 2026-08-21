@@ -242,6 +242,7 @@
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				1E00AA1699D5B3A9B2B2E187 /* [CP] Embed Pods Frameworks */,
 				4FF03E8F168C9AC6EA4B8292 /* [CP] Copy Pods Resources */,
+				FA11C0DE000000000000DEAD /* Strip xattrs before signing */,
 			);
 			buildRules = (
 			);
@@ -324,6 +325,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		FA11C0DE000000000000DEAD /* Strip xattrs before signing */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip xattrs before signing";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "find \"${BUILT_PRODUCTS_DIR}\" -name '*.bundle' -exec xattr -cr {} \\; 2>/dev/null; find \"${BUILT_PRODUCTS_DIR}\" -name '*.framework' -exec xattr -cr {} \\; 2>/dev/null; find \"${BUILT_PRODUCTS_DIR}\" -name '*.app' -exec xattr -cr {} \\; 2>/dev/null; true\n";
+			showEnvVarsInLog = 0;
+		};
 		1E00AA1699D5B3A9B2B2E187 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

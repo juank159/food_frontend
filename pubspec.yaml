@@ -124,6 +124,11 @@ dependencies:
   # El archivo lo coloca el usuario en assets/sounds/qr_alert.mp3.
   audioplayers: ^6.1.0
 
+  # Texto a voz para anunciar en voz alta los pagos Bre-B/Nequi confirmados
+  # (reemplaza al TTS nativo del listener de notificaciones que se sacó por
+  # bloquear la publicación en las tiendas de apps).
+  flutter_tts: ^4.2.0
+
   # Push notifications vía Firebase Cloud Messaging (FCM).
   # Permite recibir alertas de pedidos QR cuando el celular está bloqueado
   # o la app está en segundo plano. Requiere google-services.json (Android)

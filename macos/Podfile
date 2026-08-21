@@ -38,5 +38,18 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+    # Agregar script para limpiar xattrs antes de code signing.
+    # iCloud Drive agrega com.apple.fileprovider.fpfs#P a los archivos en Documents/,
+    # lo que hace fallar codesign con "resource fork not allowed".
+    target.build_phases.each do |phase|
+      next unless phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+      next unless phase.name == 'Strip xattrs before signing'
+      phase.remove_from_project
+    end
+    strip_phase = target.project.new(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+    strip_phase.name = 'Strip xattrs before signing'
+    strip_phase.shell_script = 'find "${BUILT_PRODUCTS_DIR}" -name "*.bundle" -exec xattr -cr {} \\;'
+    strip_phase.run_only_for_deployment_postprocessing = '0'
+    target.build_phases << strip_phase
   end
 end

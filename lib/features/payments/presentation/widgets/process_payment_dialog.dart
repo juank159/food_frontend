@@ -12,11 +12,13 @@ import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../controllers/payment_controller.dart';
 import '../controllers/nequi_payment_controller.dart';
+import '../controllers/breb_payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../domain/entities/payment.dart';
 import 'item_selection_sheet.dart';
 import 'nequi_payment_dialog.dart';
+import 'breb_payment_dialog.dart';
 import 'payment_method_selector.dart';
 import 'split_payment_dialog.dart';
 import 'tenant_payment_account_selector.dart';
@@ -92,6 +94,11 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       return;
     }
 
+    if (method == PaymentMethod.brebB) {
+      await _processBrebPayment(context);
+      return;
+    }
+
     if (method == PaymentMethod.cash) {
       // Recibido es opcional; solo bloquear si ingresó un monto insuficiente
       if (_received > 0 && _received < _effectiveAmount) {
@@ -119,6 +126,25 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       ),
     );
     nequiCtrl.cancel();
+    if ((confirmed ?? false) && outerContext.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.pop(outerContext);
+    }
+  }
+
+  Future<void> _processBrebPayment(BuildContext context) async {
+    final outerContext = context;
+    final brebCtrl = BrebPaymentController(dio: GetIt.instance<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        orderId: widget.orderId,
+        amount: _effectiveAmount,
+      ),
+    );
+    brebCtrl.cancel();
     if ((confirmed ?? false) && outerContext.mounted) {
       HapticFeedback.mediumImpact();
       Navigator.pop(outerContext);
@@ -471,6 +497,8 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
         return _buildCashSection(theme);
       case PaymentMethod.nequi:
         return _buildNequiInfo(theme);
+      case PaymentMethod.brebB:
+        return _buildBrebInfo(theme);
       case PaymentMethod.card:
       case PaymentMethod.transfer:
       case PaymentMethod.digitalWallet:
@@ -523,6 +551,37 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
               Expanded(
                 child: Text(
                   'Se generará un QR de Nequi. El cliente lo escanea con la app.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildNotesField(),
+      ],
+    );
+  }
+
+  Widget _buildBrebInfo(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF32AF60).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.bolt, color: Color(0xFF32AF60), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Le mostrás la llave Bre-B al cliente y transfiere desde su banco. Se confirma solo.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),

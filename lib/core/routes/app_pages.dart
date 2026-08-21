@@ -62,6 +62,7 @@ import '../../features/menu_schedules/presentation/pages/menu_schedules_page.dar
 import '../../features/menu_schedules/presentation/bindings/menu_schedules_binding.dart';
 import '../../features/settings/presentation/screens/business_info_screen.dart';
 import '../../features/settings/presentation/screens/promo_banner_screen.dart';
+import '../../features/settings/presentation/screens/breb_settings_screen.dart';
 import '../../features/products/presentation/bindings/modifier_form_binding.dart';
 import '../../features/products/presentation/bindings/modifiers_binding.dart';
 import '../../features/products/presentation/bindings/product_detail_binding.dart';
@@ -293,6 +294,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.promoBanner,
       page: () => const PromoBannerScreen(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.brebSettings,
+      page: () => const BrebSettingsScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

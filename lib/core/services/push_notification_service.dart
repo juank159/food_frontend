@@ -1,16 +1,19 @@
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 
 import '../config/constants/api_constants.dart';
 import '../routes/app_routes.dart';
 import '../utils/api_response_utils.dart';
+import '../../features/payments/presentation/controllers/breb_payment_controller.dart';
 
 /// Canal v6: IMPORTANCE_HIGH con sonido del sistema (sin URI custom).
 /// Creado por MainApplication.setupQrChannel() — solo si no existe, para que
@@ -53,6 +56,8 @@ class PushNotificationService {
   PushNotificationService._();
 
   static bool _initialized = false;
+  static final FlutterTts _tts = FlutterTts();
+  static bool _ttsConfigured = false;
 
   static Future<void> init() async {
     if (kIsWeb) return; // FCM + flutter_local_notifications no soportados en web
@@ -146,6 +151,43 @@ class PushNotificationService {
       return;
     }
 
+    // Pago Bre-B conciliado: actualizar el diálogo de cobro si está abierto
+    // (evita esperar el próximo tick del polling de 3s) y anunciarlo con voz.
+    if (message.data['type'] == 'breb_payment_confirmed') {
+      final orderId = message.data['order_id'] as String?;
+      final amount = message.data['amount'] as String? ?? '';
+      final payerName = message.data['payer_name'] as String? ?? '';
+
+      final activeCtrl = BrebPaymentController.active;
+      if (activeCtrl != null && activeCtrl.activeOrderId == orderId) {
+        activeCtrl.markConfirmed(payer: payerName);
+      }
+
+      if (amount.isNotEmpty) {
+        _speak('Pago recibido, $amount pesos');
+      }
+
+      _localNotifs.show(
+        'breb_payment_confirmed'.hashCode,
+        '💰 Pago Bre-B recibido',
+        payerName.isNotEmpty ? '\$$amount · $payerName' : '\$$amount',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _kQrChannel.id,
+            _kQrChannel.name,
+            channelDescription: _kQrChannel.description,
+            importance: Importance.max,
+            priority: Priority.max,
+            enableVibration: true,
+            icon: '@drawable/ic_notification',
+            color: const Color(0xFF4CAF50),
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+      );
+      return;
+    }
+
     // Alerta de pago bancario: mostrar heads-up con el texto del pago.
     if (message.data['type'] == 'payment_alert') {
       final speechText = message.data['speech_text'] as String? ?? '';
@@ -202,6 +244,27 @@ class PushNotificationService {
       ),
       payload: message.data['type'] as String?,
     );
+  }
+
+  /// Anuncia el texto en voz alta (reemplaza al TTS nativo del listener de
+  /// notificaciones que se sacó por bloquear la publicación en las tiendas
+  /// de apps). Si el motor TTS no está disponible en el dispositivo, cae a
+  /// un sonido simple — nunca debe fallar en silencio total.
+  static Future<void> _speak(String text) async {
+    try {
+      if (!_ttsConfigured) {
+        await _tts.setLanguage('es-CO');
+        await _tts.setSpeechRate(0.48);
+        await _tts.setVolume(1.0);
+        _ttsConfigured = true;
+      }
+      await _tts.speak(text);
+    } catch (e) {
+      debugPrint('[TTS] error hablando "$text": $e — usando sonido de respaldo');
+      try {
+        await AudioPlayer().play(AssetSource('sounds/qr_alert.mp3'));
+      } catch (_) {}
+    }
   }
 
   static void _onNotifTap(NotificationResponse details) {
