@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/api_response_utils.dart';
@@ -91,6 +92,15 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
   void _copyEmail() {
     Clipboard.setData(ClipboardData(text: _inboundEmail));
     AppSnackbar.show('Copiado', 'Dirección copiada al portapapeles');
+  }
+
+  Future<void> _showRecentEmails() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RecentEmailsSheet(dio: _dio),
+    );
   }
 
   @override
@@ -184,6 +194,23 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
               const SizedBox(height: 8),
               Text(
                 'Cada correo aprobado se concilia solo con la cuenta que esté esperando ese monto.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _showRecentEmails,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                  side: BorderSide(color: AppColors.primary),
+                  foregroundColor: AppColors.primary,
+                ),
+                icon: const Icon(Icons.mail_outline, size: 18),
+                label: const Text('Ver correos recibidos'),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Útil para confirmar reenvíos de Gmail/Outlook (te pide confirmar la dirección '
+                'la primera vez) o para revisar por qué un pago no se concilió solo.',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ],
@@ -286,6 +313,235 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+/// Lista los últimos correos que llegaron a la dirección Bre-B del tenant
+/// y no se conciliaron solos — incluye correos de confirmación de reenvío
+/// (Gmail/Outlook) y avisos de Nequi que fallaron el match. Le permite a
+/// cada negocio auto-gestionar su onboarding sin pedir ayuda a soporte.
+class _RecentEmailsSheet extends StatefulWidget {
+  final Dio dio;
+  const _RecentEmailsSheet({required this.dio});
+
+  @override
+  State<_RecentEmailsSheet> createState() => _RecentEmailsSheetState();
+}
+
+class _RecentEmailsSheetState extends State<_RecentEmailsSheet> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _emails = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await widget.dio.get('/payments/breb/recent-emails');
+      final list = ApiResponseUtils.list(res);
+      _emails = list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      _error = ApiResponseUtils.errorMessage(e) ?? e.toString();
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  static final _urlRegex = RegExp(r'https?://[^\s<>"\)]+');
+
+  List<String> _extractUrls(String text) {
+    return _urlRegex
+        .allMatches(text)
+        .map((m) => m.group(0)!.replaceAll(RegExp(r'[.,;]+$'), ''))
+        .toSet()
+        .toList();
+  }
+
+  Future<void> _openLink(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      AppSnackbar.show('No se pudo abrir', 'Copiá el link manualmente.');
+    }
+  }
+
+  String _reasonLabel(String reason) {
+    switch (reason) {
+      case 'unknown_slug':
+        return 'Dirección desconocida';
+      case 'not_approved':
+        return 'No es de Nequi (ej. confirmación de reenvío)';
+      case 'not_a_sale':
+        return 'Es de Nequi, pero no es un aviso de venta (recarga, seguridad, etc.)';
+      case 'parse_error':
+        return 'No se pudo leer el formato';
+      case 'status_rejected':
+        return 'Venta con estado rechazado/no aprobado';
+      case 'no_pending_match':
+        return 'No había ningún cobro esperando ese monto';
+      case 'multiple_matches':
+        return 'Ambiguo — varios cobros con el mismo monto';
+      default:
+        return reason;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Correos recibidos',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: _loading ? null : _load,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(_error!, textAlign: TextAlign.center),
+                            ),
+                          )
+                        : _emails.isEmpty
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'Todavía no llegó ningún correo a tu dirección Bre-B.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: AppColors.textSecondary),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollCtrl,
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _emails.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                                itemBuilder: (_, i) {
+                                  final e = _emails[i];
+                                  final reason = (e['reason'] as String?) ?? '';
+                                  final body = (e['raw_body'] as String?) ?? '';
+                                  final createdAt = (e['created_at'] as String?) ?? '';
+                                  final links = _extractUrls(body);
+                                  return Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: AppColors.border),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _reasonLabel(reason),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        if (createdAt.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            createdAt,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                        if (body.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          SelectableText(
+                                            body.length > 500 ? '${body.substring(0, 500)}…' : body,
+                                            style: const TextStyle(fontSize: 12, height: 1.4),
+                                          ),
+                                        ],
+                                        if (links.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          ...links.map(
+                                            (url) => Padding(
+                                              padding: const EdgeInsets.only(top: 4),
+                                              child: SizedBox(
+                                                width: double.infinity,
+                                                child: FilledButton.icon(
+                                                  onPressed: () => _openLink(url),
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor: AppColors.primary,
+                                                    minimumSize: const Size(0, 40),
+                                                  ),
+                                                  icon: const Icon(Icons.open_in_new, size: 16),
+                                                  label: const Text('Abrir enlace de confirmación'),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+              ),
+              SizedBox(height: mq.padding.bottom),
+            ],
+          ),
+        );
+      },
     );
   }
 }
