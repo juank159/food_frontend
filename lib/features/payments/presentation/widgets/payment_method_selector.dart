@@ -29,6 +29,10 @@ class PaymentMethodSelector extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       ),
       items: PaymentMethod.values
+          // Nequi QR (API oficial Nequi Conecta) nunca se activó — se saca de
+          // las opciones seleccionables, pero el valor del enum se deja para
+          // no romper el render de pagos históricos si alguno existiera.
+          .where((m) => m != PaymentMethod.nequi)
           .map((m) => DropdownMenuItem(
                 value: m,
                 child: Row(

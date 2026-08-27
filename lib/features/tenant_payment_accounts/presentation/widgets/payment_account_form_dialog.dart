@@ -37,7 +37,13 @@ class _PaymentAccountFormDialogState extends State<PaymentAccountFormDialog> {
     _accountHolderCtrl =
         TextEditingController(text: acc?.accountHolder ?? '');
     _notesCtrl = TextEditingController(text: acc?.notes ?? '');
-    _category = acc?.category ?? PaymentMethod.digitalWallet;
+    // Nequi QR ya no es una categoría seleccionable (ver dropdown más abajo);
+    // si una cuenta vieja quedó con esa categoría, caemos a digitalWallet
+    // para no romper el dropdown al editarla.
+    final initialCategory = acc?.category ?? PaymentMethod.digitalWallet;
+    _category = initialCategory == PaymentMethod.nequi
+        ? PaymentMethod.digitalWallet
+        : initialCategory;
     _isActive = acc?.isActive ?? true;
   }
 
@@ -126,6 +132,7 @@ class _PaymentAccountFormDialogState extends State<PaymentAccountFormDialog> {
                 DropdownButtonFormField<PaymentMethod>(
                   initialValue: _category,
                   items: PaymentMethod.values
+                      .where((m) => m != PaymentMethod.nequi)
                       .map(
                         (m) => DropdownMenuItem(
                           value: m,

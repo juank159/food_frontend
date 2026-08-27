@@ -11,13 +11,11 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../controllers/payment_controller.dart';
-import '../controllers/nequi_payment_controller.dart';
 import '../controllers/breb_payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../domain/entities/payment.dart';
 import 'item_selection_sheet.dart';
-import 'nequi_payment_dialog.dart';
 import 'breb_payment_dialog.dart';
 import 'payment_method_selector.dart';
 import 'split_payment_dialog.dart';
@@ -89,11 +87,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     widget.controller.transactionReference.value = _referenceCtrl.text.trim();
     widget.controller.notes.value = _notesCtrl.text.trim();
 
-    if (method == PaymentMethod.nequi) {
-      await _processNequiPayment(context);
-      return;
-    }
-
     if (method == PaymentMethod.brebB) {
       await _processBrebPayment(context);
       return;
@@ -111,25 +104,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       }
     }
     await _executePayment(context);
-  }
-
-  Future<void> _processNequiPayment(BuildContext context) async {
-    final outerContext = context;
-    final nequiCtrl = NequiPaymentController(dio: GetIt.instance<Dio>());
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => NequiPaymentDialog(
-        controller: nequiCtrl,
-        orderId: widget.orderId,
-        amount: _effectiveAmount,
-      ),
-    );
-    nequiCtrl.cancel();
-    if ((confirmed ?? false) && outerContext.mounted) {
-      HapticFeedback.mediumImpact();
-      Navigator.pop(outerContext);
-    }
   }
 
   Future<void> _processBrebPayment(BuildContext context) async {
@@ -495,10 +469,9 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     switch (widget.controller.selectedPaymentMethod.value) {
       case PaymentMethod.cash:
         return _buildCashSection(theme);
-      case PaymentMethod.nequi:
-        return _buildNequiInfo(theme);
       case PaymentMethod.brebB:
         return _buildBrebInfo(theme);
+      case PaymentMethod.nequi: // legado, ya no seleccionable — fallback genérico
       case PaymentMethod.card:
       case PaymentMethod.transfer:
       case PaymentMethod.digitalWallet:
@@ -524,37 +497,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
               onPressed: _setExact,
               child: const Text('Exacto', style: TextStyle(fontSize: 12)),
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildNotesField(),
-      ],
-    );
-  }
-
-  Widget _buildNequiInfo(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF32AF60).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.qr_code_2, color: Color(0xFF32AF60), size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Se generará un QR de Nequi. El cliente lo escanea con la app.',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-            ],
           ),
         ),
         const SizedBox(height: 12),

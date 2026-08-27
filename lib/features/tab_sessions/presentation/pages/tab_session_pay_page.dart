@@ -399,7 +399,9 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: PaymentMethod.values.map((m) {
+      children: PaymentMethod.values
+          .where((m) => m != PaymentMethod.nequi)
+          .map((m) {
         return AppFilterChip(
           label: m.displayName,
           icon: _iconFor(m),

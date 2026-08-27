@@ -105,7 +105,6 @@ dependencies:
   # campo SKU; y búsqueda de productos al vender). Requiere permiso de
   # cámara en Android/iOS.
   mobile_scanner: ^6.0.2
-  qr_flutter: ^4.1.0
 
   # Selección de imágenes (galería/cámara) para la foto del producto.
   # Se sube a Cloudinary (unsigned) y se guarda la URL en image_url.
