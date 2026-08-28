@@ -151,14 +151,17 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
         _infoBanner(),
         const SizedBox(height: 20),
 
-        _sectionTitle('1. Reenviá los avisos de Nequi acá'),
+        _sectionTitle('1. Reenviá los avisos de tu banco acá'),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 'En tu correo (Gmail/Outlook) creá una regla que reenvíe automáticamente '
-                'los correos de nequinotificaciones@nequi.com.co a esta dirección:',
+                'los avisos de pago recibido a esta dirección. Funciona con Nequi '
+                '(nequinotificaciones@nequi.com.co) y Bancolombia '
+                '(alertasynotificaciones@an.notificacionesbancolombia.com) — podés '
+                'agregar los dos si usás ambos.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
@@ -380,9 +383,9 @@ class _RecentEmailsSheetState extends State<_RecentEmailsSheet> {
       case 'unknown_slug':
         return 'Dirección desconocida';
       case 'not_approved':
-        return 'No es de Nequi (ej. confirmación de reenvío)';
+        return 'Remitente no reconocido (ej. confirmación de reenvío de Gmail)';
       case 'not_a_sale':
-        return 'Es de Nequi, pero no es un aviso de venta (recarga, seguridad, etc.)';
+        return 'Es de un banco reconocido, pero no es un aviso de pago recibido';
       case 'parse_error':
         return 'No se pudo leer el formato';
       case 'status_rejected':

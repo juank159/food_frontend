@@ -157,6 +157,7 @@ class PushNotificationService {
       final orderId = message.data['order_id'] as String?;
       final amount = message.data['amount'] as String? ?? '';
       final payerName = message.data['payer_name'] as String? ?? '';
+      final bank = message.data['bank'] as String? ?? '';
 
       final activeCtrl = BrebPaymentController.active;
       if (activeCtrl != null && activeCtrl.activeOrderId == orderId) {
@@ -164,12 +165,16 @@ class PushNotificationService {
       }
 
       if (amount.isNotEmpty) {
-        _speak('Pago recibido, $amount pesos');
+        _speak(
+          bank.isNotEmpty
+              ? 'Recibiste en $bank, $amount pesos'
+              : 'Pago recibido, $amount pesos',
+        );
       }
 
       _localNotifs.show(
         'breb_payment_confirmed'.hashCode,
-        '💰 Pago Bre-B recibido',
+        bank.isNotEmpty ? '💰 Pago recibido — $bank' : '💰 Pago Bre-B recibido',
         payerName.isNotEmpty ? '\$$amount · $payerName' : '\$$amount',
         NotificationDetails(
           android: AndroidNotificationDetails(
