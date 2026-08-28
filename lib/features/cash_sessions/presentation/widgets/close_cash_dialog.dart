@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/utils/safe_get.dart';
+import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../domain/entities/cash_session.dart';
+import '../../domain/usecases/cash_session_usecases.dart';
 import '../bindings/cash_session_binding.dart';
 import '../controllers/cash_session_controller.dart';
 
@@ -29,6 +33,30 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
   final _countedCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   bool _force = false;
+
+  // Desglose de cobros por método (cash, card, transfer, breb, etc.) —
+  // se pide aparte porque `CashSession` solo trae los totales agregados
+  // de efectivo; el detalle por método vive en el endpoint de reporte.
+  Map<String, dynamic>? _byMethod;
+  bool _loadingBreakdown = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBreakdown());
+  }
+
+  Future<void> _loadBreakdown() async {
+    final result = await sl<CashSessionUseCases>().getReport(widget.session.id);
+    if (!mounted) return;
+    result.fold(
+      (_) => setState(() => _loadingBreakdown = false),
+      (report) => setState(() {
+        _byMethod = (report['by_method'] as Map?)?.cast<String, dynamic>();
+        _loadingBreakdown = false;
+      }),
+    );
+  }
 
   @override
   void dispose() {
@@ -134,6 +162,8 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
                 _buildHeader(),
                 const SizedBox(height: 18),
                 _buildExpectedSummary(),
+                const SizedBox(height: 16),
+                _buildMethodBreakdown(),
                 const SizedBox(height: 16),
                 _label('Conteo (efectivo contado)'),
                 const SizedBox(height: 6),
@@ -294,6 +324,83 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
             isBold: true,
             accent: AppColors.info,
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Muestra de dónde entró la plata durante el turno — todos los
+  /// métodos, no solo efectivo (tarjeta, transferencia, Bre-B, etc.).
+  /// Solo informativo: no afecta el cuadre de caja (eso sigue siendo
+  /// nada más que efectivo esperado vs. contado).
+  Widget _buildMethodBreakdown() {
+    if (_loadingBreakdown) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final byMethod = _byMethod;
+    if (byMethod == null || byMethod.isEmpty) return const SizedBox.shrink();
+
+    final entries = byMethod.entries.toList()
+      ..sort((a, b) => (b.value['total'] as num? ?? 0)
+          .compareTo(a.value['total'] as num? ?? 0));
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'DE DÓNDE ENTRÓ LA PLATA',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...entries.map((e) {
+            final method = PaymentMethod.fromString(e.key);
+            final count = (e.value['count'] as num?)?.toInt() ?? 0;
+            final total = (e.value['total'] as num?)?.toDouble() ?? 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Icon(paymentMethodIcon(method), size: 15, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${paymentMethodName(method)} ($count)',
+                      style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                    ),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(total),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -12,6 +13,8 @@ import '../../../../core/widgets/widgets.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../payments/domain/usecases/process_tab_payment_usecase.dart';
+import '../../../payments/presentation/controllers/breb_payment_controller.dart';
+import '../../../payments/presentation/widgets/breb_payment_dialog.dart';
 import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
 import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import '../../domain/entities/tab_session.dart';
@@ -111,6 +114,12 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
 
   Future<void> _submit() async {
     if (!_canSubmit || _isProcessing) return;
+
+    if (_selectedMethod == PaymentMethod.brebB) {
+      await _processBrebPayment();
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     final useCase = sl<ProcessTabPaymentUseCase>();
@@ -150,6 +159,29 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
         if (mounted) Navigator.of(context).pop(true);
       },
     );
+  }
+
+  /// A diferencia de los demás métodos, Bre-B no cobra al toque: abre el
+  /// diálogo de espera (llave + monto) y el pago real lo registra el
+  /// backend solo cuando concilia el correo de confirmación de Nequi.
+  Future<void> _processBrebPayment() async {
+    final outerContext = context;
+    final brebCtrl = BrebPaymentController(dio: sl<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        tabSessionId: session.id,
+        amount: _amount,
+      ),
+    );
+    brebCtrl.cancel();
+    if ((confirmed ?? false) && outerContext.mounted) {
+      HapticFeedback.mediumImpact();
+      AppSnackbar.show('Cobro exitoso', 'Pago Bre-B conciliado');
+      Navigator.of(outerContext).pop(true);
+    }
   }
 
   @override
@@ -203,15 +235,40 @@ class _TabSessionPayPageState extends State<TabSessionPayPage> {
                       ),
                     ],
                     const SizedBox(height: 16),
+                  ] else if (_selectedMethod == PaymentMethod.brebB) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF32AF60).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: const Color(0xFF32AF60).withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt, color: Color(0xFF32AF60), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Le mostrás la llave Bre-B al cliente y transfiere desde su banco. Se confirma solo.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                   ] else ...[
                     _buildSectionTitle('Referencia (opcional)'),
                     const SizedBox(height: 8),
                     _buildReferenceInput(),
                     const SizedBox(height: 16),
                   ],
-                  _buildSectionTitle('Notas (opcional)'),
-                  const SizedBox(height: 8),
-                  _buildNotesInput(),
+                  if (_selectedMethod != PaymentMethod.brebB) ...[
+                    _buildSectionTitle('Notas (opcional)'),
+                    const SizedBox(height: 8),
+                    _buildNotesInput(),
+                  ],
                 ],
               ),
             ),

@@ -18,30 +18,38 @@ import '../controllers/breb_payment_controller.dart';
 /// la concilia y avisa por push (con red de seguridad de polling cada 3 s).
 class BrebPaymentDialog extends StatefulWidget {
   final BrebPaymentController controller;
-  final String orderId;
+  final String? orderId;
+  final String? tabSessionId;
   final double amount;
 
   const BrebPaymentDialog({
     super.key,
     required this.controller,
-    required this.orderId,
+    this.orderId,
+    this.tabSessionId,
     required this.amount,
-  });
+  }) : assert(
+          (orderId == null) != (tabSessionId == null),
+          'Se requiere exactamente uno: orderId o tabSessionId',
+        );
 
   @override
   State<BrebPaymentDialog> createState() => _BrebPaymentDialogState();
 }
 
 class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
+  void _createCharge() {
+    widget.controller.createCharge(
+      orderId: widget.orderId,
+      tabSessionId: widget.tabSessionId,
+      amount: widget.amount,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.createCharge(
-        orderId: widget.orderId,
-        amount: widget.amount,
-      );
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _createCharge());
   }
 
   @override
@@ -341,10 +349,7 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
                 child: FilledButton.icon(
                   icon: const Icon(Icons.refresh, size: 18),
                   label: const Text('Reintentar'),
-                  onPressed: () => widget.controller.createCharge(
-                    orderId: widget.orderId,
-                    amount: widget.amount,
-                  ),
+                  onPressed: _createCharge,
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                 ),
               ),
@@ -384,10 +389,7 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
                 child: FilledButton.icon(
                   icon: const Icon(Icons.refresh, size: 18),
                   label: const Text('Reintentar'),
-                  onPressed: () => widget.controller.createCharge(
-                    orderId: widget.orderId,
-                    amount: widget.amount,
-                  ),
+                  onPressed: _createCharge,
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                 ),
               ),

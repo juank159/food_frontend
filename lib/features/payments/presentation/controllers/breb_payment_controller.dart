@@ -65,19 +65,27 @@ class BrebPaymentController extends GetxController {
   // ── API ──────────────────────────────────────────────────────────────────
 
   /// Crea el cobro en el backend y arranca el polling + countdown.
+  /// Exactamente uno de [orderId] / [tabSessionId] debe venir — una orden
+  /// puntual o el saldo consolidado de una cuenta abierta.
   Future<void> createCharge({
-    required String orderId,
+    String? orderId,
+    String? tabSessionId,
     required double amount,
   }) async {
+    assert(
+      (orderId == null) != (tabSessionId == null),
+      'createCharge requiere exactamente uno: orderId o tabSessionId',
+    );
     state.value = BrebPaymentState.creatingCharge;
     errorMsg.value = '';
     _stopTimers();
-    _activeOrderId = orderId;
+    _activeOrderId = orderId ?? tabSessionId;
     active = this;
 
     try {
       final res = await _dio.post('/payments/breb/charge', data: {
-        'orderId': orderId,
+        if (orderId != null) 'orderId': orderId,
+        if (tabSessionId != null) 'tabSessionId': tabSessionId,
         'amount': amount,
       });
       final data = ApiResponseUtils.object(res);

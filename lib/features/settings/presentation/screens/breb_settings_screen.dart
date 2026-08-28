@@ -391,6 +391,8 @@ class _RecentEmailsSheetState extends State<_RecentEmailsSheet> {
         return 'No había ningún cobro esperando ese monto';
       case 'multiple_matches':
         return 'Ambiguo — varios cobros con el mismo monto';
+      case 'registration_failed':
+        return 'El pago llegó pero no se pudo registrar solo — revisar a mano';
       default:
         return reason;
     }
