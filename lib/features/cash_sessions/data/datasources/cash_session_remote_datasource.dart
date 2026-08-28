@@ -117,9 +117,9 @@ class CashSessionRemoteDataSourceImpl implements CashSessionRemoteDataSource {
       final response = await dio.get(ApiConstants.cashSessionReport(id));
       final raw = response.data;
       if (raw is Map<String, dynamic>) {
-        // El endpoint devuelve `{ session, cash_payments, by_method }`
-        // que es lo que necesitamos. Si viniera anidado en `data`,
-        // desempacamos.
+        // El endpoint devuelve `{ session, payments, by_method }` — payments
+        // trae TODOS los métodos (no solo efectivo), con referencia y notas
+        // para trazabilidad. Si viniera anidado en `data`, desempacamos.
         final inner = raw['data'];
         if (inner is Map<String, dynamic>) return inner;
         return raw;

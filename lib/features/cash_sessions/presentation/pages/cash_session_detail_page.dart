@@ -485,10 +485,22 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
       }
 
       final byMethod = data['by_method'] as Map<String, dynamic>? ?? {};
-      final cashPayments =
-          (data['cash_payments'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .toList();
+      final allPayments = (data['payments'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
+      // Agrupamos por método para que cada uno tenga su propia lista
+      // detallada — antes solo el efectivo se desglosaba en items
+      // individuales y el resto (tarjeta, transferencia, Bre-B, Nequi)
+      // quedaba nada más como un total sin forma de auditarlo.
+      final byMethodGrouped = <String, List<Map<String, dynamic>>>{};
+      for (final p in allPayments) {
+        final method = p['payment_method']?.toString() ?? 'unknown';
+        byMethodGrouped.putIfAbsent(method, () => []).add(p);
+      }
+      final methodOrder = byMethod.entries.toList()
+        ..sort((a, b) => (b.value['total'] as num? ?? 0)
+            .compareTo(a.value['total'] as num? ?? 0));
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,15 +516,22 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
             ),
             const SizedBox(height: 12),
           ],
-          // Lista de cobros en efectivo
-          if (cashPayments.isNotEmpty)
-            _InfoCard(
-              header: 'COBROS EN EFECTIVO (${cashPayments.length})',
-              headerIcon: Icons.receipt_outlined,
-              children: cashPayments
-                  .map((p) => _CashPaymentRow(payment: p))
-                  .toList(),
-            ),
+          // Detalle de cada cobro, agrupado por método — esto es lo que
+          // da trazabilidad real: quién pagó, cuándo, con qué referencia.
+          for (final entry in methodOrder) ...[
+            if ((byMethodGrouped[entry.key] ?? []).isNotEmpty) ...[
+              _InfoCard(
+                header:
+                    '${_methodMeta(entry.key).$1.toUpperCase()} (${byMethodGrouped[entry.key]!.length})',
+                headerIcon: _methodMeta(entry.key).$2,
+                headerColor: _methodMeta(entry.key).$3,
+                children: byMethodGrouped[entry.key]!
+                    .map((p) => _PaymentRow(payment: p))
+                    .toList(),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
         ],
       );
     });
@@ -569,6 +588,10 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
         return ('Transferencia', Icons.account_balance_outlined, AppColors.primary);
       case 'digital_wallet':
         return ('Billetera digital', Icons.account_balance_wallet_outlined, AppColors.warning);
+      case 'breb':
+        return ('Bre-B', Icons.bolt_outlined, AppColors.primary);
+      case 'nequi':
+        return ('Nequi', Icons.smartphone_outlined, AppColors.primary);
       default:
         return (method, Icons.attach_money, AppColors.textSecondary);
     }
@@ -628,24 +651,39 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
   }
 }
 
-// ─────────────────────── Cash payment row ─────────────────────────────────────
+// ─────────────────────── Payment row ───────────────────────────────────────
 
-class _CashPaymentRow extends StatelessWidget {
+/// Fila de un cobro individual dentro del detalle de caja por método.
+///
+/// Para efectivo/tarjeta suele alcanzar con pedido + hora. Para Bre-B y
+/// Nequi, `notes` trae el pagador y el banco (ver `breb.service.ts` →
+/// `_registerTenantPayment`), y `transaction_reference` la referencia
+/// bancaria — mostrarlos acá es lo que permite auditar "¿de quién era
+/// esta plata?" sin tener que ir al detalle de cada pedido uno por uno.
+class _PaymentRow extends StatelessWidget {
   final Map<String, dynamic> payment;
-  const _CashPaymentRow({required this.payment});
+  const _PaymentRow({required this.payment});
 
   @override
   Widget build(BuildContext context) {
     final amount = _parse(payment['amount']);
     final orderNum = payment['order_number']?.toString() ?? '';
+    final reference = payment['transaction_reference']?.toString();
+    final notes = payment['notes']?.toString();
     final dateStr = payment['processed_at']?.toString();
     final time = dateStr != null
         ? DateFormat('HH:mm', 'es').format(DateTime.parse(dateStr).toLocal())
         : '';
 
+    final subtitleParts = <String>[
+      if (time.isNotEmpty) time,
+      if (notes != null && notes.trim().isNotEmpty) notes.trim(),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 30,
@@ -668,13 +706,26 @@ class _CashPaymentRow extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.textPrimary),
                 ),
-                if (time.isNotEmpty)
-                  Text(time,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
+                if (subtitleParts.isNotEmpty)
+                  Text(
+                    subtitleParts.join(' · '),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                if (reference != null && reference.trim().isNotEmpty)
+                  Text(
+                    'Ref: ${reference.trim()}',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             CurrencyFormatter.format(amount),
             style: const TextStyle(
