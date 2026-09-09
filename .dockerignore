@@ -1,6 +1,8 @@
-# Ignorar builds previas y caché (pesado, no se necesita)
+# El build ahora se genera dentro del Dockerfile; "build" en el repo es
+# un symlink a una carpeta local (para builds manuales en Mac) que no
+# existe dentro del contenedor, así que hay que excluirlo sí o sí.
+build
 build/
-!build/web/
 
 .dart_tool/
 .flutter-plugins
