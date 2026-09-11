@@ -138,6 +138,7 @@ dependencies:
   # Muestra la notificación como heads-up cuando la app está en primer plano.
   # En background/locked la notificación la entrega FCM directamente el SO.
   flutter_local_notifications: ^18.0.1
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

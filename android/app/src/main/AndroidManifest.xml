@@ -3,6 +3,11 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Solo para el botón "Usar mi ubicación actual" al configurar el
+         radio de cobertura de pedidos QR (Ajustes) — no se pide en ningún
+         otro flujo de la app. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
         android:label="Menu Plat"
         android:name=".MainApplication"

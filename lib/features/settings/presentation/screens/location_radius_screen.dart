@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
@@ -24,6 +25,7 @@ class _LocationRadiusScreenState extends State<LocationRadiusScreen> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _locating = false;
   String? _error;
 
   bool _enabled = false;
@@ -80,6 +82,70 @@ class _LocationRadiusScreenState extends State<LocationRadiusScreen> {
       _error = e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Toma la ubicación actual del dispositivo y completa lat/lng
+  /// automáticamente — pensado para que el dueño configure esto parado en
+  /// su local, sin tener que buscar las coordenadas a mano en Google Maps.
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        AppSnackbar.show(
+          'Ubicación desactivada',
+          'Activá el servicio de ubicación de tu dispositivo e intentá de nuevo.',
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        AppSnackbar.show(
+          'Permiso denegado',
+          'Necesitamos el permiso de ubicación para completar esto '
+              'automáticamente. Tocá el botón de nuevo y elegí "Permitir".',
+        );
+        return;
+      }
+      if (permission == LocationPermission.deniedForever) {
+        AppSnackbar.show(
+          'Permiso bloqueado',
+          'El permiso de ubicación está bloqueado para esta app. '
+              'Activalo desde los ajustes del sistema e intentá de nuevo.',
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      setState(() {
+        _latCtrl.text = position.latitude.toStringAsFixed(6);
+        _lngCtrl.text = position.longitude.toStringAsFixed(6);
+        _enabled = true;
+      });
+
+      if (mounted) {
+        AppSnackbar.show(
+          'Ubicación capturada',
+          'Revisá el radio abajo y guardá los cambios para activarlo.',
+        );
+      }
+    } catch (e) {
+      AppSnackbar.show(
+        'No se pudo obtener tu ubicación',
+        'Intentá de nuevo o cargala manualmente abajo.',
+      );
+    } finally {
+      if (mounted) setState(() => _locating = false);
     }
   }
 
@@ -217,6 +283,47 @@ class _LocationRadiusScreenState extends State<LocationRadiusScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                'Pará frente a tu local (o adentro) y tocá el botón — '
+                'toma la ubicación de tu celular/computador automáticamente.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _locating ? null : _useCurrentLocation,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(46),
+                ),
+                icon: _locating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.my_location),
+                label: Text(
+                  _locating ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual',
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: AppColors.border)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'o cargala a mano',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: AppColors.border)),
+                ],
+              ),
+              const SizedBox(height: 14),
               Text(
                 'Abrí Google Maps, mantené presionado tu local en el mapa '
                 'y copiá las coordenadas que aparecen arriba (ej. '

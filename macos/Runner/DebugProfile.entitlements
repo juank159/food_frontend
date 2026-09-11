@@ -25,5 +25,8 @@
 	-->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
+	<!-- Botón "Usar mi ubicación actual" en Ajustes → Ubicación y radio. -->
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
 </dict>
 </plist>

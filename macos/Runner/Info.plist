@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Se usa tu ubicación solo para completar automáticamente la dirección de tu local al configurar el radio de cobertura de pedidos por QR.</string>
 </dict>
 </plist>
