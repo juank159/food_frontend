@@ -119,9 +119,17 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       ),
     );
     brebCtrl.cancel();
-    if ((confirmed ?? false) && outerContext.mounted) {
-      HapticFeedback.mediumImpact();
-      Navigator.pop(outerContext);
+    if (confirmed ?? false) {
+      // El pago Bre-B lo confirma el backend de forma asíncrona (correo
+      // conciliado) — no pasa por processOrderPayment, así que nadie más
+      // dispara el refresh normal. Sin esto, el diálogo cerraba pero el
+      // detalle de la orden (saldo, historial, estado) quedaba con datos
+      // viejos hasta un refresh manual.
+      await widget.controller.refreshAfterExternalPayment(widget.orderId);
+      if (outerContext.mounted) {
+        HapticFeedback.mediumImpact();
+        Navigator.pop(outerContext);
+      }
     }
   }
 

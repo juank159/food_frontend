@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -9,6 +10,8 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../payments/presentation/controllers/breb_payment_controller.dart';
+import '../../../payments/presentation/widgets/breb_payment_dialog.dart';
 import '../../../payments/presentation/widgets/item_selection_sheet.dart';
 import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../../../core/widgets/modern_card.dart';
@@ -102,6 +105,12 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
 
   Future<void> _payFull() async {
     if (!_canSubmit || _isProcessing) return;
+
+    if (_selectedMethod == PaymentMethod.brebB) {
+      await _processBrebPayment(_amount);
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     final isCash = _selectedMethod == PaymentMethod.cash;
@@ -136,6 +145,34 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         if (mounted) Navigator.of(context).pop(true);
       },
     );
+  }
+
+  /// Bre-B no es un cobro sincrónico como los demás métodos: el backend
+  /// solo registra el pago cuando concilia el correo de confirmación
+  /// bancaria (ver `breb.service.ts`). Antes, elegir "Bre-B" acá caía
+  /// directo en `ProcessTabPaymentUseCase` igual que efectivo/tarjeta —
+  /// eso creaba un pago "completed" sin que ninguna plata real hubiera
+  /// llegado, saltándose toda la verificación por correo que existe
+  /// justamente para evitar marcar cuentas como pagadas sin cobrar de
+  /// verdad. Ahora abre el mismo diálogo de espera (llave + confirmación
+  /// real) que usa el cobro de una orden puntual.
+  Future<void> _processBrebPayment(double amount) async {
+    final outerContext = context;
+    final brebCtrl = BrebPaymentController(dio: sl<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        tabSessionId: session.id,
+        amount: amount,
+      ),
+    );
+    brebCtrl.cancel();
+    if ((confirmed ?? false) && outerContext.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.of(outerContext).pop(true);
+    }
   }
 
   Future<void> _openSplit() async {
@@ -539,6 +576,12 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
 
   Future<void> _register() async {
     if (!_canRegister || _isProcessing) return;
+
+    if (_selectedMethod == PaymentMethod.brebB) {
+      await _processBrebPayment(_newAmount);
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     final isCash = _selectedMethod == PaymentMethod.cash;
@@ -580,6 +623,28 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
         if (mounted) Navigator.of(context).pop(true);
       },
     );
+  }
+
+  /// Ídem `_TabPaymentDialogState._processBrebPayment` — ver ese
+  /// comentario. Acá el monto es el que el operario haya puesto en el
+  /// campo "Monto a cobrar" del split, no el saldo completo.
+  Future<void> _processBrebPayment(double amount) async {
+    final outerContext = context;
+    final brebCtrl = BrebPaymentController(dio: sl<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        tabSessionId: session.id,
+        amount: amount,
+      ),
+    );
+    brebCtrl.cancel();
+    if ((confirmed ?? false) && outerContext.mounted) {
+      HapticFeedback.mediumImpact();
+      Navigator.of(outerContext).pop(true);
+    }
   }
 
   void _close() => Navigator.of(context).pop(_registered.isNotEmpty);

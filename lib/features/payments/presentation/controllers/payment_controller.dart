@@ -270,6 +270,20 @@ class PaymentController extends GetxController {
     }
   }
 
+  /// Refresca una orden después de un pago que el backend registró por
+  /// fuera del flujo sincrónico normal — hoy solo Bre-B, que se confirma
+  /// recién cuando el backend concilia el correo del banco (llega por
+  /// push/polling, no como respuesta directa de un POST /payments). Como
+  /// ese flujo nunca pasa por `processOrderPayment`/`addPartialPayment`,
+  /// tampoco disparaba `_notifyOrderChanged` ni recargaba el historial:
+  /// el cajero veía el diálogo cerrarse pero el detalle de la orden
+  /// (saldo, estado, historial de pagos) se quedaba con datos viejos
+  /// hasta un refresh manual.
+  Future<void> refreshAfterExternalPayment(String orderId) async {
+    await loadPaymentsByOrder(orderId);
+    _notifyOrderChanged(orderId, tryPrintReceipt: true);
+  }
+
   /// Propaga el cambio tras un cobro a TODOS los lugares que tienen
   /// la orden en memoria — lista global, lista de activas, detalle si
   /// está abierto. Lo centralizamos vía `OrdersController.reloadAndApply`
