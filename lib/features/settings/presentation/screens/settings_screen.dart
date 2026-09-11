@@ -113,6 +113,16 @@ class SettingsScreen extends StatelessWidget {
                         accent: const Color(0xFF32AF60),
                         onTap: () => Get.toNamed(AppRoutes.brebSettings),
                       ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.location_on_outlined,
+                        title: 'Ubicación y radio de pedidos',
+                        subtitle:
+                            'Restringí los pedidos por QR a una distancia '
+                            'máxima de tu local',
+                        accent: const Color(0xFFC0392B),
+                        onTap: () => Get.toNamed(AppRoutes.locationRadius),
+                      ),
                     ],
 
                     // Sección "Operaciones" — admin/manager. El manager
