@@ -156,14 +156,16 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
   }
 
   Widget _buildWaiting(BuildContext context, ThemeData theme, bool isSmall) {
-    final llave = widget.controller.llave.value;
+    final llaves = widget.controller.llaves;
     final seconds = widget.controller.secondsLeft.value;
     final expired = seconds <= 0 && widget.controller.expiresAt.value != null;
 
     return Column(
       children: [
         Text(
-          'Dale esta llave al cliente para que transfiera desde su banco',
+          llaves.length > 1
+              ? 'Dale al cliente cualquiera de estas llaves para que transfiera desde su banco'
+              : 'Dale esta llave al cliente para que transfiera desde su banco',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
@@ -171,58 +173,23 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
         ),
         const SizedBox(height: 16),
 
-        // Llave — texto grande, copiable
-        if (llave.isNotEmpty)
-          Center(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: llave));
-                AppSnackbar.show('Copiado', 'Llave copiada al portapapeles');
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF32AF60), width: 1.5),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      llave,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF1A1A2E),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.copy, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Toca para copiar',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        // Llave(s) — texto grande, copiable. El negocio puede tener varias
+        // (una por banco): se muestran todas para que el cliente use la
+        // que tenga a mano, sin que el cajero tenga que elegir por él.
+        if (llaves.isNotEmpty)
+          Column(
+            children: [
+              for (int i = 0; i < llaves.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                _LlaveCard(llave: llaves[i]),
+              ],
+            ],
           )
         else
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
-              'Configurá la llave Bre-B del negocio en Ajustes → Pagos.',
+              'Configurá al menos una llave Bre-B del negocio en Ajustes → Pagos.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
             ),
@@ -415,6 +382,72 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
     final m = s ~/ 60;
     final r = s % 60;
     return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Una llave del negocio, mostrada como tarjeta copiable. Con solo una
+/// llave configurada, el `label` es decorativo (se ve chico arriba del
+/// número); con varias, es lo que le permite al cliente distinguir
+/// "esta es la de Nequi" de "esta es la de Bancolombia".
+class _LlaveCard extends StatelessWidget {
+  final BrebLlave llave;
+  const _LlaveCard({required this.llave});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: llave.llave));
+        AppSnackbar.show('Copiado', '${llave.label} copiada al portapapeles');
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF32AF60), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Text(
+              llave.label.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              llave.llave,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFF1A1A2E),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.copy, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Text(
+                  'Toca para copiar',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

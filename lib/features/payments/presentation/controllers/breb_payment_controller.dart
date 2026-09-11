@@ -14,6 +14,22 @@ enum BrebPaymentState {
   error,
 }
 
+/// Una llave Bre-B del negocio, tal cual la devuelve el backend al crear
+/// un cobro — el negocio puede tener varias (una por banco) y se le
+/// muestran TODAS al cliente para que transfiera a la que tenga a mano.
+class BrebLlave {
+  final String id;
+  final String label;
+  final String llave;
+  const BrebLlave({required this.id, required this.label, required this.llave});
+
+  factory BrebLlave.fromJson(Map<String, dynamic> json) => BrebLlave(
+        id: json['id'] as String? ?? '',
+        label: json['label'] as String? ?? 'Llave',
+        llave: json['llave'] as String? ?? '',
+      );
+}
+
 /// Controla el flujo de cobro Bre-B (transferencia directa con llave,
 /// conciliada por el backend a partir del correo que reenvía Nequi):
 ///   1. Llama al backend para crear el cobro (queda "pending").
@@ -43,7 +59,8 @@ class BrebPaymentController extends GetxController {
   // ── Estado reactivo ──────────────────────────────────────────────────────
   final Rx<BrebPaymentState> state = BrebPaymentState.idle.obs;
   final RxString chargeId = ''.obs;
-  final RxString llave = ''.obs;
+  /// Todas las llaves del negocio — se muestran juntas al cliente.
+  final RxList<BrebLlave> llaves = <BrebLlave>[].obs;
   final Rx<DateTime?> expiresAt = Rx<DateTime?>(null);
   final RxString payerName = ''.obs;
   final RxString errorMsg = ''.obs;
@@ -91,7 +108,19 @@ class BrebPaymentController extends GetxController {
       final data = ApiResponseUtils.object(res);
 
       chargeId.value = data['chargeId'] as String;
-      llave.value = data['llave'] as String? ?? '';
+      final rawLlaves = (data['llaves'] as List?)?.cast<Map<String, dynamic>>();
+      if (rawLlaves != null && rawLlaves.isNotEmpty) {
+        llaves.value = rawLlaves.map(BrebLlave.fromJson).toList();
+      } else {
+        // Compat con un backend viejo que todavía solo mande `llave`
+        // (string único) — no debería pasar en producción una vez
+        // desplegado el backend nuevo, pero evita una pantalla vacía
+        // durante un rollout donde ambas versiones convivan un rato.
+        final legacy = data['llave'] as String?;
+        llaves.value = legacy != null && legacy.isNotEmpty
+            ? [BrebLlave(id: 'legacy', label: 'Llave', llave: legacy)]
+            : [];
+      }
 
       final expiresRaw = data['expiresAt'];
       expiresAt.value = expiresRaw != null ? DateTime.parse(expiresRaw as String) : null;
@@ -129,7 +158,7 @@ class BrebPaymentController extends GetxController {
     }
     state.value = BrebPaymentState.idle;
     chargeId.value = '';
-    llave.value = '';
+    llaves.clear();
     expiresAt.value = null;
     secondsLeft.value = 0;
     if (identical(active, this)) active = null;

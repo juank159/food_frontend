@@ -8,12 +8,32 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
-/// Configuración de la conciliación automática de pagos Bre-B/Nequi.
+/// Una llave Bre-B registrada por el negocio. Cada una tiene un `id`
+/// estable (se genera al agregarla) para poder editarla/borrarla sin
+/// depender de su posición en la lista.
+class _LlaveEntry {
+  final String id;
+  final TextEditingController labelCtrl;
+  final TextEditingController llaveCtrl;
+
+  _LlaveEntry({required this.id, String label = '', String llave = ''})
+      : labelCtrl = TextEditingController(text: label),
+        llaveCtrl = TextEditingController(text: llave);
+
+  void dispose() {
+    labelCtrl.dispose();
+    llaveCtrl.dispose();
+  }
+}
+
+/// Configuración de la conciliación automática de pagos Bre-B (Nequi,
+/// Bancolombia, etc. vía correo).
 ///
 /// Muestra la dirección de correo exclusiva del negocio (a la que hay que
-/// reenviar los avisos de "Venta exitosa" de Nequi) y guarda la llave
-/// Bre-B en `settings.breb.llave` — la misma que se le muestra al cliente
-/// al cobrar.
+/// reenviar los avisos de pago recibido) y las llaves Bre-B del negocio
+/// en `settings.breb.llaves` — el cajero las muestra TODAS al cliente al
+/// cobrar (uno o varios bancos), porque no hay forma de saber de
+/// antemano cuál va a usar.
 class BrebSettingsScreen extends StatefulWidget {
   const BrebSettingsScreen({super.key});
 
@@ -29,7 +49,7 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
   String? _error;
 
   String _inboundEmail = '';
-  final _llaveCtrl = TextEditingController();
+  List<_LlaveEntry> _llaves = [];
   Map<String, dynamic> _existingSettings = {};
 
   @override
@@ -41,9 +61,13 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
 
   @override
   void dispose() {
-    _llaveCtrl.dispose();
+    for (final llave in _llaves) {
+      llave.dispose();
+    }
     super.dispose();
   }
+
+  String _newLlaveId() => DateTime.now().microsecondsSinceEpoch.toString();
 
   Future<void> _load() async {
     setState(() {
@@ -61,7 +85,31 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
           (tenant['settings'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
       _existingSettings = Map<String, dynamic>.from(settings);
       final breb = (settings['breb'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-      _llaveCtrl.text = (breb['llave'] as String?) ?? '';
+
+      final rawLlaves = (breb['llaves'] as List?)?.cast<Map>() ?? [];
+      for (final llave in _llaves) {
+        llave.dispose();
+      }
+      if (rawLlaves.isNotEmpty) {
+        _llaves = rawLlaves
+            .map(
+              (l) => _LlaveEntry(
+                id: (l['id'] as String?) ?? _newLlaveId(),
+                label: (l['label'] as String?) ?? '',
+                llave: (l['llave'] as String?) ?? '',
+              ),
+            )
+            .toList();
+      } else {
+        // Compat: el tenant configuró la llave con el formato viejo
+        // (una sola, `breb.llave`) antes de que existiera esta lista.
+        // La mostramos como su única entrada para que no la pierda —
+        // al guardar, queda migrada al formato nuevo.
+        final legacyLlave = (breb['llave'] as String?)?.trim() ?? '';
+        _llaves = legacyLlave.isNotEmpty
+            ? [_LlaveEntry(id: _newLlaveId(), label: 'Llave', llave: legacyLlave)]
+            : [];
+      }
 
       final address = ApiResponseUtils.object(results[1]);
       _inboundEmail = (address['email'] as String?) ?? '';
@@ -72,16 +120,36 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
     }
   }
 
+  void _addLlave() {
+    setState(() => _llaves.add(_LlaveEntry(id: _newLlaveId())));
+  }
+
+  void _removeLlave(int index) {
+    setState(() {
+      _llaves[index].dispose();
+      _llaves.removeAt(index);
+    });
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      final llavesPayload = _llaves
+          .where((l) => l.llaveCtrl.text.trim().isNotEmpty)
+          .map(
+            (l) => {
+              'id': l.id,
+              'label': l.labelCtrl.text.trim().isEmpty ? 'Llave' : l.labelCtrl.text.trim(),
+              'llave': l.llaveCtrl.text.trim(),
+            },
+          )
+          .toList();
+
       final newSettings = Map<String, dynamic>.from(_existingSettings);
-      newSettings['breb'] = {
-        'llave': _llaveCtrl.text.trim().isNotEmpty ? _llaveCtrl.text.trim() : null,
-      };
+      newSettings['breb'] = {'llaves': llavesPayload};
       await _dio.patch('/tenants/me', data: {'settings': newSettings});
       _existingSettings = newSettings;
-      AppSnackbar.show('Guardado', 'La llave Bre-B quedó actualizada.');
+      AppSnackbar.show('Guardado', 'Tus llaves Bre-B quedaron actualizadas.');
     } catch (e) {
       AppSnackbar.show('Error al guardar', ApiResponseUtils.errorMessage(e) ?? e.toString());
     } finally {
@@ -221,42 +289,83 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
         ),
         const SizedBox(height: 20),
 
-        _sectionTitle('2. Llave Bre-B del negocio'),
+        _sectionTitle('2. Tus llaves Bre-B'),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Es la que se le muestra al cliente para que transfiera al cobrar.',
+                'Agregá una por cada banco (Nequi, Bancolombia, etc.). Al cobrar, se le '
+                'muestran TODAS al cliente para que transfiera a la que tenga a mano.',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _llaveCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Llave Bre-B',
-                  hintText: 'Ej: 3001234567 o tu@llave',
-                  prefixIcon: const Icon(Icons.bolt, size: 20),
-                  filled: true,
-                  fillColor: AppColors.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: AppColors.primary, width: 1.5),
-                  ),
+              const SizedBox(height: 12),
+              for (int i = 0; i < _llaves.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                _llaveRow(i),
+              ],
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _addLlave,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                  side: BorderSide(color: AppColors.primary),
+                  foregroundColor: AppColors.primary,
                 ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Agregar otra llave'),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _llaveRow(int index) {
+    final entry = _llaves[index];
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                TextField(
+                  controller: entry.labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre (Nequi, Bancolombia...)',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: entry.llaveCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Llave',
+                    hintText: 'Ej: 3001234567 o @tullave',
+                    prefixIcon: Icon(Icons.bolt, size: 20),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _removeLlave(index),
+            icon: Icon(Icons.delete_outline, color: AppColors.error),
+            tooltip: 'Quitar llave',
+          ),
+        ],
+      ),
     );
   }
 
