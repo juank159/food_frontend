@@ -100,6 +100,7 @@ class OrderItemModel {
       specialInstructions: specialInstructions,
       customizations: customizations,
       modifiers: modifiers?.map((m) => m.toEntity()).toList() ?? [],
+      selectedFlavors: selectedFlavors,
       status: status != null
           ? OrderStatus.fromString(status!)
           : OrderStatus.pending,
@@ -130,6 +131,7 @@ class OrderItemModel {
       modifiers: item.modifiers.isNotEmpty
           ? item.modifiers.map((m) => OrderItemModifierModel.fromEntity(m)).toList()
           : null,
+      selectedFlavors: item.selectedFlavors,
       createdAt: item.createdAt.toIso8601String(),
       updatedAt: item.updatedAt.toIso8601String(),
     );

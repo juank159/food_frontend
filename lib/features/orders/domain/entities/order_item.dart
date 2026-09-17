@@ -18,6 +18,11 @@ class OrderItem extends Equatable {
   final String? specialInstructions;
   final Map<String, dynamic>? customizations;
   final List<OrderItemModifier> modifiers;
+  /// Cremas/sabores elegidos (ej. heladería: "Maracuyá", "Tres leches").
+  /// Snapshot de nombres tal cual viene del backend — solo lectura, no
+  /// se manda de vuelta al crear/editar (por eso no está en `copyWith`
+  /// de un create, ver `OrderItemModel`).
+  final List<String> selectedFlavors;
   /// Estado individual del item. Cocina lo lleva de `pending` → `ready`;
   /// el mesero lo lleva de `ready` → `delivered`.
   final OrderStatus status;
@@ -42,6 +47,7 @@ class OrderItem extends Equatable {
     this.specialInstructions,
     this.customizations,
     this.modifiers = const [],
+    this.selectedFlavors = const [],
     this.status = OrderStatus.pending,
     this.requiresPreparation = true,
     this.preparedAt,
@@ -74,6 +80,9 @@ class OrderItem extends Equatable {
   /// Verifica si tiene modificadores
   bool get hasModifiers => modifiers.isNotEmpty;
 
+  /// Verifica si tiene cremas/sabores elegidos
+  bool get hasSelectedFlavors => selectedFlavors.isNotEmpty;
+
   /// Obtiene el total de modificadores
   double get modifiersTotal =>
       modifiers.fold<double>(0.0, (sum, mod) => sum + mod.subtotal);
@@ -100,6 +109,7 @@ class OrderItem extends Equatable {
         specialInstructions,
         customizations,
         modifiers,
+        selectedFlavors,
         status,
         requiresPreparation,
         preparedAt,
@@ -122,6 +132,7 @@ class OrderItem extends Equatable {
     String? specialInstructions,
     Map<String, dynamic>? customizations,
     List<OrderItemModifier>? modifiers,
+    List<String>? selectedFlavors,
     OrderStatus? status,
     bool? requiresPreparation,
     DateTime? preparedAt,
@@ -142,6 +153,7 @@ class OrderItem extends Equatable {
       specialInstructions: specialInstructions ?? this.specialInstructions,
       customizations: customizations ?? this.customizations,
       modifiers: modifiers ?? this.modifiers,
+      selectedFlavors: selectedFlavors ?? this.selectedFlavors,
       status: status ?? this.status,
       requiresPreparation: requiresPreparation ?? this.requiresPreparation,
       preparedAt: preparedAt ?? this.preparedAt,

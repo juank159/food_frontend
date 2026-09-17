@@ -270,6 +270,29 @@ class OrderItemsList extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (item.hasSelectedFlavors) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.icecream_outlined,
+                        size: 13,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          item.selectedFlavors.join(', '),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (!isDiscount) ...[
                   const SizedBox(height: 4),
                   _StatusBadge(visuals: status),
@@ -963,6 +986,17 @@ class _ItemActionsSheet extends StatelessWidget {
                 ),
               ),
             ],
+            if (item.hasSelectedFlavors) ...[
+              const SizedBox(height: 2),
+              Text(
+                item.selectedFlavors.join(', '),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Estado actual: ${_ItemStatusVisuals.of(item).label}',
@@ -1419,6 +1453,15 @@ class _UndoDeliveryDialog extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        if (item.hasSelectedFlavors)
+                          Text(
+                            item.selectedFlavors.join(', '),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
                             ),
                           ),
                       ],
