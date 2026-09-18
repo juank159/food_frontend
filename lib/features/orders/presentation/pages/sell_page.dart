@@ -597,7 +597,11 @@ class _BottomBar extends StatelessWidget {
     // La comanda de cocina se imprime dentro de `submitOrder` (cubre TODOS
     // los modos, incluida cuenta libre/mesa donde acá `order` sería null).
 
-    if (mode.assignsTicketNumber && order.ticketNumber != null) {
+    // No filtramos por `mode.assignsTicketNumber`: en un negocio "solo
+    // turnos", Mostrador/Para llevar/Domicilio también pueden volver con
+    // un ticketNumber (ver `OrderFormController.submitOrder`) — lo que
+    // importa es si el backend asignó uno, no qué mode se tocó.
+    if (order.ticketNumber != null) {
       await showDialog(
         context: context,
         barrierDismissible: false,

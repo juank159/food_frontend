@@ -40,14 +40,14 @@ class _SellModeSheetState extends State<SellModeSheet> {
   /// `true` si el negocio declaró "Turnos de mostrador" como su único
   /// modo de operación — ese tipo de negocio no usa mesas ni cuentas
   /// abiertas, así que esa sección directamente no aplica.
-  bool _hideTablesSection = false;
+  bool _isCounterTicketsOnlyBusiness = false;
 
   @override
   void initState() {
     super.initState();
     _openTabsFuture = _loadOpenTabs();
     OperationModePreference.isCounterTicketsOnly().then((hide) {
-      if (mounted && hide) setState(() => _hideTablesSection = hide);
+      if (mounted && hide) setState(() => _isCounterTicketsOnlyBusiness = hide);
     });
   }
 
@@ -107,13 +107,20 @@ class _SellModeSheetState extends State<SellModeSheet> {
               subtitle: 'Cobro inmediato, sin cliente',
               mode: const SellMode.counter(),
             ),
-            _modeTile(
-              icon: Icons.confirmation_number_outlined,
-              color: AppColors.accent,
-              title: 'Turno de mostrador',
-              subtitle: 'Asigná un número, avisá cuando esté listo',
-              mode: const SellMode.counterTicket(),
-            ),
+            // Si el negocio ya es "solo turnos", Mostrador (y Para llevar/
+            // Domicilio) YA asignan turno automático — ver
+            // `OrderFormController.submitOrder`. Mostrar además esta opción
+            // sería confuso ("¿cuál elijo, Mostrador o Turno?" cuando hacen
+            // lo mismo). Para negocios mixtos sigue disponible como opción
+            // puntual.
+            if (!_isCounterTicketsOnlyBusiness)
+              _modeTile(
+                icon: Icons.confirmation_number_outlined,
+                color: AppColors.accent,
+                title: 'Turno de mostrador',
+                subtitle: 'Asigná un número, avisá cuando esté listo',
+                mode: const SellMode.counterTicket(),
+              ),
             _modeTile(
               icon: Icons.shopping_bag_outlined,
               color: AppColors.warning,
@@ -133,7 +140,7 @@ class _SellModeSheetState extends State<SellModeSheet> {
             // operación) no usan mesas ni cuentas abiertas — mostrar
             // esta sección sería un callejón sin salida (ni floor plan
             // ni cuentas para elegir).
-            if (!_hideTablesSection) ...[
+            if (!_isCounterTicketsOnlyBusiness) ...[
               const SizedBox(height: 18),
               _sectionTitle('Mesa o cuenta abierta'),
               _modeTile(

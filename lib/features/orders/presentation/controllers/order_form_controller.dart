@@ -135,25 +135,6 @@ class OrderFormController extends GetxController {
     // Cargar tax_settings + tip_settings del tenant para que los cálculos
     // del cart usen la misma lógica que el backend (una sola request).
     loadTenantPricingSettings();
-    _applyCounterTicketsDefaultIfConfigured();
-  }
-
-  /// Si el negocio declaró "Turnos de mostrador" como su único modo de
-  /// operación (Ajustes → Modo de operación), la venta arranca directo
-  /// ahí — sin que el cajero tenga que elegirlo a mano cada vez. Es
-  /// async (pide `/tenants/me`, cacheado), así que solo pisa el modo
-  /// default si nadie ya lo cambió mientras tanto — si `SellPage` llegó
-  /// con un modo explícito (tomar una mesa puntual, agregar ticket a
-  /// una cuenta abierta), ESE gana siempre.
-  Future<void> _applyCounterTicketsDefaultIfConfigured() async {
-    final isCounterTicketsOnly =
-        await OperationModePreference.isCounterTicketsOnly();
-    if (!isCounterTicketsOnly) return;
-    // "Sigue siendo el default inicial" = nadie lo cambió todavía.
-    // `SellMode.counter()` es const sin campos — todas sus instancias
-    // canonicalizan al mismo objeto, así que `identical` es seguro acá.
-    if (!identical(currentMode.value, const SellMode.counter())) return;
-    applyMode(const SellMode.counterTicket());
   }
 
   // Observable State
@@ -901,6 +882,22 @@ class OrderFormController extends GetxController {
           ? 'Mostrador'
           : customerName.value;
 
+      // Turno: siempre en el modo explícito "Turno de mostrador". Además,
+      // si el negocio declaró "Turnos de mostrador" como su ÚNICO modo de
+      // operación (Ajustes → Modo de operación), TODA venta sin mesa ni
+      // cuenta (Mostrador, Para llevar, Domicilio) también recibe turno —
+      // en ese tipo de negocio no tiene sentido que unas ventas lo tengan
+      // y otras no. Mesa/cuenta abierta quedan afuera siempre: ya tienen
+      // su propia forma de identificarse (número de mesa / nombre de cuenta).
+      final mode = currentMode.value;
+      final isNoTableQuickSale =
+          mode.tableElementId == null &&
+              mode.tabSessionId == null &&
+              mode.orderType != OrderType.dineIn;
+      final assignTicketNumber = mode.assignsTicketNumber ||
+          (isNoTableQuickSale &&
+              await OperationModePreference.isCounterTicketsOnly());
+
       final result = await createOrderUseCase(
         orderType: orderType.value,
         tableId: selectedTableId.value,
@@ -925,7 +922,7 @@ class OrderFormController extends GetxController {
         deliveryFee: deliveryFee.value,
         tipAmount: tipAmount.value,
         paymentMethod: paymentMethod.value,
-        assignTicketNumber: currentMode.value.assignsTicketNumber,
+        assignTicketNumber: assignTicketNumber,
       );
 
       // Extraemos el resultado del fold para poder hacer trabajo async

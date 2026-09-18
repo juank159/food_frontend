@@ -16,8 +16,9 @@ enum _OperationModeValue {
       'Cuentas libres, sin mesas fijas (barra, patio, eventos)',
       Icons.receipt_long),
   counterTickets('counter_tickets', 'Turnos de mostrador',
-      'El cliente pide, recibe un número y se le avisa cuando está listo '
-          '(heladería, panadería)',
+      'El cliente pide, paga y recibe un número — sale impreso en la '
+          'comanda y el recibo. Se lo llama cuando está listo '
+          '(heladería, panadería).',
       Icons.confirmation_number_outlined),
   mixed('mixed', 'Mixto', 'Un poco de todo — el más común',
       Icons.dashboard_customize_outlined);
@@ -38,12 +39,14 @@ enum _OperationModeValue {
 
 /// Preferencia de "modo de operación" del negocio.
 ///
-/// **Solo guía la pantalla de venta** (destaca la opción elegida) —
-/// NUNCA restringe: el cajero siempre puede usar cualquier modo (mesa,
-/// cuenta abierta, turno de mostrador) sin importar lo que se elija
-/// acá. Se guarda en `settings.operation_mode.mode`, mismo patrón que
-/// `settings.breb` (merge profundo en `PATCH /tenants/me`, sin
-/// necesitar un endpoint dedicado).
+/// Para `tables`/`open_tabs`/`mixed` es solo una guía visual — no
+/// cambia nada, el cajero sigue viendo todas las opciones. Para
+/// `counter_tickets` ("Turnos de mostrador") SÍ simplifica de verdad
+/// la venta, porque ese tipo de negocio (heladería, panadería) no usa
+/// mesas ni cuentas — ver `OperationModePreference`,
+/// `OrderFormController.submitOrder` y `SellModeSheet`. Se guarda en
+/// `settings.operation_mode.mode`, mismo patrón que `settings.breb`
+/// (merge profundo en `PATCH /tenants/me`, sin endpoint dedicado).
 class OperationModeSettingsScreen extends StatefulWidget {
   const OperationModeSettingsScreen({super.key});
 
@@ -61,7 +64,6 @@ class _OperationModeSettingsScreenState
   String? _error;
 
   _OperationModeValue? _selected;
-  bool _printTicketNumber = false;
   Map<String, dynamic> _existingSettings = {};
 
   @override
@@ -85,7 +87,6 @@ class _OperationModeSettingsScreenState
       final opMode =
           (settings['operation_mode'] as Map?)?.cast<String, dynamic>() ?? {};
       _selected = _OperationModeValue.fromValue(opMode['mode'] as String?);
-      _printTicketNumber = opMode['print_ticket_number'] as bool? ?? false;
     } catch (e) {
       _error = ApiResponseUtils.errorMessage(e) ?? e.toString();
     } finally {
@@ -96,45 +97,16 @@ class _OperationModeSettingsScreenState
   Future<void> _select(_OperationModeValue mode) async {
     if (_saving) return;
     final previousMode = _selected;
-    final previousPrint = _printTicketNumber;
-    setState(() {
-      _selected = mode;
-      // Elegir "Turnos de mostrador" por primera vez prende la
-      // impresión del número por default — es parte natural de ese
-      // flujo (turno + comanda con el número van juntos). El negocio
-      // lo puede apagar después con el switch de abajo si no quiere.
-      if (mode == _OperationModeValue.counterTickets) {
-        _printTicketNumber = true;
-      }
-    });
+    setState(() => _selected = mode);
     final ok = await _saveOperationMode();
-    if (!ok && mounted) {
-      setState(() {
-        _selected = previousMode;
-        _printTicketNumber = previousPrint;
-      });
-    }
+    if (!ok && mounted) setState(() => _selected = previousMode);
   }
 
-  Future<void> _togglePrintTicketNumber(bool value) async {
-    if (_saving) return;
-    final previous = _printTicketNumber;
-    setState(() => _printTicketNumber = value);
-    final ok = await _saveOperationMode();
-    if (!ok && mounted) setState(() => _printTicketNumber = previous);
-  }
-
-  /// Guarda el bloque `operation_mode` completo (modo + preferencia de
-  /// impresión juntos) — evita que guardar uno pise al otro, ya que
-  /// ambos viven en el mismo sub-objeto de `settings`.
   Future<bool> _saveOperationMode() async {
     setState(() => _saving = true);
     try {
       final newSettings = Map<String, dynamic>.from(_existingSettings);
-      newSettings['operation_mode'] = {
-        'mode': _selected?.value,
-        'print_ticket_number': _printTicketNumber,
-      };
+      newSettings['operation_mode'] = {'mode': _selected?.value};
       await _dio.patch('/tenants/me', data: {'settings': newSettings});
       _existingSettings = newSettings;
       OperationModePreference.invalidateCache();
@@ -176,62 +148,7 @@ class _OperationModeSettingsScreenState
           _modeCard(mode),
           const SizedBox(height: 10),
         ],
-        const SizedBox(height: 10),
-        _printTicketNumberCard(),
       ],
-    );
-  }
-
-  Widget _printTicketNumberCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(Icons.print_outlined, color: AppColors.accent, size: 20),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Imprimir número de turno',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Sale grande en la comanda de cocina y en el recibo del '
-                  'cliente. Si lo apagás, el cajero sigue diciéndolo de '
-                  'viva voz.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _printTicketNumber,
-            onChanged: _saving ? null : _togglePrintTicketNumber,
-            activeThumbColor: AppColors.accent,
-          ),
-        ],
-      ),
     );
   }
 

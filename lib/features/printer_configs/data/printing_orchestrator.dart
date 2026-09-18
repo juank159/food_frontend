@@ -92,8 +92,6 @@ class PrintingOrchestrator {
       final receipt =
           (settings['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
       final logoUrl = (receipt['logo_url'] as String?)?.trim();
-      final operationMode =
-          (settings['operation_mode'] as Map?)?.cast<String, dynamic>() ?? {};
       final info = _TenantInfo(
         businessName:
             (tenant['business_name'] as String?)?.trim().isNotEmpty == true
@@ -103,8 +101,6 @@ class PrintingOrchestrator {
         phone: (contact['phone'] as String?)?.trim(),
         taxId: (contact['tax_id'] as String?)?.trim(),
         logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
-        printTicketNumber:
-            operationMode['print_ticket_number'] as bool? ?? false,
       );
       _tenantCache = info;
       _tenantCachedAt = now;
@@ -520,10 +516,11 @@ class PrintingOrchestrator {
       taxId: tenant.taxId,
       logoBytes: logoBytes,
       orderNumber: order.orderNumber,
-      // Gate real de la preferencia: si el negocio no activó
-      // "imprimir número de turno", nunca llega acá — el generador
-      // ESC/POS ni se entera de que existe.
-      ticketNumber: tenant.printTicketNumber ? order.ticketNumber : null,
+      // Se imprime siempre que la orden tenga turno asignado — no hay
+      // preferencia aparte que apagarlo: si el negocio pidió turno al
+      // crear la orden (ver OrderFormController.submitOrder), es obvio
+      // que quiere verlo en la comanda/recibo.
+      ticketNumber: order.ticketNumber,
       createdAt: DateTime.tryParse(order.createdAt) ?? DateTime.now(),
       tableLabel: order.tableLabel ?? order.tableName,
       orderType: order.orderType,
@@ -794,18 +791,11 @@ class _TenantInfo {
   /// aparte y se cachea como bytes para imprimirlo en el recibo.
   final String? logoUrl;
 
-  /// settings.operation_mode.print_ticket_number — si true, el número
-  /// de turno se imprime en comanda + recibo. Default false: el gate
-  /// real de "imprimir o no" vive acá (`_buildTicketData` solo pasa
-  /// `order.ticketNumber` a `TicketData` cuando esto es true).
-  final bool printTicketNumber;
-
   const _TenantInfo({
     required this.businessName,
     required this.address,
     required this.phone,
     required this.taxId,
     this.logoUrl,
-    this.printTicketNumber = false,
   });
 }
