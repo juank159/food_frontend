@@ -64,6 +64,7 @@ import '../../features/settings/presentation/screens/business_info_screen.dart';
 import '../../features/settings/presentation/screens/promo_banner_screen.dart';
 import '../../features/settings/presentation/screens/breb_settings_screen.dart';
 import '../../features/settings/presentation/screens/location_radius_screen.dart';
+import '../../features/settings/presentation/screens/operation_mode_settings_screen.dart';
 import '../../features/products/presentation/bindings/modifier_form_binding.dart';
 import '../../features/products/presentation/bindings/modifiers_binding.dart';
 import '../../features/products/presentation/bindings/product_detail_binding.dart';
@@ -306,6 +307,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.locationRadius,
       page: () => const LocationRadiusScreen(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.operationModeSettings,
+      page: () => const OperationModeSettingsScreen(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

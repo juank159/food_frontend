@@ -30,6 +30,7 @@ class AppRoutes {
   static const String promoBanner = '/settings/promo-banner';
   static const String brebSettings = '/settings/breb';
   static const String locationRadius = '/settings/location-radius';
+  static const String operationModeSettings = '/settings/operation-mode';
 
   // ==================== ORDERS ROUTES ====================
   static const String orders = '/orders';

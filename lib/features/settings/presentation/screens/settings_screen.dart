@@ -123,6 +123,17 @@ class SettingsScreen extends StatelessWidget {
                         accent: const Color(0xFFC0392B),
                         onTap: () => Get.toNamed(AppRoutes.locationRadius),
                       ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.dashboard_customize_outlined,
+                        title: 'Modo de operación',
+                        subtitle:
+                            'Mesas, cuentas abiertas, turnos de mostrador o '
+                            'mixto — solo destaca tu preferencia en la venta',
+                        accent: const Color(0xFF16A085),
+                        onTap: () =>
+                            Get.toNamed(AppRoutes.operationModeSettings),
+                      ),
                     ],
 
                     // Sección "Operaciones" — admin/manager. El manager
