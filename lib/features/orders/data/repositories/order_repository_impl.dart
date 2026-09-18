@@ -224,6 +224,7 @@ class OrderRepositoryImpl implements OrderRepository {
     PaymentMethod? paymentMethod,
     int? estimatedTime,
     Map<String, dynamic>? metadata,
+    bool assignTicketNumber = false,
   }) async {
     final orderData = <String, dynamic>{
       'order_type': orderType.value,
@@ -254,6 +255,7 @@ class OrderRepositoryImpl implements OrderRepository {
     if (paymentMethod != null) orderData['payment_method'] = paymentMethod.value;
     if (estimatedTime != null) orderData['estimated_time'] = estimatedTime;
     if (metadata != null) orderData['metadata'] = metadata;
+    if (assignTicketNumber) orderData['assign_ticket_number'] = true;
 
     if (await networkInfo.isConnected) {
       try {

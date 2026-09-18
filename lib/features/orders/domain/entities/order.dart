@@ -7,6 +7,10 @@ import 'order_item.dart';
 class Order extends Equatable {
   final String id;
   final String orderNumber;
+  /// Número de turno de mostrador (ej. "42"), solo cuando se pidió
+  /// explícito (`SellMode.counterTicket`). Null en el resto de órdenes
+  /// — no confundir con `orderNumber` (identificador permanente).
+  final int? ticketNumber;
   final OrderType orderType;
   final OrderSource orderSource;
   final OrderStatus status;
@@ -57,6 +61,7 @@ class Order extends Equatable {
   const Order({
     required this.id,
     required this.orderNumber,
+    this.ticketNumber,
     required this.orderType,
     required this.orderSource,
     required this.status,
@@ -244,6 +249,7 @@ class Order extends Equatable {
   List<Object?> get props => [
         id,
         orderNumber,
+        ticketNumber,
         orderType,
         orderSource,
         status,
@@ -285,6 +291,7 @@ class Order extends Equatable {
   Order copyWith({
     String? id,
     String? orderNumber,
+    int? ticketNumber,
     OrderType? orderType,
     OrderSource? orderSource,
     OrderStatus? status,
@@ -324,6 +331,7 @@ class Order extends Equatable {
     return Order(
       id: id ?? this.id,
       orderNumber: orderNumber ?? this.orderNumber,
+      ticketNumber: ticketNumber ?? this.ticketNumber,
       orderType: orderType ?? this.orderType,
       orderSource: orderSource ?? this.orderSource,
       status: status ?? this.status,

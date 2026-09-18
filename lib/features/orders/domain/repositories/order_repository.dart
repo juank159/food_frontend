@@ -60,6 +60,7 @@ abstract class OrderRepository {
     PaymentMethod? paymentMethod,
     int? estimatedTime,
     Map<String, dynamic>? metadata,
+    bool assignTicketNumber = false,
   });
 
   /// Actualiza el estado de una orden

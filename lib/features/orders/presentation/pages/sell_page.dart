@@ -17,6 +17,7 @@ import '../widgets/cart_widget.dart';
 import '../widgets/customer_info_widget.dart';
 import '../widgets/product_selector_widget.dart';
 import '../widgets/sell_mode_sheet.dart';
+import '../widgets/ticket_number_dialog.dart';
 
 /// Pantalla **única** de venta. Reemplaza `CreateOrderPage` +
 /// `QuickSalePage` + el flujo "abrir cuenta libre desde Cuentas".
@@ -595,6 +596,15 @@ class _BottomBar extends StatelessWidget {
 
     // La comanda de cocina se imprime dentro de `submitOrder` (cubre TODOS
     // los modos, incluida cuenta libre/mesa donde acá `order` sería null).
+
+    if (mode.assignsTicketNumber && order.ticketNumber != null) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => TicketNumberDialog(ticketNumber: order.ticketNumber!),
+      );
+      if (!context.mounted) return;
+    }
 
     if (mode.autoPayAfterSubmit) {
       // Verificar caja antes de mostrar el dialog de cobro.

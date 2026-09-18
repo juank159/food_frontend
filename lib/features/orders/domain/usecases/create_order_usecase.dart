@@ -37,6 +37,9 @@ class CreateOrderUseCase {
     PaymentMethod? paymentMethod,
     int? estimatedTime,
     Map<String, dynamic>? metadata,
+    /// Turno de mostrador: le pide al backend que asigne un
+    /// `ticket_number` secuencial del día. Ver `SellMode.counterTicket`.
+    bool assignTicketNumber = false,
   }) async {
     return await repository.createOrder(
       orderType: orderType,
@@ -61,6 +64,7 @@ class CreateOrderUseCase {
       paymentMethod: paymentMethod,
       estimatedTime: estimatedTime,
       metadata: metadata,
+      assignTicketNumber: assignTicketNumber,
     );
   }
 }

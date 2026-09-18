@@ -13,6 +13,10 @@ class OrderModel {
   final String id;
   @JsonKey(name: 'order_number')
   final String orderNumber;
+  /// Número de turno de mostrador (ej. "42") — solo si se pidió
+  /// explícito. Null en el resto de órdenes.
+  @JsonKey(name: 'ticket_number', includeToJson: false)
+  final int? ticketNumber;
   @JsonKey(name: 'order_type')
   final String orderType;
   @JsonKey(name: 'order_source')
@@ -94,6 +98,7 @@ class OrderModel {
   const OrderModel({
     required this.id,
     required this.orderNumber,
+    this.ticketNumber,
     required this.orderType,
     required this.orderSource,
     required this.status,
@@ -137,6 +142,7 @@ class OrderModel {
     return Order(
       id: id,
       orderNumber: orderNumber,
+      ticketNumber: ticketNumber,
       orderType: OrderType.fromString(orderType),
       orderSource: OrderSource.fromString(orderSource),
       status: OrderStatus.fromString(status),
@@ -187,6 +193,7 @@ class OrderModel {
     return OrderModel(
       id: order.id,
       orderNumber: order.orderNumber,
+      ticketNumber: order.ticketNumber,
       orderType: order.orderType.value,
       orderSource: order.orderSource.value,
       status: order.status.value,
@@ -274,6 +281,7 @@ class OrderModel {
     return OrderModel(
       id: json['id'] as String,
       orderNumber: json['order_number'] as String,
+      ticketNumber: json['ticket_number'] as int?,
       orderType: json['order_type'] as String,
       orderSource: json['order_source'] as String,
       status: json['status'] as String,

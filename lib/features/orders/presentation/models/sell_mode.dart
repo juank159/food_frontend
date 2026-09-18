@@ -45,6 +45,11 @@ sealed class SellMode {
   /// controller para relajar la validación de cliente.
   bool get isCounter => false;
 
+  /// True solo para "Turno de mostrador". Le pide al backend que
+  /// asigne un `ticket_number` secuencial del día — el cajero le da
+  /// ese número al cliente para que sepa cuándo lo llaman.
+  bool get assignsTicketNumber => false;
+
   /// Tipo de orden que va al backend.
   OrderType get orderType;
 
@@ -62,6 +67,11 @@ sealed class SellMode {
 
   /// Mostrador: venta express, sin mesa ni cliente.
   const factory SellMode.counter() = _CounterMode;
+
+  /// Turno de mostrador: igual que "Mostrador" (cobro inmediato, sin
+  /// mesa), pero además le pide al backend un número de turno
+  /// (`ticket_number`) para avisar al cliente cuándo está listo.
+  const factory SellMode.counterTicket() = _CounterTicketMode;
 
   /// Mesa: orden dine-in atada a una mesa específica.
   const factory SellMode.dineIn({
@@ -114,6 +124,36 @@ class _CounterMode extends SellMode {
 
   @override
   bool get isCounter => true;
+
+  @override
+  OrderType get orderType => OrderType.takeaway;
+}
+
+class _CounterTicketMode extends SellMode {
+  const _CounterTicketMode();
+
+  @override
+  String get pillLabel => 'Turno';
+
+  @override
+  String get pillSubtitle => 'Se asigna número, cobro inmediato';
+
+  @override
+  IconData get pillIcon => Icons.confirmation_number_outlined;
+
+  @override
+  Color get pillColor => AppColors.accent;
+
+  @override
+  bool get autoPayAfterSubmit => true;
+
+  // Hereda TODO el comportamiento de "Mostrador" (venta express, sin
+  // mesa ni cliente) — la única diferencia es `assignsTicketNumber`.
+  @override
+  bool get isCounter => true;
+
+  @override
+  bool get assignsTicketNumber => true;
 
   @override
   OrderType get orderType => OrderType.takeaway;

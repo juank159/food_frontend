@@ -99,6 +99,13 @@ class _SellModeSheetState extends State<SellModeSheet> {
               mode: const SellMode.counter(),
             ),
             _modeTile(
+              icon: Icons.confirmation_number_outlined,
+              color: AppColors.accent,
+              title: 'Turno de mostrador',
+              subtitle: 'Asigná un número, avisá cuando esté listo',
+              mode: const SellMode.counterTicket(),
+            ),
+            _modeTile(
               icon: Icons.shopping_bag_outlined,
               color: AppColors.warning,
               title: 'Para llevar',

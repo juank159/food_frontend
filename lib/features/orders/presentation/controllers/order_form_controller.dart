@@ -905,6 +905,7 @@ class OrderFormController extends GetxController {
         deliveryFee: deliveryFee.value,
         tipAmount: tipAmount.value,
         paymentMethod: paymentMethod.value,
+        assignTicketNumber: currentMode.value.assignsTicketNumber,
       );
 
       // Extraemos el resultado del fold para poder hacer trabajo async
