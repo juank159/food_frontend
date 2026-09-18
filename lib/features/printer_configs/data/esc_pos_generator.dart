@@ -22,6 +22,11 @@ class TicketData {
 
   // ── Orden ──
   final String orderNumber;
+  /// Número de turno de mostrador (ej. "42"). `null` = no imprimir la
+  /// línea de turno — ya sea porque la orden no tiene turno, o porque
+  /// el negocio apagó `settings.operation_mode.print_ticket_number`
+  /// (el gate vive en `PrintingOrchestrator._buildTicketData`, no acá).
+  final int? ticketNumber;
   final DateTime createdAt;
   final String? tableLabel;
   final String orderType; // dine_in / takeaway / delivery
@@ -52,6 +57,7 @@ class TicketData {
     required this.taxId,
     this.logoBytes,
     required this.orderNumber,
+    this.ticketNumber,
     required this.createdAt,
     required this.tableLabel,
     required this.orderType,
@@ -204,6 +210,23 @@ class EscPosGenerator {
         ),
       ),
     );
+
+    // ─── Turno de mostrador (GRANDE, lo más importante del ticket) ───
+    // Solo llega no-null si el negocio activó imprimir turno — ver
+    // el comentario de `TicketData.ticketNumber`.
+    if (data.ticketNumber != null) {
+      bytes.addAll(
+        gen.text(
+          'TURNO: ${data.ticketNumber}',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size3,
+            width: PosTextSize.size3,
+            bold: true,
+          ),
+        ),
+      );
+    }
 
     // ─── Nombre del cliente (justo bajo el destino) ───
     // Para pedidos QR siempre lo imprimimos en tamaño grande para que
@@ -401,6 +424,23 @@ class EscPosGenerator {
       ),
     );
     bytes.addAll(gen.hr());
+
+    // ─── Turno de mostrador (GRANDE) — el cliente lo guarda como
+    // comprobante de "su número". Ver comentario de TicketData.ticketNumber.
+    if (data.ticketNumber != null) {
+      bytes.addAll(
+        gen.text(
+          'TURNO: ${data.ticketNumber}',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size3,
+            width: PosTextSize.size3,
+            bold: true,
+          ),
+        ),
+      );
+      bytes.addAll(gen.hr());
+    }
 
     // ─── Metadata ───
     bytes.addAll(

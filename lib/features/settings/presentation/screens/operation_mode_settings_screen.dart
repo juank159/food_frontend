@@ -60,6 +60,7 @@ class _OperationModeSettingsScreenState
   String? _error;
 
   _OperationModeValue? _selected;
+  bool _printTicketNumber = false;
   Map<String, dynamic> _existingSettings = {};
 
   @override
@@ -83,6 +84,7 @@ class _OperationModeSettingsScreenState
       final opMode =
           (settings['operation_mode'] as Map?)?.cast<String, dynamic>() ?? {};
       _selected = _OperationModeValue.fromValue(opMode['mode'] as String?);
+      _printTicketNumber = opMode['print_ticket_number'] as bool? ?? false;
     } catch (e) {
       _error = ApiResponseUtils.errorMessage(e) ?? e.toString();
     } finally {
@@ -93,20 +95,38 @@ class _OperationModeSettingsScreenState
   Future<void> _select(_OperationModeValue mode) async {
     if (_saving) return;
     final previous = _selected;
-    setState(() {
-      _selected = mode;
-      _saving = true;
-    });
+    setState(() => _selected = mode);
+    final ok = await _saveOperationMode();
+    if (!ok && mounted) setState(() => _selected = previous);
+  }
+
+  Future<void> _togglePrintTicketNumber(bool value) async {
+    if (_saving) return;
+    final previous = _printTicketNumber;
+    setState(() => _printTicketNumber = value);
+    final ok = await _saveOperationMode();
+    if (!ok && mounted) setState(() => _printTicketNumber = previous);
+  }
+
+  /// Guarda el bloque `operation_mode` completo (modo + preferencia de
+  /// impresión juntos) — evita que guardar uno pise al otro, ya que
+  /// ambos viven en el mismo sub-objeto de `settings`.
+  Future<bool> _saveOperationMode() async {
+    setState(() => _saving = true);
     try {
       final newSettings = Map<String, dynamic>.from(_existingSettings);
-      newSettings['operation_mode'] = {'mode': mode.value};
+      newSettings['operation_mode'] = {
+        'mode': _selected?.value,
+        'print_ticket_number': _printTicketNumber,
+      };
       await _dio.patch('/tenants/me', data: {'settings': newSettings});
       _existingSettings = newSettings;
-      AppSnackbar.show('Guardado', 'Modo de operación actualizado.');
+      AppSnackbar.show('Guardado', 'Preferencias actualizadas.');
+      return true;
     } catch (e) {
-      setState(() => _selected = previous);
       AppSnackbar.show(
           'Error al guardar', ApiResponseUtils.errorMessage(e) ?? e.toString());
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -139,7 +159,62 @@ class _OperationModeSettingsScreenState
           _modeCard(mode),
           const SizedBox(height: 10),
         ],
+        const SizedBox(height: 10),
+        _printTicketNumberCard(),
       ],
+    );
+  }
+
+  Widget _printTicketNumberCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.print_outlined, color: AppColors.accent, size: 20),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Imprimir número de turno',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Sale grande en la comanda de cocina y en el recibo del '
+                  'cliente. Si lo apagás, el cajero sigue diciéndolo de '
+                  'viva voz.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _printTicketNumber,
+            onChanged: _saving ? null : _togglePrintTicketNumber,
+            activeThumbColor: AppColors.accent,
+          ),
+        ],
+      ),
     );
   }
 
