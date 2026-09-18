@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/error/failures.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
+import '../../../../core/services/operation_mode_preference.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/domain/entities/product_variant.dart';
@@ -134,6 +135,25 @@ class OrderFormController extends GetxController {
     // Cargar tax_settings + tip_settings del tenant para que los cálculos
     // del cart usen la misma lógica que el backend (una sola request).
     loadTenantPricingSettings();
+    _applyCounterTicketsDefaultIfConfigured();
+  }
+
+  /// Si el negocio declaró "Turnos de mostrador" como su único modo de
+  /// operación (Ajustes → Modo de operación), la venta arranca directo
+  /// ahí — sin que el cajero tenga que elegirlo a mano cada vez. Es
+  /// async (pide `/tenants/me`, cacheado), así que solo pisa el modo
+  /// default si nadie ya lo cambió mientras tanto — si `SellPage` llegó
+  /// con un modo explícito (tomar una mesa puntual, agregar ticket a
+  /// una cuenta abierta), ESE gana siempre.
+  Future<void> _applyCounterTicketsDefaultIfConfigured() async {
+    final isCounterTicketsOnly =
+        await OperationModePreference.isCounterTicketsOnly();
+    if (!isCounterTicketsOnly) return;
+    // "Sigue siendo el default inicial" = nadie lo cambió todavía.
+    // `SellMode.counter()` es const sin campos — todas sus instancias
+    // canonicalizan al mismo objeto, así que `identical` es seguro acá.
+    if (!identical(currentMode.value, const SellMode.counter())) return;
+    applyMode(const SellMode.counterTicket());
   }
 
   // Observable State

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../tab_sessions/domain/entities/tab_session.dart';
 import '../../../tab_sessions/domain/usecases/tab_session_usecases.dart';
@@ -36,10 +37,18 @@ class SellModeSheet extends StatefulWidget {
 class _SellModeSheetState extends State<SellModeSheet> {
   late Future<List<TabSession>> _openTabsFuture;
 
+  /// `true` si el negocio declaró "Turnos de mostrador" como su único
+  /// modo de operación — ese tipo de negocio no usa mesas ni cuentas
+  /// abiertas, así que esa sección directamente no aplica.
+  bool _hideTablesSection = false;
+
   @override
   void initState() {
     super.initState();
     _openTabsFuture = _loadOpenTabs();
+    OperationModePreference.isCounterTicketsOnly().then((hide) {
+      if (mounted && hide) setState(() => _hideTablesSection = hide);
+    });
   }
 
   Future<List<TabSession>> _loadOpenTabs() async {
@@ -120,66 +129,71 @@ class _SellModeSheetState extends State<SellModeSheet> {
               mode: const SellMode.delivery(),
             ),
 
-            const SizedBox(height: 18),
-            _sectionTitle('Mesa o cuenta abierta'),
-            _modeTile(
-              icon: Icons.table_restaurant,
-              color: AppColors.primary,
-              title: 'Mesa',
-              subtitle: 'Elegir mesa del plano',
-              onTap: _openTablePicker,
-            ),
-            _modeTile(
-              icon: Icons.add_circle_outline,
-              color: AppColors.accent,
-              title: 'Nueva cuenta libre',
-              subtitle: 'Cliente sin mesa (césped, sillas, etc.)',
-              onTap: _openFreeAccountDialog,
-            ),
-
-            const SizedBox(height: 18),
-            FutureBuilder<List<TabSession>>(
-              future: _openTabsFuture,
-              builder: (context, snapshot) {
-                final tabs = snapshot.data ?? const <TabSession>[];
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  );
-                }
-                if (tabs.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionTitle('Cuentas ya abiertas'),
-                    for (final t in tabs)
-                      _modeTile(
-                        icon: t.tableElementId != null || t.tableId != null
-                            ? Icons.table_restaurant
-                            : Icons.chair_outlined,
-                        color: AppColors.success,
-                        title: t.displayLabel(),
-                        subtitle:
-                            '${t.totalOrders} ${t.totalOrders == 1 ? "ticket" : "tickets"} · abierta',
-                        mode: SellMode.tabSession(
-                          sessionId: t.id,
-                          sessionLabel: t.displayLabel(),
-                          tableElementId: t.tableElementId,
-                          tableId: t.tableId,
-                          tableName: t.tableName,
+            // Negocios "solo turnos de mostrador" (Ajustes → Modo de
+            // operación) no usan mesas ni cuentas abiertas — mostrar
+            // esta sección sería un callejón sin salida (ni floor plan
+            // ni cuentas para elegir).
+            if (!_hideTablesSection) ...[
+              const SizedBox(height: 18),
+              _sectionTitle('Mesa o cuenta abierta'),
+              _modeTile(
+                icon: Icons.table_restaurant,
+                color: AppColors.primary,
+                title: 'Mesa',
+                subtitle: 'Elegir mesa del plano',
+                onTap: _openTablePicker,
+              ),
+              _modeTile(
+                icon: Icons.add_circle_outline,
+                color: AppColors.accent,
+                title: 'Nueva cuenta libre',
+                subtitle: 'Cliente sin mesa (césped, sillas, etc.)',
+                onTap: _openFreeAccountDialog,
+              ),
+              const SizedBox(height: 18),
+              FutureBuilder<List<TabSession>>(
+                future: _openTabsFuture,
+                builder: (context, snapshot) {
+                  final tabs = snapshot.data ?? const <TabSession>[];
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
-                  ],
-                );
-              },
-            ),
+                    );
+                  }
+                  if (tabs.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionTitle('Cuentas ya abiertas'),
+                      for (final t in tabs)
+                        _modeTile(
+                          icon: t.tableElementId != null || t.tableId != null
+                              ? Icons.table_restaurant
+                              : Icons.chair_outlined,
+                          color: AppColors.success,
+                          title: t.displayLabel(),
+                          subtitle:
+                              '${t.totalOrders} ${t.totalOrders == 1 ? "ticket" : "tickets"} · abierta',
+                          mode: SellMode.tabSession(
+                            sessionId: t.id,
+                            sessionLabel: t.displayLabel(),
+                            tableElementId: t.tableElementId,
+                            tableId: t.tableId,
+                            tableName: t.tableName,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),

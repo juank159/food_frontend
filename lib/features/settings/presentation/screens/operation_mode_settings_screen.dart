@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
@@ -94,10 +95,25 @@ class _OperationModeSettingsScreenState
 
   Future<void> _select(_OperationModeValue mode) async {
     if (_saving) return;
-    final previous = _selected;
-    setState(() => _selected = mode);
+    final previousMode = _selected;
+    final previousPrint = _printTicketNumber;
+    setState(() {
+      _selected = mode;
+      // Elegir "Turnos de mostrador" por primera vez prende la
+      // impresión del número por default — es parte natural de ese
+      // flujo (turno + comanda con el número van juntos). El negocio
+      // lo puede apagar después con el switch de abajo si no quiere.
+      if (mode == _OperationModeValue.counterTickets) {
+        _printTicketNumber = true;
+      }
+    });
     final ok = await _saveOperationMode();
-    if (!ok && mounted) setState(() => _selected = previous);
+    if (!ok && mounted) {
+      setState(() {
+        _selected = previousMode;
+        _printTicketNumber = previousPrint;
+      });
+    }
   }
 
   Future<void> _togglePrintTicketNumber(bool value) async {
@@ -121,6 +137,7 @@ class _OperationModeSettingsScreenState
       };
       await _dio.patch('/tenants/me', data: {'settings': newSettings});
       _existingSettings = newSettings;
+      OperationModePreference.invalidateCache();
       AppSnackbar.show('Guardado', 'Preferencias actualizadas.');
       return true;
     } catch (e) {
