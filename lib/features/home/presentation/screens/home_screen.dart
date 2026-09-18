@@ -235,6 +235,13 @@ class HomeScreen extends GetView<HomeController> {
               subtitle: 'Configura tus mesas',
               onTap: () => NavigationService.toTables(),
             ),
+          if (access.canSeeOpenTabs)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.ticket,
+              title: 'Turnos activos',
+              subtitle: 'Tablero de turnos de mostrador de hoy',
+              onTap: () => Get.toNamed(AppRoutes.counterTicketsBoard),
+            ),
           if (access.canSeeInventory)
             _buildMenuItem(
               icon: FontAwesomeIcons.boxesStacked,

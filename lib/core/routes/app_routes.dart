@@ -31,6 +31,7 @@ class AppRoutes {
   static const String brebSettings = '/settings/breb';
   static const String locationRadius = '/settings/location-radius';
   static const String operationModeSettings = '/settings/operation-mode';
+  static const String counterTicketsBoard = '/counter-tickets/board';
 
   // ==================== ORDERS ROUTES ====================
   static const String orders = '/orders';
