@@ -99,7 +99,11 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
         throw Exception('No hay tenant cacheado');
       }
       _tenantId = tenantId;
-      final res = await _dio.get('/tenants/$tenantId');
+      // OJO: `/tenants/:id` está restringido a super_admin/support (ver
+      // TenantController) — un admin normal del negocio recibe 403 ahí.
+      // `/tenants/me` es el equivalente self-service (resuelve el tenant
+      // desde el JWT), que es lo que este admin sí puede usar.
+      final res = await _dio.get('/tenants/me');
       final settings = (res.data['settings'] as Map<String, dynamic>?) ?? {};
       final tax = (settings['tax_settings'] as Map<String, dynamic>?) ?? {};
       final tip = (settings['tip_settings'] as Map<String, dynamic>?) ?? {};
@@ -218,7 +222,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
       // backend mergea profundo, así que delivery_settings/business_hours/
       // contact se mantienen intactos.
       await _dio.patch(
-        '/tenants/$_tenantId',
+        '/tenants/me',
         data: {
           'settings': {
             'tax_settings': {
