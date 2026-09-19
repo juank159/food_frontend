@@ -24,8 +24,7 @@ class BusinessSettingsScreen extends StatefulWidget {
   const BusinessSettingsScreen({super.key});
 
   @override
-  State<BusinessSettingsScreen> createState() =>
-      _BusinessSettingsScreenState();
+  State<BusinessSettingsScreen> createState() => _BusinessSettingsScreenState();
 }
 
 class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
@@ -43,8 +42,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
   double _taxRate = 0.19; // 19% por defecto (LATAM)
   bool _taxIncludedInPrice = true;
   final TextEditingController _taxNameCtrl = TextEditingController(text: 'IVA');
-  final TextEditingController _taxRatePctCtrl =
-      TextEditingController(text: '19');
+  final TextEditingController _taxRatePctCtrl = TextEditingController(
+    text: '19',
+  );
 
   // Tip settings (estado del formulario). Defaults: propinas activadas en
   // modo "sugerido", con los 3 porcentajes clásicos (10/15/20) sobre el
@@ -59,10 +59,10 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
   double _tipDefaultPercentage = 0.10;
   // Tipos de orden a los que aplica la propina. Vacío = todos.
   final Set<String> _tipAppliesTo = <String>{};
-  final TextEditingController _tipDefaultPctCtrl =
-      TextEditingController(text: '10');
-  final TextEditingController _tipMaxPctCtrl =
-      TextEditingController(text: '');
+  final TextEditingController _tipDefaultPctCtrl = TextEditingController(
+    text: '10',
+  );
+  final TextEditingController _tipMaxPctCtrl = TextEditingController(text: '');
   final TextEditingController _tipNewPctCtrl = TextEditingController();
 
   @override
@@ -110,8 +110,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
       setState(() {
         // Tax
         _taxEnabled = (tax['tax_enabled'] as bool?) ?? true;
-        _taxIncludedInPrice =
-            (tax['tax_included_in_price'] as bool?) ?? true;
+        _taxIncludedInPrice = (tax['tax_included_in_price'] as bool?) ?? true;
         final rateAny = tax['tax_rate'];
         _taxRate = rateAny is num ? rateAny.toDouble() : 0.19;
         _taxRatePctCtrl.text = (_taxRate * 100).toStringAsFixed(
@@ -128,8 +127,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
 
         final defPct = tip['default_percentage'];
         _tipDefaultPercentage = defPct is num ? defPct.toDouble() : 0.10;
-        _tipDefaultPctCtrl.text =
-            (_tipDefaultPercentage * 100).toStringAsFixed(
+        _tipDefaultPctCtrl.text = (_tipDefaultPercentage * 100).toStringAsFixed(
           (_tipDefaultPercentage * 100) % 1 == 0 ? 0 : 2,
         );
 
@@ -146,9 +144,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
 
         final maxPct = tip['max_percentage'];
         _tipMaxPctCtrl.text = maxPct is num
-            ? (maxPct * 100).toStringAsFixed(
-                (maxPct * 100) % 1 == 0 ? 0 : 2,
-              )
+            ? (maxPct * 100).toStringAsFixed((maxPct * 100) % 1 == 0 ? 0 : 2)
             : '';
 
         _tipAppliesTo.clear();
@@ -174,8 +170,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
     setState(() => _saving = true);
 
     // Tax
-    final taxPct =
-        double.tryParse(_taxRatePctCtrl.text.trim().replaceAll(',', '.'));
+    final taxPct = double.tryParse(
+      _taxRatePctCtrl.text.trim().replaceAll(',', '.'),
+    );
     if (taxPct == null || taxPct < 0 || taxPct > 100) {
       AppSnackbar.show(
         'IVA inválido',
@@ -188,8 +185,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
     final taxRate = taxPct / 100;
 
     // Tip — default
-    final defaultPct =
-        double.tryParse(_tipDefaultPctCtrl.text.trim().replaceAll(',', '.'));
+    final defaultPct = double.tryParse(
+      _tipDefaultPctCtrl.text.trim().replaceAll(',', '.'),
+    );
     if (defaultPct == null || defaultPct < 0 || defaultPct > 100) {
       AppSnackbar.show(
         'Porcentaje de propina inválido',
@@ -237,8 +235,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
               'tip_enabled': _tipEnabled,
               'mode': _tipMode,
               'default_percentage': defaultPct / 100,
-              'suggested_percentages':
-                  List<double>.from(_tipSuggestedPercentages),
+              'suggested_percentages': List<double>.from(
+                _tipSuggestedPercentages,
+              ),
               'allow_custom_amount': _tipAllowCustom,
               'calculation_base': _tipCalculationBase,
               'applies_to_order_types': _tipAppliesTo.toList(),
@@ -288,8 +287,8 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildError()
-              : _buildForm(context),
+          ? _buildError()
+          : _buildForm(context),
     );
   }
 
@@ -319,144 +318,69 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
     final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Centrado con maxWidth en desktop; full width en mobile.
-        final maxW = constraints.maxWidth > 720 ? 680.0 : double.infinity;
+        final width = constraints.maxWidth;
+        // Breakpoints: celular (columna única, angosta) / tablet-angosto o
+        // celular horizontal (columna única, más ancha) / pantalla grande
+        // (dos columnas — Impuestos+Vista previa junto a Propinas, en vez
+        // de forzar todo en una sola tira angosta y centrada).
+        final isWide = width >= 1000;
+        final horizontalPadding = width < 600
+            ? 16.0
+            : width < 1000
+            ? 24.0
+            : 32.0;
+        // En pantallas grandes el contenido puede crecer hasta 1400 antes
+        // de centrarse con margen — en monitores angostos/tablets usa
+        // prácticamente todo el ancho disponible, nunca una tira fija.
+        final maxContentWidth = isWide
+            ? 1400.0
+            : (width < 1000 ? 760.0 : width);
+
+        final taxColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTaxSection(theme),
+            const SizedBox(height: 16),
+            _PreviewCard(
+              enabled: _taxEnabled,
+              rateText: _taxRatePctCtrl.text,
+              included: _taxIncludedInPrice,
+            ),
+          ],
+        );
+        final tipColumn = _buildTipSection(theme);
+
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 16,
+          ),
           child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxW),
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SectionCard(
-                    title: 'Impuestos',
-                    subtitle:
-                        'Configura cómo se cobra el IVA en tus pedidos. '
-                        'Los nuevos pedidos usarán esta configuración inmediatamente; '
-                        'los pedidos ya emitidos no cambian.',
-                    children: [
-                      SwitchListTile(
-                        title: const Text('Cobrar IVA en los pedidos'),
-                        subtitle: Text(
-                          _taxEnabled
-                              ? 'Activo · se desglosa en cada ticket'
-                              : 'Desactivado · ningún pedido lleva IVA',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        value: _taxEnabled,
-                        onChanged: _saving
-                            ? null
-                            : (v) => setState(() => _taxEnabled = v),
-                      ),
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Detalles del impuesto',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: TextField(
-                                    controller: _taxNameCtrl,
-                                    enabled: _taxEnabled && !_saving,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Nombre',
-                                      hintText: 'IVA, ITBIS, GST…',
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 1,
-                                  child: TextField(
-                                    controller: _taxRatePctCtrl,
-                                    enabled: _taxEnabled && !_saving,
-                                    keyboardType: const TextInputType
-                                        .numberWithOptions(decimal: true),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Porcentaje',
-                                      suffixText: '%',
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      RadioGroup<bool>(
-                        groupValue: _taxIncludedInPrice,
-                        onChanged: (v) => setState(
-                            () => _taxIncludedInPrice = v ?? true),
-                        child: Column(
-                          children: [
-                            RadioListTile<bool>(
-                              title: const Text('Los precios YA incluyen IVA'),
-                              subtitle: const Text(
-                                'Recomendado para Colombia, México, Argentina y la mayoría de LATAM. '
-                                'Si cargas un producto a \$10.000, el cliente paga \$10.000 — '
-                                'el IVA se desglosa solo para la factura.',
-                              ),
-                              value: true,
-                              enabled: _taxEnabled && !_saving,
-                            ),
-                            RadioListTile<bool>(
-                              title: const Text('El IVA se suma al precio'),
-                              subtitle: const Text(
-                                'Estilo USA / facturación B2B. Si cargas un producto a \$10.000, '
-                                'el cliente paga \$10.000 + IVA = \$11.900 (con 19%).',
-                              ),
-                              value: false,
-                              enabled: _taxEnabled && !_saving,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _PreviewCard(
-                    enabled: _taxEnabled,
-                    rateText: _taxRatePctCtrl.text,
-                    included: _taxIncludedInPrice,
-                  ),
+                  if (isWide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: taxColumn),
+                        const SizedBox(width: 24),
+                        Expanded(child: tipColumn),
+                      ],
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        taxColumn,
+                        const SizedBox(height: 24),
+                        tipColumn,
+                      ],
+                    ),
                   const SizedBox(height: 24),
-                  _buildTipSection(theme),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: _saving ? null : () => Navigator.of(context).pop(),
-                        child: const Text('Cancelar'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.check),
-                        label: Text(_saving ? 'Guardando…' : 'Guardar cambios'),
-                      ),
-                    ],
-                  ),
+                  _buildActions(context, stacked: width < 420),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -464,6 +388,147 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Botones Cancelar/Guardar. En celulares muy angostos (< 420) se
+  /// apilan a ancho completo en vez de compartir una fila — con dos
+  /// botones + ícono de carga, una `Row` ahí puede desbordar (ej.
+  /// iPhone SE, 320px lógicos).
+  Widget _buildActions(BuildContext context, {required bool stacked}) {
+    final cancelButton = TextButton(
+      onPressed: _saving ? null : () => Navigator.of(context).pop(),
+      child: const Text('Cancelar'),
+    );
+    final saveButton = FilledButton.icon(
+      onPressed: _saving ? null : _save,
+      icon: _saving
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.check),
+      label: Text(_saving ? 'Guardando…' : 'Guardar cambios'),
+    );
+
+    if (stacked) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [saveButton, const SizedBox(height: 8), cancelButton],
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [cancelButton, const SizedBox(width: 8), saveButton],
+    );
+  }
+
+  // ───────────────────────── Sección "Impuestos" ─────────────────────────
+
+  Widget _buildTaxSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionCard(
+          title: 'Impuestos',
+          subtitle:
+              'Configura cómo se cobra el IVA en tus pedidos. '
+              'Los nuevos pedidos usarán esta configuración inmediatamente; '
+              'los pedidos ya emitidos no cambian.',
+          children: [
+            SwitchListTile(
+              title: const Text('Cobrar IVA en los pedidos'),
+              subtitle: Text(
+                _taxEnabled
+                    ? 'Activo · se desglosa en cada ticket'
+                    : 'Desactivado · ningún pedido lleva IVA',
+                style: theme.textTheme.bodySmall,
+              ),
+              value: _taxEnabled,
+              onChanged: _saving
+                  ? null
+                  : (v) => setState(() => _taxEnabled = v),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Detalles del impuesto',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: _taxNameCtrl,
+                          enabled: _taxEnabled && !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre',
+                            hintText: 'IVA, ITBIS, GST…',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 1,
+                        child: TextField(
+                          controller: _taxRatePctCtrl,
+                          enabled: _taxEnabled && !_saving,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Porcentaje',
+                            suffixText: '%',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            RadioGroup<bool>(
+              groupValue: _taxIncludedInPrice,
+              onChanged: (v) => setState(() => _taxIncludedInPrice = v ?? true),
+              child: Column(
+                children: [
+                  RadioListTile<bool>(
+                    title: const Text('Los precios YA incluyen IVA'),
+                    subtitle: const Text(
+                      'Recomendado para Colombia, México, Argentina y la mayoría de LATAM. '
+                      'Si cargas un producto a \$10.000, el cliente paga \$10.000 — '
+                      'el IVA se desglosa solo para la factura.',
+                    ),
+                    value: true,
+                    enabled: _taxEnabled && !_saving,
+                  ),
+                  RadioListTile<bool>(
+                    title: const Text('El IVA se suma al precio'),
+                    subtitle: const Text(
+                      'Estilo USA / facturación B2B. Si cargas un producto a \$10.000, '
+                      'el cliente paga \$10.000 + IVA = \$11.900 (con 19%).',
+                    ),
+                    value: false,
+                    enabled: _taxEnabled && !_saving,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -487,8 +552,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
             style: theme.textTheme.bodySmall,
           ),
           value: _tipEnabled,
-          onChanged:
-              _saving ? null : (v) => setState(() => _tipEnabled = v),
+          onChanged: _saving ? null : (v) => setState(() => _tipEnabled = v),
         ),
         const Divider(height: 1),
         Padding(
@@ -496,10 +560,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Modo',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              const Text('Modo', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               Text(
                 'Determina cómo se aplica la propina al cobrar.',
@@ -572,8 +633,8 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                       onDeleted: disabled
                           ? null
                           : () => setState(
-                                () => _tipSuggestedPercentages.removeAt(i),
-                              ),
+                              () => _tipSuggestedPercentages.removeAt(i),
+                            ),
                     ),
                 ],
               ),
@@ -616,11 +677,13 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 child: TextField(
                   controller: _tipDefaultPctCtrl,
                   enabled: !disabled,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Porcentaje por defecto',
-                    helperText: 'Usado en modo "obligatoria" si no se elige otro',
+                    helperText:
+                        'Usado en modo "obligatoria" si no se elige otro',
                     suffixText: '%',
                     border: OutlineInputBorder(),
                     isDense: true,
@@ -633,8 +696,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 child: TextField(
                   controller: _tipMaxPctCtrl,
                   enabled: !disabled,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Tope (opcional)',
                     helperText: 'Rechaza propinas que excedan este %',
@@ -655,8 +719,9 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
             'porcentajes sugeridos.',
           ),
           value: _tipAllowCustom,
-          onChanged:
-              disabled ? null : (v) => setState(() => _tipAllowCustom = v),
+          onChanged: disabled
+              ? null
+              : (v) => setState(() => _tipAllowCustom = v),
         ),
         const Divider(height: 1),
         Padding(
@@ -681,7 +746,8 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
         RadioGroup<String>(
           groupValue: _tipCalculationBase,
           onChanged: (v) => setState(
-              () => _tipCalculationBase = v ?? 'subtotal_after_discount'),
+            () => _tipCalculationBase = v ?? 'subtotal_after_discount',
+          ),
           child: Column(
             children: [
               RadioListTile<String>(
@@ -759,12 +825,12 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
         onTap: disabled
             ? () {}
             : () => setState(() {
-                  if (!selected) {
-                    _tipAppliesTo.add(value);
-                  } else {
-                    _tipAppliesTo.remove(value);
-                  }
-                }),
+                if (!selected) {
+                  _tipAppliesTo.add(value);
+                } else {
+                  _tipAppliesTo.remove(value);
+                }
+              }),
       ),
     );
   }
@@ -824,18 +890,17 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ],
@@ -902,16 +967,22 @@ class _PreviewCard extends StatelessWidget {
               children: [
                 Icon(Icons.preview, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Vista previa con un producto de \$10.000',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Vista previa con un producto de \$10.000',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             _previewRow('Subtotal', subtotal),
-            _previewRow('IVA${pct > 0 ? " (${pct.toStringAsFixed(pct % 1 == 0 ? 0 : 2)}%)" : ""}', tax),
+            _previewRow(
+              'IVA${pct > 0 ? " (${pct.toStringAsFixed(pct % 1 == 0 ? 0 : 2)}%)" : ""}',
+              tax,
+            ),
             const Divider(),
             _previewRow('Total a pagar', total, bold: true),
             const SizedBox(height: 8),
@@ -939,10 +1010,7 @@ class _PreviewCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: style),
-          Text(
-            CurrencyFormatter.format(value),
-            style: style,
-          ),
+          Text(CurrencyFormatter.format(value), style: style),
         ],
       ),
     );
