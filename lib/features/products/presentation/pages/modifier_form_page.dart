@@ -36,14 +36,14 @@ class ModifierFormPage extends GetView<ModifierFormController> {
                 ),
               ),
             ),
-            Obx(() => AppFormSubmitBar(
-                  isSaving: controller.isSaving.value,
-                  onCancel: () => Navigator.of(context).pop(),
-                  onSave: controller.saveModifier,
-                  saveLabel: controller.isEditMode
-                      ? 'Actualizar'
-                      : 'Crear modificador',
-                )),
+            Obx(
+              () => AppFormSubmitBar(
+                isSaving: controller.isSaving.value,
+                onCancel: () => Navigator.of(context).pop(),
+                onSave: controller.saveModifier,
+                saveLabel: controller.isEditMode ? 'Actualizar' : 'Crear extra',
+              ),
+            ),
           ],
         ),
       ),
@@ -52,9 +52,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
 
   Widget _buildHeader(BuildContext context) {
     return AppGradientHeader(
-      title: controller.isEditMode
-          ? 'Editar modificador'
-          : 'Nuevo modificador',
+      title: controller.isEditMode ? 'Editar extra' : 'Nuevo extra',
       subtitle: 'Toppings, extras, sustituciones',
       leading: GestureDetector(
         onTap: () => Navigator.of(context).pop(),
@@ -99,7 +97,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
           maxLines: 2,
           decoration: appInputDecoration(
             label: 'Descripción (opcional)',
-            hint: 'Describe el modificador',
+            hint: 'Describe el extra',
             prefixIcon: Icons.description_outlined,
           ),
         ),
@@ -110,49 +108,51 @@ class ModifierFormPage extends GetView<ModifierFormController> {
   Widget _buildTypeAndPricingSection() {
     return AppFormSection(
       title: 'Tipo y precio',
-      subtitle: 'Cómo afecta el modificador al producto.',
+      subtitle: 'Cómo afecta el extra al producto.',
       icon: Icons.swap_horiz,
       accent: AppColors.warning,
       children: [
-        Obx(() => Row(
-              children: [
-                Expanded(
-                  child: _TypePill(
-                    icon: Icons.add_circle_outline,
-                    label: 'Agregar',
-                    selected: controller.selectedType.value ==
-                        ModifierType.addition,
-                    accent: AppColors.success,
-                    onTap: () =>
-                        controller.setModifierType(ModifierType.addition),
-                  ),
+        Obx(
+          () => Row(
+            children: [
+              Expanded(
+                child: _TypePill(
+                  icon: Icons.add_circle_outline,
+                  label: 'Agregar',
+                  selected:
+                      controller.selectedType.value == ModifierType.addition,
+                  accent: AppColors.success,
+                  onTap: () =>
+                      controller.setModifierType(ModifierType.addition),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _TypePill(
-                    icon: Icons.remove_circle_outline,
-                    label: 'Quitar',
-                    selected: controller.selectedType.value ==
-                        ModifierType.removal,
-                    accent: AppColors.error,
-                    onTap: () =>
-                        controller.setModifierType(ModifierType.removal),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TypePill(
+                  icon: Icons.remove_circle_outline,
+                  label: 'Quitar',
+                  selected:
+                      controller.selectedType.value == ModifierType.removal,
+                  accent: AppColors.error,
+                  onTap: () => controller.setModifierType(ModifierType.removal),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _TypePill(
-                    icon: Icons.swap_horiz,
-                    label: 'Sustituir',
-                    selected: controller.selectedType.value ==
-                        ModifierType.substitution,
-                    accent: AppColors.info,
-                    onTap: () =>
-                        controller.setModifierType(ModifierType.substitution),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TypePill(
+                  icon: Icons.swap_horiz,
+                  label: 'Sustituir',
+                  selected:
+                      controller.selectedType.value ==
+                      ModifierType.substitution,
+                  accent: AppColors.info,
+                  onTap: () =>
+                      controller.setModifierType(ModifierType.substitution),
                 ),
-              ],
-            )),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -220,7 +220,7 @@ class ModifierFormPage extends GetView<ModifierFormController> {
             ),
             subtitle: Text(
               available
-                  ? 'Los clientes pueden seleccionar este modificador'
+                  ? 'Los clientes pueden seleccionar este extra'
                   : 'Oculto al tomar pedidos',
               style: const TextStyle(
                 fontSize: 12,
@@ -231,16 +231,14 @@ class ModifierFormPage extends GetView<ModifierFormController> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color:
-                    (available ? AppColors.success : AppColors.textSecondary)
-                        .withValues(alpha: 0.12),
+                color: (available ? AppColors.success : AppColors.textSecondary)
+                    .withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
               child: Icon(
                 available ? Icons.check_circle : Icons.cancel_outlined,
-                color:
-                    available ? AppColors.success : AppColors.textSecondary,
+                color: available ? AppColors.success : AppColors.textSecondary,
                 size: 18,
               ),
             ),
@@ -287,11 +285,7 @@ class _TypePill extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: selected ? Colors.white : accent,
-              ),
+              Icon(icon, size: 20, color: selected ? Colors.white : accent),
               const SizedBox(height: 4),
               Text(
                 label,

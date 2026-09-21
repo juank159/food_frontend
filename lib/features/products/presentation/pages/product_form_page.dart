@@ -85,14 +85,16 @@ class ProductFormPage extends GetView<ProductFormController> {
                   ),
                 ),
               ),
-              Obx(() => AppFormSubmitBar(
-                    isSaving: controller.isSaving.value,
-                    onCancel: controller.closeForm,
-                    onSave: controller.saveProduct,
-                    saveLabel: controller.isEditModeRx.value
-                        ? 'Actualizar producto'
-                        : 'Crear producto',
-                  )),
+              Obx(
+                () => AppFormSubmitBar(
+                  isSaving: controller.isSaving.value,
+                  onCancel: controller.closeForm,
+                  onSave: controller.saveProduct,
+                  saveLabel: controller.isEditModeRx.value
+                      ? 'Actualizar producto'
+                      : 'Crear producto',
+                ),
+              ),
             ],
           ),
         ),
@@ -101,25 +103,26 @@ class ProductFormPage extends GetView<ProductFormController> {
   }
 
   Widget _buildHeader() {
-    return Obx(() => AppGradientHeader(
-          title: controller.isEditModeRx.value
-              ? 'Editar producto'
-              : 'Nuevo producto',
-          subtitle: 'Datos del menú, precio e inventario',
-          leading: GestureDetector(
-            onTap: controller.closeForm,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.arrow_back,
-                  color: Colors.white, size: 20),
+    return Obx(
+      () => AppGradientHeader(
+        title: controller.isEditModeRx.value
+            ? 'Editar producto'
+            : 'Nuevo producto',
+        subtitle: 'Datos del menú, precio e inventario',
+        leading: GestureDetector(
+          onTap: controller.closeForm,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
-        ));
+        ),
+      ),
+    );
   }
 
   /// Banner que aparece tras crear el producto desde modo "crear".
@@ -136,8 +139,7 @@ class ProductFormPage extends GetView<ProductFormController> {
         decoration: BoxDecoration(
           color: AppColors.success.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: AppColors.success.withValues(alpha: 0.25)),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
@@ -170,7 +172,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Bajá hasta "Grupos de modificadores" para agregar opciones como "sin cebolla" o "extra queso".',
+                    'Bajá hasta "Extras y acompañantes" para agregar opciones como "sin cebolla" o "extra queso".',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
@@ -201,8 +203,7 @@ class ProductFormPage extends GetView<ProductFormController> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline,
-                color: AppColors.error, size: 20),
+            const Icon(Icons.error_outline, color: AppColors.error, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -307,8 +308,7 @@ class ProductFormPage extends GetView<ProductFormController> {
                 child: Text(category.name),
               );
             }).toList(),
-            onChanged: (value) =>
-                controller.selectedCategoryId.value = value,
+            onChanged: (value) => controller.selectedCategoryId.value = value,
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Selecciona una categoría';
@@ -349,26 +349,27 @@ class ProductFormPage extends GetView<ProductFormController> {
         const SizedBox(height: 12),
         TextFormField(
           controller: controller.barcodeController,
-          decoration: appInputDecoration(
-            label: 'Código de barras (opcional)',
-            hint: '1234567890',
-            prefixIcon: Icons.barcode_reader,
-          ).copyWith(
-            // Botón de escanear con la cámara — solo en mobile/tablet
-            // (en desktop no hay cámara y se escribe a mano).
-            suffixIcon: MediaQuery.of(context).size.width >= 900
-                ? null
-                : IconButton(
-                    tooltip: 'Escanear con la cámara',
-                    icon: const Icon(Icons.qr_code_scanner),
-                    onPressed: () async {
-                      final code = await scanBarcode(context);
-                      if (code != null && code.isNotEmpty) {
-                        controller.barcodeController.text = code;
-                      }
-                    },
-                  ),
-          ),
+          decoration:
+              appInputDecoration(
+                label: 'Código de barras (opcional)',
+                hint: '1234567890',
+                prefixIcon: Icons.barcode_reader,
+              ).copyWith(
+                // Botón de escanear con la cámara — solo en mobile/tablet
+                // (en desktop no hay cámara y se escribe a mano).
+                suffixIcon: MediaQuery.of(context).size.width >= 900
+                    ? null
+                    : IconButton(
+                        tooltip: 'Escanear con la cámara',
+                        icon: const Icon(Icons.qr_code_scanner),
+                        onPressed: () async {
+                          final code = await scanBarcode(context);
+                          if (code != null && code.isNotEmpty) {
+                            controller.barcodeController.text = code;
+                          }
+                        },
+                      ),
+              ),
         ),
         const SizedBox(height: 12),
         TextFormField(
@@ -387,36 +388,42 @@ class ProductFormPage extends GetView<ProductFormController> {
         // el operario lo apaga: el item no sale en la comanda y, si
         // todos los items del ticket están en `false`, no se imprime
         // comanda en absoluto (no se desperdicia papel).
-        Obx(() => _ToggleTile(
-              icon: Icons.kitchen_outlined,
-              label: controller.requiresPreparation.value
-                  ? 'Va a cocina / barra'
-                  : 'Entrega directa (sin comanda)',
-              value: controller.requiresPreparation.value,
-              accent: AppColors.primary,
-              onChanged: (v) => controller.requiresPreparation.value = v,
-            )),
+        Obx(
+          () => _ToggleTile(
+            icon: Icons.kitchen_outlined,
+            label: controller.requiresPreparation.value
+                ? 'Va a cocina / barra'
+                : 'Entrega directa (sin comanda)',
+            value: controller.requiresPreparation.value,
+            accent: AppColors.primary,
+            onChanged: (v) => controller.requiresPreparation.value = v,
+          ),
+        ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: Obx(() => _ToggleTile(
-                    icon: Icons.check_circle_outline,
-                    label: 'Disponible',
-                    value: controller.isAvailable.value,
-                    accent: AppColors.success,
-                    onChanged: (v) => controller.isAvailable.value = v,
-                  )),
+              child: Obx(
+                () => _ToggleTile(
+                  icon: Icons.check_circle_outline,
+                  label: 'Disponible',
+                  value: controller.isAvailable.value,
+                  accent: AppColors.success,
+                  onChanged: (v) => controller.isAvailable.value = v,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Obx(() => _ToggleTile(
-                    icon: Icons.star_border,
-                    label: 'Destacado',
-                    value: controller.isFeatured.value,
-                    accent: AppColors.warning,
-                    onChanged: (v) => controller.isFeatured.value = v,
-                  )),
+              child: Obx(
+                () => _ToggleTile(
+                  icon: Icons.star_border,
+                  label: 'Destacado',
+                  value: controller.isFeatured.value,
+                  accent: AppColors.warning,
+                  onChanged: (v) => controller.isFeatured.value = v,
+                ),
+              ),
             ),
           ],
         ),
@@ -491,14 +498,17 @@ class ProductFormPage extends GetView<ProductFormController> {
                     children: [
                       FilledButton.tonalIcon(
                         onPressed: () async {
-                          final newUrl =
-                              await ImageUploadService.pickAndUpload(context);
+                          final newUrl = await ImageUploadService.pickAndUpload(
+                            context,
+                          );
                           if (newUrl != null && newUrl.isNotEmpty) {
                             controller.imageUrlController.text = newUrl;
                           }
                         },
                         icon: Icon(
-                          hasImg ? Icons.swap_horiz : Icons.add_a_photo_outlined,
+                          hasImg
+                              ? Icons.swap_horiz
+                              : Icons.add_a_photo_outlined,
                           size: 18,
                         ),
                         label: Text(hasImg ? 'Cambiar' : 'Subir foto'),
@@ -509,7 +519,8 @@ class ProductFormPage extends GetView<ProductFormController> {
                           tooltip: 'Quitar foto',
                           icon: const Icon(Icons.delete_outline),
                           color: AppColors.error,
-                          onPressed: () => controller.imageUrlController.clear(),
+                          onPressed: () =>
+                              controller.imageUrlController.clear(),
                         ),
                       ],
                     ],
@@ -574,13 +585,15 @@ class ProductFormPage extends GetView<ProductFormController> {
       icon: Icons.inventory_2_outlined,
       accent: AppColors.info,
       children: [
-        Obx(() => _ToggleTile(
-              icon: Icons.inventory_2_outlined,
-              label: 'Rastrear inventario',
-              value: controller.trackInventory.value,
-              accent: AppColors.info,
-              onChanged: (v) => controller.trackInventory.value = v,
-            )),
+        Obx(
+          () => _ToggleTile(
+            icon: Icons.inventory_2_outlined,
+            label: 'Rastrear inventario',
+            value: controller.trackInventory.value,
+            accent: AppColors.info,
+            onChanged: (v) => controller.trackInventory.value = v,
+          ),
+        ),
         Obx(() {
           if (!controller.trackInventory.value) {
             return const SizedBox.shrink();
@@ -636,23 +649,25 @@ class ProductFormPage extends GetView<ProductFormController> {
           ),
         ),
         const SizedBox(height: 8),
-        Obx(() => Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ...controller.tags.map(
-                  (tag) => _ChipTag(
-                    label: tag,
-                    accent: AppColors.primary,
-                    onDelete: () => controller.removeTag(tag),
-                  ),
+        Obx(
+          () => Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              ...controller.tags.map(
+                (tag) => _ChipTag(
+                  label: tag,
+                  accent: AppColors.primary,
+                  onDelete: () => controller.removeTag(tag),
                 ),
-                _ChipAdd(
-                  label: 'Agregar etiqueta',
-                  onTap: () => _showAddTagDialog(context),
-                ),
-              ],
-            )),
+              ),
+              _ChipAdd(
+                label: 'Agregar etiqueta',
+                onTap: () => _showAddTagDialog(context),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 14),
         const Text(
           'Alérgenos',
@@ -664,40 +679,42 @@ class ProductFormPage extends GetView<ProductFormController> {
           ),
         ),
         const SizedBox(height: 8),
-        Obx(() => Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ...controller.allergens.map(
-                  (allergen) => _ChipTag(
-                    label: allergen,
-                    accent: AppColors.error,
-                    onDelete: () => controller.removeAllergen(allergen),
-                  ),
+        Obx(
+          () => Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              ...controller.allergens.map(
+                (allergen) => _ChipTag(
+                  label: allergen,
+                  accent: AppColors.error,
+                  onDelete: () => controller.removeAllergen(allergen),
                 ),
-                _ChipAdd(
-                  label: 'Agregar alérgeno',
-                  onTap: () => _showAddAllergenDialog(context),
-                ),
-              ],
-            )),
+              ),
+              _ChipAdd(
+                label: 'Agregar alérgeno',
+                onTap: () => _showAddAllergenDialog(context),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
   void _showAddTagDialog(BuildContext context) => _showAddChipDialog(
-        context: context,
-        title: 'Agregar etiqueta',
-        hint: 'Nombre de la etiqueta',
-        onAdd: controller.addTag,
-      );
+    context: context,
+    title: 'Agregar etiqueta',
+    hint: 'Nombre de la etiqueta',
+    onAdd: controller.addTag,
+  );
 
   void _showAddAllergenDialog(BuildContext context) => _showAddChipDialog(
-        context: context,
-        title: 'Agregar alérgeno',
-        hint: 'Nombre del alérgeno',
-        onAdd: controller.addAllergen,
-      );
+    context: context,
+    title: 'Agregar alérgeno',
+    hint: 'Nombre del alérgeno',
+    onAdd: controller.addAllergen,
+  );
 
   void _showAddChipDialog({
     required BuildContext context,
@@ -708,9 +725,7 @@ class ProductFormPage extends GetView<ProductFormController> {
     final textController = TextEditingController();
     AppDialog.show(
       AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title),
         content: TextField(
           controller: textController,
@@ -788,7 +803,9 @@ class _ToggleTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: value ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: value
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),

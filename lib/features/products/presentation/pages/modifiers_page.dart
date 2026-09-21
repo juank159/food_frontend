@@ -60,7 +60,7 @@ class _ModifiersPageState extends State<ModifiersPage> {
         ),
       ),
       bottomNavigationBar: AppPrimaryActionBar(
-        label: 'Nuevo modificador',
+        label: 'Nuevo extra',
         icon: Icons.add,
         onPressed: _navigateToCreateModifier,
       ),
@@ -72,12 +72,10 @@ class _ModifiersPageState extends State<ModifiersPage> {
   Widget _buildHeader() {
     return Obx(() {
       final total = controller.modifiers.length;
-      final available = controller.modifiers
-          .where((m) => m.isAvailable)
-          .length;
+      final available = controller.modifiers.where((m) => m.isAvailable).length;
       final unavailable = total - available;
       return AppGradientHeader(
-        title: 'Modificadores',
+        title: 'Extras',
         subtitle: 'Toppings, extras y sustituciones',
         leading: GestureDetector(
           onTap: () => Navigator.of(context).pop(),
@@ -88,22 +86,20 @@ class _ModifiersPageState extends State<ModifiersPage> {
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.arrow_back,
-              color: Colors.white,
-              size: 20,
-            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
         ),
-        trailing: Obx(() => _GradientToggleButton(
-              active: controller.showOnlyAvailable.value,
-              icon: Icons.filter_alt_outlined,
-              activeIcon: Icons.filter_alt,
-              tooltip: controller.showOnlyAvailable.value
-                  ? 'Solo disponibles'
-                  : 'Mostrar todos',
-              onTap: controller.toggleAvailableFilter,
-            )),
+        trailing: Obx(
+          () => _GradientToggleButton(
+            active: controller.showOnlyAvailable.value,
+            icon: Icons.filter_alt_outlined,
+            activeIcon: Icons.filter_alt,
+            tooltip: controller.showOnlyAvailable.value
+                ? 'Solo disponibles'
+                : 'Mostrar todos',
+            onTap: controller.toggleAvailableFilter,
+          ),
+        ),
         chips: [
           AppKpiChip(
             icon: Icons.add_circle_outline,
@@ -146,10 +142,10 @@ class _ModifiersPageState extends State<ModifiersPage> {
             if (controller.modifiers.isEmpty) {
               return AppEmptyState(
                 icon: Icons.add_circle_outline,
-                title: 'Aún no hay modificadores',
+                title: 'Aún no hay extras',
                 message:
-                    'Los modificadores son los extras o sustituciones que el cliente puede pedir sobre un producto (ej. queso extra, sin tomate).',
-                actionLabel: 'Nuevo modificador',
+                    'Los extras son las opciones que el cliente puede agregar o quitar a un producto (ej. queso extra, sin tomate, elegir gaseosa).',
+                actionLabel: 'Nuevo extra',
                 actionIcon: Icons.add,
                 onAction: _navigateToCreateModifier,
               );
@@ -157,37 +153,39 @@ class _ModifiersPageState extends State<ModifiersPage> {
             return RefreshIndicator(
               color: AppColors.primary,
               onRefresh: controller.refreshModifiers,
-              child: LayoutBuilder(builder: (context, constraints) {
-                final w = constraints.maxWidth;
-                final cross = w > 1200
-                    ? 4
-                    : w > 800
-                        ? 3
-                        : w > 600
-                            ? 2
-                            : 1;
-                final cardW = (w - 16 * 2 - 16 * (cross - 1)) / cross;
-                final aspect = (cardW / 220).clamp(0.7, 1.3);
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: cross,
-                    childAspectRatio: aspect,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: controller.modifiers.length,
-                  itemBuilder: (context, index) {
-                    final modifier = controller.modifiers[index];
-                    return ModifierCard(
-                      modifier: modifier,
-                      onTap: () => _showModifierDetails(context, modifier),
-                      onEdit: () => _navigateToEditModifier(modifier),
-                      onDelete: () => _confirmDelete(context, modifier),
-                    );
-                  },
-                );
-              }),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final cross = w > 1200
+                      ? 4
+                      : w > 800
+                      ? 3
+                      : w > 600
+                      ? 2
+                      : 1;
+                  final cardW = (w - 16 * 2 - 16 * (cross - 1)) / cross;
+                  final aspect = (cardW / 220).clamp(0.7, 1.3);
+                  return GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cross,
+                      childAspectRatio: aspect,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: controller.modifiers.length,
+                    itemBuilder: (context, index) {
+                      final modifier = controller.modifiers[index];
+                      return ModifierCard(
+                        modifier: modifier,
+                        onTap: () => _showModifierDetails(context, modifier),
+                        onEdit: () => _navigateToEditModifier(modifier),
+                        onDelete: () => _confirmDelete(context, modifier),
+                      );
+                    },
+                  );
+                },
+              ),
             );
           }),
         ),
@@ -202,11 +200,8 @@ class _ModifiersPageState extends State<ModifiersPage> {
         textInputAction: TextInputAction.search,
         onSubmitted: controller.searchModifiers,
         decoration: InputDecoration(
-          hintText: 'Buscar modificadores…',
-          hintStyle: const TextStyle(
-            color: AppColors.textHint,
-            fontSize: 14,
-          ),
+          hintText: 'Buscar extras…',
+          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
           prefixIcon: const Icon(
             Icons.search,
             size: 20,
@@ -228,8 +223,7 @@ class _ModifiersPageState extends State<ModifiersPage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide:
-                const BorderSide(color: AppColors.primary, width: 1.5),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
           ),
         ),
       ),
@@ -254,7 +248,11 @@ class _ModifiersPageState extends State<ModifiersPage> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: EdgeInsets.fromLTRB(
-              20, 12, 20, MediaQuery.of(innerCtx).viewPadding.bottom + 16),
+            20,
+            12,
+            20,
+            MediaQuery.of(innerCtx).viewPadding.bottom + 16,
+          ),
           child: SingleChildScrollView(
             controller: scrollController,
             child: Column(
@@ -425,12 +423,10 @@ class _ModifiersPageState extends State<ModifiersPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('Eliminar modificador'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar extra'),
         content: Text(
-          '¿Querés eliminar el modificador "${modifier.name}"? Esta acción no se puede deshacer.',
+          '¿Querés eliminar el extra "${modifier.name}"? Esta acción no se puede deshacer.',
         ),
         actions: [
           TextButton(
@@ -459,8 +455,7 @@ class _ModifiersPageState extends State<ModifiersPage> {
   }
 
   void _navigateToEditModifier(Modifier modifier) async {
-    final result =
-        await NavigationService.toEditModifier(modifier: modifier);
+    final result = await NavigationService.toEditModifier(modifier: modifier);
     if (result != null) controller.refreshModifiers();
   }
 }
@@ -485,8 +480,7 @@ class _GradientToggleButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color:
-            active ? Colors.white : Colors.white.withValues(alpha: 0.18),
+        color: active ? Colors.white : Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,

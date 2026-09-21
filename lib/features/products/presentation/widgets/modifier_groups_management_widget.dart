@@ -20,16 +20,17 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 ///   * eliminar grupos (con confirmación)
 ///   * asignar modificadores existentes (multi-select desde un bottom sheet)
 ///   * quitar modificadores asignados (chip "x")
-class ModifierGroupsManagementWidget
-    extends GetView<ProductFormController> {
+class ModifierGroupsManagementWidget extends GetView<ProductFormController> {
   const ModifierGroupsManagementWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
     return AppFormSection(
-      title: 'Grupos de modificadores',
+      title: 'Extras y acompañantes',
       subtitle:
-          'Agrupá los modificadores y definí cómo los selecciona el cliente.',
+          'Opciones adicionales para este producto (ej. "Bebida": Coca-Cola '
+          'Cero, Maltín Polar, ninguna). El cliente las elige al pedir — '
+          'no hace falta crear una variante nueva por cada combinación.',
       icon: Icons.dynamic_form_outlined,
       accent: AppColors.info,
       children: [
@@ -49,8 +50,7 @@ class ModifierGroupsManagementWidget
                     onDelete: () => _confirmDelete(context, group),
                     onAssignModifiers: () =>
                         _showAssignModifiersSheet(context, group),
-                    onRemoveModifier: (m) =>
-                        controller.removeModifier(
+                    onRemoveModifier: (m) => controller.removeModifier(
                       groupId: group.id,
                       modifierId: m.id,
                     ),
@@ -65,15 +65,13 @@ class ModifierGroupsManagementWidget
           child: OutlinedButton.icon(
             onPressed: () => _showGroupDialog(context),
             icon: const Icon(Icons.add),
-            label: const Text('Agregar grupo'),
+            label: const Text('Agregar extra'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              side: BorderSide(
-                color: AppColors.info.withValues(alpha: 0.5),
-              ),
+              side: BorderSide(color: AppColors.info.withValues(alpha: 0.5)),
               foregroundColor: AppColors.info,
             ),
           ),
@@ -99,7 +97,7 @@ class ModifierGroupsManagementWidget
           ),
           const SizedBox(height: 10),
           const Text(
-            'Sin grupos de modificadores',
+            'Sin extras configurados',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -108,7 +106,8 @@ class ModifierGroupsManagementWidget
           ),
           const SizedBox(height: 4),
           const Text(
-            'Creá un grupo para asignar modificadores y definir reglas de selección.',
+            'Creá una opción (ej. "Bebida") y agregale los extras que el '
+            'cliente puede elegir (ej. Coca-Cola Cero, Maltín Polar).',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
@@ -141,15 +140,14 @@ class ModifierGroupsManagementWidget
     final descriptionController = TextEditingController(
       text: group?.description ?? '',
     );
-    final selectionType =
-        Rx<SelectionType>(group?.selectionType ?? SelectionType.single);
+    final selectionType = Rx<SelectionType>(
+      group?.selectionType ?? SelectionType.single,
+    );
     final isRequired = RxBool(group?.isRequired ?? false);
 
     await AppDialog.show(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -181,7 +179,7 @@ class ModifierGroupsManagementWidget
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            isEdit ? 'Editar grupo' : 'Nuevo grupo',
+                            isEdit ? 'Editar opción' : 'Nueva opción',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -202,8 +200,8 @@ class ModifierGroupsManagementWidget
                       controller: nameController,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: appInputDecoration(
-                        label: 'Nombre del grupo *',
-                        hint: 'Ej: Tamaño, Extras, Salsas',
+                        label: 'Nombre de la opción *',
+                        hint: 'Ej: Bebida, Tamaño, Salsas',
                         prefixIcon: Icons.label_outline,
                       ),
                       validator: (v) {
@@ -225,15 +223,19 @@ class ModifierGroupsManagementWidget
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Obx(() => _SelectionTypeSelector(
-                          value: selectionType.value,
-                          onChanged: (v) => selectionType.value = v,
-                        )),
+                    Obx(
+                      () => _SelectionTypeSelector(
+                        value: selectionType.value,
+                        onChanged: (v) => selectionType.value = v,
+                      ),
+                    ),
                     const SizedBox(height: 12),
-                    Obx(() => _RequiredToggle(
-                          value: isRequired.value,
-                          onChanged: (v) => isRequired.value = v,
-                        )),
+                    Obx(
+                      () => _RequiredToggle(
+                        value: isRequired.value,
+                        onChanged: (v) => isRequired.value = v,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -284,8 +286,7 @@ class ModifierGroupsManagementWidget
                           child: OutlinedButton(
                             onPressed: () => Get.back<void>(),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -297,97 +298,85 @@ class ModifierGroupsManagementWidget
                         const SizedBox(width: 10),
                         Expanded(
                           flex: 2,
-                          child: Obx(() => FilledButton.icon(
-                                onPressed:
-                                    controller.isModifierGroupSaving.value
-                                        ? null
-                                        : () async {
-                                            if (!formKey.currentState!
-                                                .validate()) {
-                                              return;
-                                            }
-                                            final min =
-                                                int.tryParse(
-                                                        minController.text
-                                                            .trim()) ??
-                                                    0;
-                                            final maxText =
-                                                maxController.text.trim();
-                                            final max = maxText.isEmpty
-                                                ? null
-                                                : int.tryParse(maxText);
-                                            final ok = isEdit
-                                                ? await controller
-                                                    .editModifierGroup(
-                                                    groupId: group.id,
-                                                    name: nameController.text
+                          child: Obx(
+                            () => FilledButton.icon(
+                              onPressed: controller.isModifierGroupSaving.value
+                                  ? null
+                                  : () async {
+                                      if (!formKey.currentState!.validate()) {
+                                        return;
+                                      }
+                                      final min =
+                                          int.tryParse(
+                                            minController.text.trim(),
+                                          ) ??
+                                          0;
+                                      final maxText = maxController.text.trim();
+                                      final max = maxText.isEmpty
+                                          ? null
+                                          : int.tryParse(maxText);
+                                      final ok = isEdit
+                                          ? await controller.editModifierGroup(
+                                              groupId: group.id,
+                                              name: nameController.text.trim(),
+                                              description:
+                                                  descriptionController.text
+                                                      .trim()
+                                                      .isEmpty
+                                                  ? null
+                                                  : descriptionController.text
                                                         .trim(),
-                                                    description:
-                                                        descriptionController
-                                                                .text
-                                                                .trim()
-                                                                .isEmpty
-                                                            ? null
-                                                            : descriptionController
-                                                                .text
-                                                                .trim(),
-                                                    selectionType:
-                                                        selectionType.value,
-                                                    isRequired:
-                                                        isRequired.value,
-                                                    minSelections: min,
-                                                    maxSelections: max,
-                                                  )
-                                                : await controller
-                                                    .addModifierGroup(
-                                                    name: nameController.text
+                                              selectionType:
+                                                  selectionType.value,
+                                              isRequired: isRequired.value,
+                                              minSelections: min,
+                                              maxSelections: max,
+                                            )
+                                          : await controller.addModifierGroup(
+                                              name: nameController.text.trim(),
+                                              description:
+                                                  descriptionController.text
+                                                      .trim()
+                                                      .isEmpty
+                                                  ? null
+                                                  : descriptionController.text
                                                         .trim(),
-                                                    description:
-                                                        descriptionController
-                                                                .text
-                                                                .trim()
-                                                                .isEmpty
-                                                            ? null
-                                                            : descriptionController
-                                                                .text
-                                                                .trim(),
-                                                    selectionType:
-                                                        selectionType.value,
-                                                    isRequired:
-                                                        isRequired.value,
-                                                    minSelections: min,
-                                                    maxSelections: max,
-                                                  );
-                                            if (ok) {
-                                              Get.back<void>();
-                                            }
-                                          },
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                                              selectionType:
+                                                  selectionType.value,
+                                              isRequired: isRequired.value,
+                                              minSelections: min,
+                                              maxSelections: max,
+                                            );
+                                      if (ok) {
+                                        Get.back<void>();
+                                      }
+                                    },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
                                 ),
-                                icon: controller
-                                        .isModifierGroupSaving.value
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                            Colors.white,
-                                          ),
-                                        ),
-                                      )
-                                    : const Icon(Icons.check, size: 16),
-                                label: Text(isEdit ? 'Guardar' : 'Crear'),
-                              )),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: controller.isModifierGroupSaving.value
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : const Icon(Icons.check, size: 16),
+                              label: Text(isEdit ? 'Guardar' : 'Crear'),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -406,19 +395,14 @@ class ModifierGroupsManagementWidget
     descriptionController.dispose();
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    ModifierGroup group,
-  ) async {
+  Future<void> _confirmDelete(BuildContext context, ModifierGroup group) async {
     final theme = Theme.of(context);
     await Get.dialog<void>(
       AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('Eliminar grupo'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar opción'),
         content: Text(
-          '¿Seguro que querés eliminar el grupo "${group.name}"?\nLos modificadores asociados no se borran.',
+          '¿Seguro que querés eliminar "${group.name}"?\nLos extras asociados no se borran.',
         ),
         actions: [
           TextButton(
@@ -449,8 +433,8 @@ class ModifierGroupsManagementWidget
     if (!context.mounted) return;
     if (available.isEmpty) {
       AppSnackbar.show(
-        'Sin modificadores',
-        'No hay modificadores disponibles. Creá uno desde el módulo de modificadores.',
+        'Sin extras',
+        'No hay extras disponibles todavía. Creá uno primero.',
         snackPosition: SnackPosition.TOP,
         backgroundColor: AppColors.warning.withValues(alpha: 0.95),
         colorText: Colors.white,
@@ -459,15 +443,16 @@ class ModifierGroupsManagementWidget
     }
 
     final assignedIds = group.modifiers.map((m) => m.id).toSet();
-    final assignable =
-        available.where((m) => !assignedIds.contains(m.id)).toList();
+    final assignable = available
+        .where((m) => !assignedIds.contains(m.id))
+        .toList();
 
     final selected = <String>{}.obs;
 
     if (assignable.isEmpty) {
       AppSnackbar.show(
         'Todos asignados',
-        'Todos los modificadores existentes ya están en este grupo.',
+        'Todos los extras existentes ya están en esta opción.',
         snackPosition: SnackPosition.TOP,
         backgroundColor: AppColors.info.withValues(alpha: 0.95),
         colorText: Colors.white,
@@ -500,15 +485,11 @@ class ModifierGroupsManagementWidget
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.add_link,
-                    size: 18,
-                    color: AppColors.info,
-                  ),
+                  const Icon(Icons.add_link, size: 18, color: AppColors.info),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Asignar modificadores a "${group.name}"',
+                      'Agregar extras a "${group.name}"',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -578,17 +559,16 @@ class ModifierGroupsManagementWidget
                       flex: 2,
                       child: Obx(() {
                         final count = selected.length;
-                        final saving =
-                            controller.isModifierGroupSaving.value;
+                        final saving = controller.isModifierGroupSaving.value;
                         return FilledButton.icon(
                           onPressed: count == 0 || saving
                               ? null
                               : () async {
-                                  final ok =
-                                      await controller.addModifiersToGroup(
-                                    groupId: group.id,
-                                    modifierIds: selected.toList(),
-                                  );
+                                  final ok = await controller
+                                      .addModifiersToGroup(
+                                        groupId: group.id,
+                                        modifierIds: selected.toList(),
+                                      );
                                   if (ok) {
                                     Get.back<void>();
                                   }
@@ -596,8 +576,7 @@ class ModifierGroupsManagementWidget
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -608,17 +587,14 @@ class ModifierGroupsManagementWidget
                                   height: 14,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
                                       Colors.white,
                                     ),
                                   ),
                                 )
                               : const Icon(Icons.check, size: 16),
                           label: Text(
-                            count == 0
-                                ? 'Asignar'
-                                : 'Asignar ($count)',
+                            count == 0 ? 'Asignar' : 'Asignar ($count)',
                           ),
                         );
                       }),
@@ -657,8 +633,9 @@ class _ModifierGroupItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectionLabel = group.allowsMultiple ? 'Múltiple' : 'Única';
-    final selectionColor =
-        group.allowsMultiple ? AppColors.info : AppColors.primary;
+    final selectionColor = group.allowsMultiple
+        ? AppColors.info
+        : AppColors.primary;
     final maxLabel = group.maxSelections?.toString() ?? '∞';
 
     return Container(
@@ -831,12 +808,8 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = neutral
-        ? AppColors.background
-        : color.withValues(alpha: 0.10);
-    final border = neutral
-        ? AppColors.border
-        : color.withValues(alpha: 0.3);
+    final bg = neutral ? AppColors.background : color.withValues(alpha: 0.10);
+    final border = neutral ? AppColors.border : color.withValues(alpha: 0.3);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -868,10 +841,7 @@ class _ModifierChip extends StatelessWidget {
   final Modifier modifier;
   final VoidCallback onRemove;
 
-  const _ModifierChip({
-    required this.modifier,
-    required this.onRemove,
-  });
+  const _ModifierChip({required this.modifier, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -880,9 +850,7 @@ class _ModifierChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -925,10 +893,7 @@ class _SelectionTypeSelector extends StatelessWidget {
   final SelectionType value;
   final ValueChanged<SelectionType> onChanged;
 
-  const _SelectionTypeSelector({
-    required this.value,
-    required this.onChanged,
-  });
+  const _SelectionTypeSelector({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -1048,10 +1013,7 @@ class _RequiredToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _RequiredToggle({
-    required this.value,
-    required this.onChanged,
-  });
+  const _RequiredToggle({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -1131,9 +1093,7 @@ class _AssignableModifierTile extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              selected
-                  ? Icons.check_box
-                  : Icons.check_box_outline_blank,
+              selected ? Icons.check_box : Icons.check_box_outline_blank,
               size: 20,
               color: selected ? AppColors.primary : AppColors.textSecondary,
             ),
@@ -1162,10 +1122,7 @@ class _AssignableModifierTile extends StatelessWidget {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: modifier.price > 0
                     ? AppColors.primary.withValues(alpha: 0.10)

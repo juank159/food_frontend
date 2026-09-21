@@ -94,7 +94,7 @@ class _ProductsHeader extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Catálogo, categorías y modificadores',
+                      'Catálogo, categorías y extras',
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
@@ -176,7 +176,7 @@ class _ProductsHeader extends StatelessWidget {
                       children: [
                         Icon(FontAwesomeIcons.circlePlus, size: 16),
                         SizedBox(width: 12),
-                        Text('Nuevo modificador'),
+                        Text('Nuevo extra'),
                       ],
                     ),
                   ),
@@ -231,7 +231,7 @@ class _ProductsHeader extends StatelessWidget {
               tabs: const [
                 Tab(text: 'Productos'),
                 Tab(text: 'Categorías'),
-                Tab(text: 'Modificadores'),
+                Tab(text: 'Extras'),
               ],
             ),
           ),
@@ -257,13 +257,17 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
     setState(() => _loading = true);
 
     try {
-      final products = SafeGet.find<ProductsController>()?.products.toList() ?? [];
-      final categories = SafeGet.find<CategoriesController>()?.categories.toList() ?? [];
+      final products =
+          SafeGet.find<ProductsController>()?.products.toList() ?? [];
+      final categories =
+          SafeGet.find<CategoriesController>()?.categories.toList() ?? [];
 
       if (products.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay productos para generar el PDF.')),
+            const SnackBar(
+              content: Text('No hay productos para generar el PDF.'),
+            ),
           );
         }
         return;
@@ -274,10 +278,7 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
         categories: categories,
       );
 
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'carta.pdf',
-      );
+      await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -336,7 +337,7 @@ class _ProductsTab extends GetView<ProductsController> {
                 icon: Icons.inventory_2_outlined,
                 title: 'Aún no hay productos',
                 message:
-                    'Empezá creando tu primer producto. Vas a poder asignarle categoría, variantes y modificadores.',
+                    'Empezá creando tu primer producto. Vas a poder asignarle categoría, variantes y extras.',
                 actionLabel: 'Crear producto',
                 actionIcon: Icons.add,
                 onAction: () async {
@@ -376,7 +377,8 @@ class _ProductsTab extends GetView<ProductsController> {
                       ? 3
                       : 2;
                   final gap = width < 600 ? 10.0 : 14.0;
-                  final cardWidth = (width - 16 * 2 - gap * (cross - 1)) / cross;
+                  final cardWidth =
+                      (width - 16 * 2 - gap * (cross - 1)) / cross;
                   // Imagen 1:1 + bloque de info (~90px). Calculamos el
                   // aspect ratio real para evitar overflow.
                   final aspect = cardWidth / (cardWidth + 90);
@@ -438,10 +440,11 @@ class _ProductsCategoryChips extends StatelessWidget {
 
     return Obx(() {
       final presentIds = pc.products.map((p) => p.categoryId).toSet();
-      final cats = cc.categories
-          .where((c) => c.isActive && presentIds.contains(c.id))
-          .toList()
-        ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+      final cats =
+          cc.categories
+              .where((c) => c.isActive && presentIds.contains(c.id))
+              .toList()
+            ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
       if (cats.length < 2) return const SizedBox.shrink();
 
