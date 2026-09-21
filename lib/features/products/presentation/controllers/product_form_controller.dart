@@ -335,10 +335,14 @@ class ProductFormController extends GetxController {
           NumberFormatHelper.formatNumber(product.minStockAlert!);
     }
 
-    // Load variants
-    variants.value = product.variants
-        .map((v) => VariantFormData.fromEntity(v))
-        .toList();
+    // Load variants — se ordenan explícitamente por sortOrder acá para
+    // no depender de en qué orden las haya devuelto el backend (una
+    // edición no debería "mover" visualmente una variante que nunca
+    // cambió su posición).
+    final sortedVariants = List.of(product.variants)
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    variants.value =
+        sortedVariants.map((v) => VariantFormData.fromEntity(v)).toList();
 
     // Load modifier groups (sólo informativos en modo edición)
     modifierGroups.value = List<ModifierGroup>.from(product.modifierGroups);
