@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../../../core/config/constants/modifier_enums.dart';
+import '../../../../core/config/formatters/currency_formatter.dart';
 
 /// Order Item Modifier Entity
 /// Representa un modificador aplicado a un ítem de orden específico
@@ -57,13 +58,17 @@ class OrderItemModifier extends Equatable {
     return '$quantityText$modifierName';
   }
 
-  /// Obtiene el texto del precio
+  /// Obtiene el texto del precio — `+$2.000` (sin decimales, con
+  /// separador de miles, igual que el resto de la app). Antes
+  /// interpolaba el `double` crudo (`'+\$$unitPrice'`), lo que
+  /// mostraba cosas como "+$2000.0".
   String get priceText {
     if (unitPrice == 0) return '';
+    final formatted = CurrencyFormatter.format(unitPrice);
     if (quantity > 1) {
-      return '+\$$unitPrice c/u';
+      return '+$formatted c/u';
     }
-    return '+\$$unitPrice';
+    return '+$formatted';
   }
 
   @override
