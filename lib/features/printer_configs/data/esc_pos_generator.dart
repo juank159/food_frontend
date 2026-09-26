@@ -98,6 +98,11 @@ class TicketItem {
   /// Cremas/sabores elegidos (uno por bola) — se imprimen en la comanda.
   final List<String> selectedFlavors;
 
+  /// Extras/adicionales elegidos (ej. "Coca-Cola Cero"). Se imprimen
+  /// aparte de `variantName`: sin precio en la comanda, con precio en
+  /// el recibo (ver `EscPosGenerator`).
+  final List<TicketModifierLine> modifiers;
+
   const TicketItem({
     required this.quantity,
     required this.name,
@@ -109,6 +114,21 @@ class TicketItem {
     this.categoryName,
     this.categoryPrintsKitchen = true,
     this.selectedFlavors = const [],
+    this.modifiers = const [],
+  });
+}
+
+/// Un extra/adicional elegido para un item (ej. "Coca-Cola Cero", $500).
+class TicketModifierLine {
+  final String name;
+  final int quantity;
+  /// Precio total de este extra (unitPrice * quantity) — 0 = gratis.
+  final double subtotal;
+
+  const TicketModifierLine({
+    required this.name,
+    required this.quantity,
+    required this.subtotal,
   });
 }
 
@@ -322,6 +342,19 @@ class EscPosGenerator {
           ),
         );
       }
+      // Extras/adicionales elegidos (ej. "Coca-Cola Cero") — sin precio,
+      // cocina/barra solo necesita saber CON QUÉ se entrega el plato.
+      if (item.modifiers.isNotEmpty) {
+        final modifiersLine = item.modifiers
+            .map((m) => m.quantity > 1 ? '${m.quantity}x ${m.name}' : m.name)
+            .join(', ');
+        bytes.addAll(
+          gen.text(
+            '  + ${_sanitize(modifiersLine)}',
+            styles: const PosStyles(bold: true),
+          ),
+        );
+      }
       if (item.specialInstructions != null &&
           item.specialInstructions!.isNotEmpty) {
         bytes.addAll(
@@ -478,6 +511,25 @@ class EscPosGenerator {
       );
       if (item.variantName != null && item.variantName!.isNotEmpty) {
         bytes.addAll(gen.text('  ${_sanitize(item.variantName!)}'));
+      }
+      // Extras/adicionales, CADA UNO con su precio — el cliente paga por
+      // esto, tiene que verlo explícito y no solo el nombre.
+      for (final mod in item.modifiers) {
+        final qtyPrefix = mod.quantity > 1 ? '${mod.quantity}x ' : '';
+        final priceText = mod.subtotal > 0 ? _money(mod.subtotal) : 'Gratis';
+        bytes.addAll(
+          gen.row([
+            PosColumn(
+              text: '  + $qtyPrefix${_sanitize(mod.name)}',
+              width: 8,
+            ),
+            PosColumn(
+              text: priceText,
+              width: 4,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
       }
       if (item.specialInstructions != null &&
           item.specialInstructions!.isNotEmpty) {

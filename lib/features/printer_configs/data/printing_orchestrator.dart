@@ -555,21 +555,25 @@ class PrintingOrchestrator {
   }
 
   static TicketItem _toTicketItem(OrderItemModel item) {
-    // Combina variante + modificadores en una sola línea descriptiva.
-    // Ej: "2 bolas · Extra crema" o solo "2 bolas" o solo "Extra crema".
-    final modifiersText = item.modifiers
-        ?.map((m) => m.modifierName ?? '')
-        .where((s) => s.isNotEmpty)
-        .join(', ');
-    final parts = [
-      if (item.variantName != null && item.variantName!.isNotEmpty)
-        item.variantName!,
-      if (modifiersText != null && modifiersText.isNotEmpty) modifiersText,
-    ];
+    // El JSON del backend trae el nombre del extra en el objeto anidado
+    // `modifier.name`, NO en el campo plano `modifier_name` (ese nunca
+    // llega). Antes esto leía `m.modifierName` directo y siempre salía
+    // vacío, así que el extra jamás aparecía en el ticket impreso —
+    // aunque sí se veía bien en pantalla (esa parte usa `toEntity()`,
+    // que ya tenía el fallback correcto).
+    final modifiers = (item.modifiers ?? [])
+        .map(
+          (m) => TicketModifierLine(
+            name: m.modifier?.name ?? m.modifierName ?? 'Extra',
+            quantity: m.quantity,
+            subtotal: m.subtotal,
+          ),
+        )
+        .toList();
     return TicketItem(
       quantity: item.quantity,
       name: item.productName,
-      variantName: parts.isNotEmpty ? parts.join(' · ') : null,
+      variantName: item.variantName,
       unitPrice: item.unitPrice,
       subtotal: item.subtotal,
       specialInstructions: item.specialInstructions,
@@ -577,6 +581,7 @@ class PrintingOrchestrator {
       categoryName: item.categoryName,
       categoryPrintsKitchen: item.categoryPrintsKitchen,
       selectedFlavors: item.selectedFlavors,
+      modifiers: modifiers,
     );
   }
 
