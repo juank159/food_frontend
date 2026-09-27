@@ -44,6 +44,7 @@ class TabPaymentDialog extends StatefulWidget {
 }
 
 class _TabPaymentDialogState extends State<TabPaymentDialog> {
+  final TextEditingController _amountCtrl = TextEditingController();
   final TextEditingController _receivedCtrl = TextEditingController();
   final TextEditingController _referenceCtrl = TextEditingController();
   final TextEditingController _notesCtrl = TextEditingController();
@@ -55,8 +56,15 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
 
   TabSession get session => widget.session;
 
-  /// El chooser cobra el SALDO completo de la cuenta de una.
-  double get _amount => session.balance;
+  /// Monto a cobrar — precargado con el saldo completo (el flujo de
+  /// siempre sigue funcionando igual con un solo toque), pero editable:
+  /// si el cliente dice "pago 30 de 50", el cajero lo cambia acá mismo
+  /// sin tener que entrar a "Dividir cuenta". Funciona con cualquier
+  /// método, incluido Bre-B (el backend ya acepta un monto parcial, ver
+  /// `processTabPayment`/`BrebService.createCharge`).
+  double get _amount =>
+      (NumberFormatHelper.parseFormattedInt(_amountCtrl.text) ?? 0)
+          .toDouble();
 
   double get _received =>
       (NumberFormatHelper.parseFormattedInt(_receivedCtrl.text) ?? 0)
@@ -64,21 +72,30 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
 
   bool get _canSubmit {
     if (_amount <= 0) return false;
+    if (_amount > session.balance + 0.01) return false;
     if (_selectedMethod == PaymentMethod.cash && _received > 0) {
       if (_received < _amount) return false;
     }
     return true;
   }
 
+  void _useFullBalance() {
+    _amountCtrl.text = NumberFormatHelper.formatNumber(session.balance.round());
+  }
+
   @override
   void initState() {
     super.initState();
+    _amountCtrl.text = NumberFormatHelper.formatNumber(session.balance.round());
+    _amountCtrl.addListener(_rebuild);
     _receivedCtrl.addListener(_rebuild);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccounts());
   }
 
   @override
   void dispose() {
+    _amountCtrl.removeListener(_rebuild);
+    _amountCtrl.dispose();
     _receivedCtrl.removeListener(_rebuild);
     _receivedCtrl.dispose();
     _referenceCtrl.dispose();
@@ -98,16 +115,27 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     });
   }
 
-  List<TenantPaymentAccount> get _accountsForMethod => _accounts
-      .where((a) => a.category == _selectedMethod && a.isActive)
-      .toList()
-    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  // Bre-B no tiene "cuenta" seleccionable acá: la config real vive en las
+  // llaves (Ajustes → Bre-B) y el cobro nunca usa lo que se elija en este
+  // selector para ese método — mostrarlo era un control que no hacía nada.
+  List<TenantPaymentAccount> get _accountsForMethod =>
+      _selectedMethod == PaymentMethod.brebB
+          ? const []
+          : (_accounts
+              .where((a) => a.category == _selectedMethod && a.isActive)
+              .toList()
+            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
 
-  Future<void> _payFull() async {
+  Future<void> _processPayment() async {
     if (!_canSubmit || _isProcessing) return;
 
+    // Cubre TODO lo que falta de la cuenta — recién ahí se puede
+    // considerar "cobrada completa" e imprimir el recibo final. Si el
+    // cajero bajó el monto (pago parcial), NO es el caso.
+    final isFullPayment = _amount >= session.balance - 0.01;
+
     if (_selectedMethod == PaymentMethod.brebB) {
-      await _processBrebPayment(_amount);
+      await _processBrebPayment(_amount, isFullPayment: isFullPayment);
       return;
     }
 
@@ -139,9 +167,17 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         AppSnackbar.show('Error al cobrar', failure.message);
       },
       (payments) {
-        AppSnackbar.show('Cobro exitoso', 'Cuenta cobrada completa');
-        // Cobro total — todos los tickets de la cuenta quedaron pagados.
-        PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+        if (isFullPayment) {
+          AppSnackbar.show('Cobro exitoso', 'Cuenta cobrada completa');
+          // Cobro total — todos los tickets de la cuenta quedaron pagados.
+          PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+        } else {
+          AppSnackbar.show(
+            'Pago registrado',
+            '${CurrencyFormatter.format(_amount)} cobrado · queda '
+                '${CurrencyFormatter.format(session.balance - _amount)} pendiente',
+          );
+        }
         if (mounted) Navigator.of(context).pop(true);
       },
     );
@@ -156,7 +192,10 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
   /// justamente para evitar marcar cuentas como pagadas sin cobrar de
   /// verdad. Ahora abre el mismo diálogo de espera (llave + confirmación
   /// real) que usa el cobro de una orden puntual.
-  Future<void> _processBrebPayment(double amount) async {
+  Future<void> _processBrebPayment(
+    double amount, {
+    required bool isFullPayment,
+  }) async {
     final outerContext = context;
     final brebCtrl = BrebPaymentController(dio: sl<Dio>());
     final confirmed = await showDialog<bool>(
@@ -171,6 +210,17 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     brebCtrl.cancel();
     if ((confirmed ?? false) && outerContext.mounted) {
       HapticFeedback.mediumImpact();
+      if (isFullPayment) {
+        // Mismo comportamiento que el cobro no-Bre-B: si esto cubrió todo
+        // lo que faltaba, imprimir el recibo final de una vez.
+        PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+      } else {
+        AppSnackbar.show(
+          'Pago registrado',
+          '${CurrencyFormatter.format(amount)} cobrado · queda '
+              '${CurrencyFormatter.format(session.balance - amount)} pendiente',
+        );
+      }
       Navigator.of(outerContext).pop(true);
     }
   }
@@ -330,6 +380,36 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
                   children: [
                     _BalanceCard(session: session, paidExtra: 0),
                     const SizedBox(height: 18),
+                    _SectionTitle('Monto a cobrar'),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _amountCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [ThousandsSeparatorInputFormatter()],
+                            decoration: _inputDecoration(
+                              prefix: '\$ ',
+                              hint: '0',
+                              helper: _amount > session.balance + 0.01
+                                  ? 'Supera el saldo (${CurrencyFormatter.format(session.balance)})'
+                                  : (_amount < session.balance - 0.01 && _amount > 0
+                                      ? 'Pago parcial — queda '
+                                          '${CurrencyFormatter.format(session.balance - _amount)}'
+                                      : null),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.tonal(
+                          onPressed: _useFullBalance,
+                          child: const Text('Todo'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     _SectionTitle('Método de pago'),
                     const SizedBox(height: 8),
                     _MethodSelector(
@@ -444,7 +524,7 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: enabled ? _payFull : null,
+            onPressed: enabled ? _processPayment : null,
             icon: _isProcessing
                 ? const SizedBox(
                     width: 20,
@@ -565,10 +645,16 @@ class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
     });
   }
 
-  List<TenantPaymentAccount> get _accountsForMethod => _accounts
-      .where((a) => a.category == _selectedMethod && a.isActive)
-      .toList()
-    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  // Bre-B no tiene "cuenta" seleccionable acá: la config real vive en las
+  // llaves (Ajustes → Bre-B) y el cobro nunca usa lo que se elija en este
+  // selector para ese método — mostrarlo era un control que no hacía nada.
+  List<TenantPaymentAccount> get _accountsForMethod =>
+      _selectedMethod == PaymentMethod.brebB
+          ? const []
+          : (_accounts
+              .where((a) => a.category == _selectedMethod && a.isActive)
+              .toList()
+            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
 
   void _useRemainingAsAmount() {
     _amountCtrl.text = NumberFormatHelper.formatNumber(_remaining.round());
