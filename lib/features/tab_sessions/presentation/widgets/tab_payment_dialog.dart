@@ -23,13 +23,16 @@ import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.
 import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import '../../domain/entities/tab_session.dart';
 
-/// Cobro de una cuenta abierta — MISMO flujo de dos pasos que una orden:
+/// Cobro de una cuenta abierta — un solo diálogo, sin pasos anidados.
 ///
-///   1. `TabPaymentDialog` (este): chooser con "Cobrar todo" (paga el
-///      saldo completo) + botón **"Dividir cuenta"** — igual que el
-///      `ProcessPaymentDialog` de orden con su "Dividir Pago".
-///   2. `_TabSplitPaymentDialog`: pagos parciales múltiples (dividir),
-///      espejo del `SplitPaymentDialog` de orden.
+/// El monto es editable (precargado con el saldo completo, así que
+/// cobrar todo sigue siendo un solo toque) y funciona con cualquier
+/// método, incluido Bre-B. Si el cajero baja el monto (ej. "el cliente
+/// paga 30 de 50"), el pago queda registrado igual y el diálogo se
+/// cierra — al reabrir "Cobrar cuenta" para el resto, el saldo ya sale
+/// actualizado. Antes esto vivía en un segundo diálogo separado
+/// ("Dividir cuenta"), que quedó redundante en cuanto el monto se hizo
+/// editable acá mismo — se eliminó.
 ///
 /// Por debajo usa `ProcessTabPaymentUseCase` (POST /payments/tab/:id),
 /// que distribuye FIFO entre los tickets. Devuelve `true` por
@@ -223,14 +226,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       }
       Navigator.of(outerContext).pop(true);
     }
-  }
-
-  Future<void> _openSplit() async {
-    final res = await showDialog<bool>(
-      context: context,
-      builder: (_) => _TabSplitPaymentDialog(session: session),
-    );
-    if (res == true && mounted) Navigator.of(context).pop(true);
   }
 
   static double _parseNum(dynamic v) {
@@ -497,30 +492,16 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.splitscreen, size: 18),
-                  label: const Text('Dividir cuenta'),
-                  onPressed: _isProcessing ? null : _openSplit,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.checklist_rtl, size: 18),
+              label: const Text('Cobrar por ítems'),
+              onPressed: _isProcessing ? null : _openItemSelection,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.checklist_rtl, size: 18),
-                  label: const Text('Por ítems'),
-                  onPressed: _isProcessing ? null : _openItemSelection,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
@@ -549,415 +530,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ════════════════════════ Split (dividir cuenta) ════════════════════════
-
-/// Un pago registrado en ESTA sesión del dialog (para la lista visible).
-class _TabReg {
-  final PaymentMethod method;
-  final double amount;
-  final String? notes;
-  const _TabReg(this.method, this.amount, this.notes);
-}
-
-/// Pagos parciales múltiples de una cuenta — espejo del `SplitPaymentDialog`
-/// de orden. Registrás N pagos (cada uno persiste FIFO), con saldo en vivo,
-/// "Todo" = restante, efectivo+cambio. Cuando el saldo llega a 0 cierra.
-/// Devuelve `true` si se registró al menos un pago.
-class _TabSplitPaymentDialog extends StatefulWidget {
-  final TabSession session;
-  const _TabSplitPaymentDialog({required this.session});
-
-  @override
-  State<_TabSplitPaymentDialog> createState() => _TabSplitPaymentDialogState();
-}
-
-class _TabSplitPaymentDialogState extends State<_TabSplitPaymentDialog> {
-  final TextEditingController _amountCtrl = TextEditingController();
-  final TextEditingController _receivedCtrl = TextEditingController();
-  final TextEditingController _notesCtrl = TextEditingController();
-
-  PaymentMethod _selectedMethod = PaymentMethod.cash;
-  TenantPaymentAccount? _selectedAccount;
-  List<TenantPaymentAccount> _accounts = const [];
-  bool _isProcessing = false;
-  final List<_TabReg> _registered = [];
-
-  TabSession get session => widget.session;
-
-  double get _paidAmount =>
-      session.paidAmount + _registered.fold<double>(0, (s, r) => s + r.amount);
-
-  double get _remaining {
-    final r = session.totalAmount - _paidAmount;
-    return r < 0 ? 0 : r;
-  }
-
-  bool get _isFullyPaid => _remaining <= 0.01;
-
-  double get _newAmount =>
-      (NumberFormatHelper.parseFormattedInt(_amountCtrl.text) ?? 0).toDouble();
-
-  double get _received =>
-      (NumberFormatHelper.parseFormattedInt(_receivedCtrl.text) ?? 0)
-          .toDouble();
-
-  bool get _canRegister {
-    if (_isFullyPaid) return false;
-    if (_newAmount <= 0) return false;
-    if (_newAmount > _remaining + 0.01) return false;
-    if (_selectedMethod == PaymentMethod.cash && _received > 0) {
-      if (_received < _newAmount) return false;
-    }
-    return true;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _amountCtrl.addListener(_rebuild);
-    _receivedCtrl.addListener(_rebuild);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccounts());
-  }
-
-  @override
-  void dispose() {
-    _amountCtrl.removeListener(_rebuild);
-    _receivedCtrl.removeListener(_rebuild);
-    _amountCtrl.dispose();
-    _receivedCtrl.dispose();
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
-  void _rebuild() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _loadAccounts() async {
-    final useCases = sl<TenantPaymentAccountUseCases>();
-    final result = await useCases.getAll(onlyActive: true);
-    result.fold((_) {}, (list) {
-      if (mounted) setState(() => _accounts = list);
-    });
-  }
-
-  // Bre-B no tiene "cuenta" seleccionable acá: la config real vive en las
-  // llaves (Ajustes → Bre-B) y el cobro nunca usa lo que se elija en este
-  // selector para ese método — mostrarlo era un control que no hacía nada.
-  List<TenantPaymentAccount> get _accountsForMethod =>
-      _selectedMethod == PaymentMethod.brebB
-          ? const []
-          : (_accounts
-              .where((a) => a.category == _selectedMethod && a.isActive)
-              .toList()
-            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
-
-  void _useRemainingAsAmount() {
-    _amountCtrl.text = NumberFormatHelper.formatNumber(_remaining.round());
-  }
-
-  Future<void> _register() async {
-    if (!_canRegister || _isProcessing) return;
-
-    if (_selectedMethod == PaymentMethod.brebB) {
-      await _processBrebPayment(_newAmount);
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-
-    final isCash = _selectedMethod == PaymentMethod.cash;
-    final amount = _newAmount;
-    final received = isCash && _received > 0 ? _received : null;
-    final notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
-
-    final useCase = sl<ProcessTabPaymentUseCase>();
-    final result = await useCase(
-      tabSessionId: session.id,
-      amount: amount,
-      paymentMethod: _selectedMethod,
-      tenantPaymentAccountId: _selectedAccount?.id,
-      receivedAmount: received,
-      notes: notes,
-    );
-
-    if (!mounted) return;
-    setState(() => _isProcessing = false);
-
-    result.fold(
-      (failure) {
-        if (isCashSessionRequiredError(failure.message)) {
-          handleCashSessionError(failure.message);
-          return;
-        }
-        AppSnackbar.show('Error al cobrar', failure.message);
-      },
-      (payments) {
-        _registered.add(_TabReg(_selectedMethod, amount, notes));
-        AppSnackbar.show(
-          'Pago registrado',
-          '${_selectedMethod.displayName} · ${CurrencyFormatter.format(amount)}',
-        );
-        // Igual que el "Dividir" de una orden: el pago ya quedó PERSISTIDO
-        // (FIFO), así que cerramos devolviendo true. El caller recarga la
-        // cuenta; si fue parcial, al reabrir "Cobrar" se ve el saldo
-        // restante y se cobra el resto (incluso con otro método).
-        if (mounted) Navigator.of(context).pop(true);
-      },
-    );
-  }
-
-  /// Ídem `_TabPaymentDialogState._processBrebPayment` — ver ese
-  /// comentario. Acá el monto es el que el operario haya puesto en el
-  /// campo "Monto a cobrar" del split, no el saldo completo.
-  Future<void> _processBrebPayment(double amount) async {
-    final outerContext = context;
-    final brebCtrl = BrebPaymentController(dio: sl<Dio>());
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => BrebPaymentDialog(
-        controller: brebCtrl,
-        tabSessionId: session.id,
-        amount: amount,
-      ),
-    );
-    brebCtrl.cancel();
-    if ((confirmed ?? false) && outerContext.mounted) {
-      HapticFeedback.mediumImpact();
-      Navigator.of(outerContext).pop(true);
-    }
-  }
-
-  void _close() => Navigator.of(context).pop(_registered.isNotEmpty);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mq = MediaQuery.of(context);
-    final screen = mq.size;
-    final kb = mq.viewInsets.bottom;
-    final hPad = screen.width < 600 ? 16.0 : 40.0;
-    final vPad = screen.height < 700 ? 16.0 : 24.0;
-    final maxW = screen.width < 600
-        ? screen.width * 0.92
-        : (screen.width < 900 ? 480.0 : 520.0);
-    final maxH = (screen.height - kb - 2 * vPad).clamp(0.0, 720.0);
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
-        child: Column(
-          children: [
-            _Header(
-              title: 'Dividir cuenta',
-              subtitle:
-                  '${session.displayLabel()} · Total ${CurrencyFormatter.format(session.totalAmount)}',
-              onClose: _close,
-              icon: Icons.splitscreen,
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _BalanceCard(
-                      session: session,
-                      paidExtra:
-                          _registered.fold<double>(0, (s, r) => s + r.amount),
-                    ),
-                    const SizedBox(height: 20),
-                    if (!_isFullyPaid) ...[
-                      Text('Registrar pago',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Cada pago queda guardado al instante. Cobrá en '
-                        'varias partes (efectivo, tarjeta, etc.).',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _MethodSelector(
-                        selected: _selectedMethod,
-                        onSelect: (m) => setState(() {
-                          _selectedMethod = m;
-                          _selectedAccount = null;
-                        }),
-                      ),
-                      _AccountSelector(
-                        accounts: _accountsForMethod,
-                        selected: _selectedAccount,
-                        onSelect: (a) => setState(() => _selectedAccount = a),
-                      ),
-                      CashSessionRequiredBanner(
-                        isCashSelected: _selectedMethod == PaymentMethod.cash,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _amountCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                ThousandsSeparatorInputFormatter()
-                              ],
-                              decoration: _inputDecoration(
-                                label: 'Monto a cobrar',
-                                prefix: '\$ ',
-                                hint: '0',
-                                helper:
-                                    'Máximo: ${CurrencyFormatter.format(_remaining)}',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.tonal(
-                            onPressed:
-                                _remaining > 0 ? _useRemainingAsAmount : null,
-                            child: const Text('Todo'),
-                          ),
-                        ],
-                      ),
-                      if (_selectedMethod == PaymentMethod.cash) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _receivedCtrl,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [ThousandsSeparatorInputFormatter()],
-                          decoration: _inputDecoration(
-                              label: 'Recibido (opcional)',
-                              prefix: '\$ ',
-                              hint: 'Cuánto entregó'),
-                        ),
-                        if (_received > _newAmount) ...[
-                          const SizedBox(height: 6),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Cambio: ${CurrencyFormatter.format(_received - _newAmount)}',
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _notesCtrl,
-                        decoration: _inputDecoration(hint: 'Notas (opcional)'),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 14),
-                      _buildRegisterButton(),
-                      const SizedBox(height: 20),
-                    ],
-                    _buildRegisteredList(theme),
-                  ],
-                ),
-              ),
-            ),
-            Builder(builder: (ctx) {
-              final sb = MediaQuery.of(ctx).viewPadding.bottom;
-              return Container(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, sb + 12),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: AppColors.border)),
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.check),
-                    label: Text(_isFullyPaid ? 'Listo' : 'Cerrar'),
-                    onPressed: _close,
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegisterButton() {
-    final cashOk =
-        canSubmitWithCashGuard(_selectedMethod == PaymentMethod.cash);
-    final enabled = _canRegister && cashOk && !_isProcessing;
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: enabled ? _register : null,
-        icon: _isProcessing
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : Icon(!cashOk ? Icons.lock_outline : Icons.add_circle),
-        label: Text(
-          _isProcessing
-              ? 'Registrando…'
-              : (!cashOk ? 'Abrí caja para registrar efectivo' : 'Registrar pago'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegisteredList(ThemeData theme) {
-    if (_registered.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Pagos registrados (${_registered.length})',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        ..._registered.map((r) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-              ),
-              child: Row(
-                children: [
-                  Icon(paymentMethodIcon(r.method), color: theme.colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(r.method.displayName,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(r.amount),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            )),
-      ],
     );
   }
 }
@@ -995,12 +567,10 @@ class _Header extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onClose;
-  final IconData icon;
   const _Header({
     required this.title,
     required this.subtitle,
     required this.onClose,
-    this.icon = Icons.payment,
   });
 
   @override
@@ -1014,7 +584,7 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: theme.colorScheme.onPrimaryContainer, size: 26),
+          Icon(Icons.payment, color: theme.colorScheme.onPrimaryContainer, size: 26),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
