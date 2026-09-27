@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/reservation.dart';
 import '../controllers/reservation_detail_controller.dart';
@@ -295,12 +296,11 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
   }) async {
     await Clipboard.setData(ClipboardData(text: value));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(label),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AppSnackbar.show(
+      '',
+      label,
+      context: context,
+      duration: const Duration(seconds: 2),
     );
   }
 

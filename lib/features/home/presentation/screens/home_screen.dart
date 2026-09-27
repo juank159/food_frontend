@@ -9,6 +9,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/utils/api_response_utils.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/menu_pdf_builder.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../categories/domain/entities/category.dart';
@@ -599,8 +600,10 @@ class _CartaPdfTileState extends State<_CartaPdfTile> {
 
       if (products.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay productos para generar la carta.')),
+          AppSnackbar.show(
+            '',
+            'No hay productos para generar la carta.',
+            context: context,
           );
         }
         return;
@@ -618,8 +621,10 @@ class _CartaPdfTileState extends State<_CartaPdfTile> {
       await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo generar el PDF: $e')),
+        AppSnackbar.show(
+          '',
+          'No se pudo generar el PDF: $e',
+          context: context,
         );
       }
     } finally {

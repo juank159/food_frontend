@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../controllers/payroll_controller.dart';
@@ -297,9 +298,8 @@ class _PayrollFormState extends State<_PayrollForm> {
     if (ok && mounted) Navigator.of(context).pop();
   }
 
-  void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), backgroundColor: AppColors.error),
-      );
+  void _err(String m) =>
+      AppSnackbar.show('Error', m, context: context, backgroundColor: AppColors.error);
 
   @override
   Widget build(BuildContext context) {

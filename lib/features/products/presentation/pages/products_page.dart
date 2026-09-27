@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/menu_pdf_builder.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
@@ -264,10 +265,10 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
 
       if (products.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No hay productos para generar el PDF.'),
-            ),
+          AppSnackbar.show(
+            '',
+            'No hay productos para generar el PDF.',
+            context: context,
           );
         }
         return;
@@ -281,8 +282,10 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
       await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo generar el PDF: $e')),
+        AppSnackbar.show(
+          '',
+          'No se pudo generar el PDF: $e',
+          context: context,
         );
       }
     } finally {

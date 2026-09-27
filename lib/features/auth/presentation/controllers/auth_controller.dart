@@ -94,10 +94,10 @@ class AuthController extends GetxController {
   ///
   /// Retorna `null` si el login fue exitoso (la screen ya está en
   /// `/home`). Si falló, retorna el mensaje de error como `String`
-  /// para que la screen lo muestre con `ScaffoldMessenger` — NO se
-  /// muestra desde acá porque `Get.snackbar` depende del Overlay del
-  /// route activo y crashea cuando hay navegación en curso (cola
-  /// async fire-and-forget de GetX, fuera de cualquier try/catch).
+  /// para que la screen lo muestre con `AppSnackbar` — NO se muestra
+  /// desde acá porque `Get.snackbar` depende del Overlay del route
+  /// activo y crashea cuando hay navegación en curso (cola async
+  /// fire-and-forget de GetX, fuera de cualquier try/catch).
   Future<String?> login({
     required String email,
     required String password,

@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/validators.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../controllers/auth_controller.dart';
@@ -480,13 +481,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin(BuildContext context) async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    // Capturamos el ScaffoldMessenger ANTES del await — después de la
-    // respuesta, el context puede no estar montado (si el login fue
-    // exitoso, ya navegamos a /home y este context murió). Un
-    // ScaffoldMessengerState capturado antes del await sigue siendo
-    // válido para hacer noop si la screen se desmontó.
-    final messenger = ScaffoldMessenger.of(context);
-
     final error = await controller.login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -496,13 +490,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (error == null) return; // éxito → ya navegamos a /home
     if (!context.mounted) return; // screen desmontada, nada que mostrar
 
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(error),
-        backgroundColor: Colors.red.shade400,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    AppSnackbar.show(
+      'Error',
+      error,
+      context: context,
+      backgroundColor: Colors.red.shade400,
     );
   }
 }

@@ -90,11 +90,11 @@ class _TableStatusPageState extends State<TableStatusPage> {
         stackTrace: StackTrace.current,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar el plano: $e'),
-            backgroundColor: AppColors.error,
-          ),
+        AppSnackbar.show(
+          'Error',
+          'Error al cargar el plano: $e',
+          context: context,
+          backgroundColor: AppColors.error,
         );
       }
     } finally {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/validators.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/custom_button.dart';
@@ -375,11 +376,6 @@ class RegisterScreen extends GetView<AuthController> {
   ) async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
-    // Capturamos el messenger antes del await — si el register fue
-    // exitoso, este context ya está muerto cuando vuelva. Mismo
-    // patrón que `LoginScreen._handleLogin`.
-    final messenger = ScaffoldMessenger.of(context);
-
     final error = await controller.register(
       firstName: firstNameController.text.trim(),
       lastName: lastNameController.text.trim(),
@@ -394,13 +390,11 @@ class RegisterScreen extends GetView<AuthController> {
     if (error == null) return; // éxito → ya navegamos a /home
     if (!context.mounted) return;
 
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(error),
-        backgroundColor: Colors.red.shade400,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    AppSnackbar.show(
+      'Error',
+      error,
+      context: context,
+      backgroundColor: Colors.red.shade400,
     );
   }
 }
