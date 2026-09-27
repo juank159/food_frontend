@@ -176,7 +176,7 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Bre-B / Nequi'),
+        title: const Text('Bre-B'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),

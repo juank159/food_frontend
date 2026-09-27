@@ -79,6 +79,6 @@ String paymentMethodName(PaymentMethod m) {
     case PaymentMethod.nequi:
       return 'Nequi QR';
     case PaymentMethod.brebB:
-      return 'Bre-B / Nequi';
+      return 'Bre-B';
   }
 }

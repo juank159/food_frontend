@@ -8,7 +8,7 @@ import '../controllers/breb_payment_controller.dart';
 
 /// Dialog completo para cobro Bre-B (transferencia directa con llave).
 ///
-/// Se abre cuando el cajero elige "Bre-B / Nequi" y el [ProcessPaymentDialog]
+/// Se abre cuando el cajero elige "Bre-B" y el [ProcessPaymentDialog]
 /// llama a [showBrebPaymentDialog] (invocación análoga a Nequi QR). Retorna
 /// `true` cuando el pago se confirma.
 ///

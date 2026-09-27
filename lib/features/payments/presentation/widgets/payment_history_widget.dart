@@ -695,7 +695,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
       case PaymentMethod.nequi:
         return 'Nequi QR';
       case PaymentMethod.brebB:
-        return 'Bre-B / Nequi';
+        return 'Bre-B';
     }
   }
 

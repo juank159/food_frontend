@@ -106,10 +106,10 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: 10),
                       _SettingsTile(
                         icon: Icons.bolt,
-                        title: 'Bre-B / Nequi',
+                        title: 'Bre-B',
                         subtitle:
-                            'Conciliación automática de transferencias — '
-                            'sin comisiones, con voz al confirmar el pago',
+                            'Transferencias por llave (Nequi, Bancolombia y más) — '
+                            'conciliación automática, sin comisiones',
                         accent: const Color(0xFF32AF60),
                         onTap: () => Get.toNamed(AppRoutes.brebSettings),
                       ),
