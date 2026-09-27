@@ -2,11 +2,17 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
+
+/// Monto de prueba usado por el botón "Probar QR" — no cobra nada, solo
+/// confirma que la plantilla pegada genera un QR válido antes de
+/// guardarla y usarla con un cliente real.
+const int _kQrTestAmount = 1000;
 
 /// Una llave Bre-B registrada por el negocio. Cada una tiene un `id`
 /// estable (se genera al agregarla) para poder editarla/borrarla sin
@@ -15,14 +21,24 @@ class _LlaveEntry {
   final String id;
   final TextEditingController labelCtrl;
   final TextEditingController llaveCtrl;
+  /// Texto crudo del QR (formato EMV) tal cual lo genera el banco —
+  /// opcional. Si está, el cajero puede mostrarle al cliente un QR con
+  /// el monto exacto en vez de solo el texto de la llave.
+  final TextEditingController qrTemplateCtrl;
 
-  _LlaveEntry({required this.id, String label = '', String llave = ''})
-      : labelCtrl = TextEditingController(text: label),
-        llaveCtrl = TextEditingController(text: llave);
+  _LlaveEntry({
+    required this.id,
+    String label = '',
+    String llave = '',
+    String qrTemplate = '',
+  })  : labelCtrl = TextEditingController(text: label),
+        llaveCtrl = TextEditingController(text: llave),
+        qrTemplateCtrl = TextEditingController(text: qrTemplate);
 
   void dispose() {
     labelCtrl.dispose();
     llaveCtrl.dispose();
+    qrTemplateCtrl.dispose();
   }
 }
 
@@ -97,6 +113,7 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
                 id: (l['id'] as String?) ?? _newLlaveId(),
                 label: (l['label'] as String?) ?? '',
                 llave: (l['llave'] as String?) ?? '',
+                qrTemplate: (l['qr_template'] as String?) ?? '',
               ),
             )
             .toList();
@@ -131,6 +148,38 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
     });
   }
 
+  /// Genera un QR de prueba (monto fijo, no cobra nada) para confirmar
+  /// que la plantilla pegada es válida ANTES de guardarla — así se
+  /// detecta una plantilla mal copiada acá mismo, no con un cliente
+  /// real esperando en caja.
+  Future<void> _testQr(int index) async {
+    final template = _llaves[index].qrTemplateCtrl.text.trim();
+    if (template.isEmpty) {
+      AppSnackbar.show('Sin plantilla', 'Pegá primero el texto del QR.');
+      return;
+    }
+    try {
+      final res = await _dio.post('/payments/breb/qr-preview', data: {
+        'template': template,
+        'amount': _kQrTestAmount,
+      });
+      final payload = ApiResponseUtils.object(res)['payload'] as String?;
+      if (payload == null || payload.isEmpty) {
+        throw Exception('El backend no devolvió un QR');
+      }
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (_) => _QrTestPreviewDialog(payload: payload),
+      );
+    } catch (e) {
+      AppSnackbar.show(
+        'Plantilla inválida',
+        ApiResponseUtils.errorMessage(e) ?? e.toString(),
+      );
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
@@ -141,6 +190,8 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
               'id': l.id,
               'label': l.labelCtrl.text.trim().isEmpty ? 'Llave' : l.labelCtrl.text.trim(),
               'llave': l.llaveCtrl.text.trim(),
+              if (l.qrTemplateCtrl.text.trim().isNotEmpty)
+                'qr_template': l.qrTemplateCtrl.text.trim(),
             },
           )
           .toList();
@@ -354,6 +405,34 @@ class _BrebSettingsScreenState extends State<BrebSettingsScreen> {
                     prefixIcon: Icon(Icons.bolt, size: 20),
                     isDense: true,
                     border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: entry.qrTemplateCtrl,
+                  maxLines: 3,
+                  minLines: 1,
+                  style: const TextStyle(fontSize: 11),
+                  decoration: const InputDecoration(
+                    labelText: 'Plantilla de QR (opcional)',
+                    hintText: 'Pegá acá el texto del QR que te dio el banco',
+                    prefixIcon: Icon(Icons.qr_code_2, size: 20),
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _testQr(index),
+                    icon: const Icon(Icons.visibility_outlined, size: 16),
+                    label: const Text('Probar QR'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ),
               ],
@@ -681,6 +760,55 @@ class _ErrorView extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Vista previa del QR de prueba — solo para que el tenant confirme
+/// visualmente que la plantilla pegada genera un código válido.
+class _QrTestPreviewDialog extends StatelessWidget {
+  final String payload;
+  const _QrTestPreviewDialog({required this.payload});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'QR de prueba',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Monto de prueba: \$$_kQrTestAmount (no se cobra nada)',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: QrImageView(data: payload, size: 220, backgroundColor: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
             ),
           ],
         ),

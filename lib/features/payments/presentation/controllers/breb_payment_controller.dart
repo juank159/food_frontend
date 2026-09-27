@@ -21,12 +21,24 @@ class BrebLlave {
   final String id;
   final String label;
   final String llave;
-  const BrebLlave({required this.id, required this.label, required this.llave});
+  /// QR ya armado con el monto de ESTE cobro — `null` si la llave no
+  /// tiene una plantilla de QR configurada (Ajustes → Bre-B) o si la
+  /// plantilla está rota (el backend igual muestra la llave en texto
+  /// como respaldo, ver `BrebService._safeBuildQr`).
+  final String? qrPayload;
+
+  const BrebLlave({
+    required this.id,
+    required this.label,
+    required this.llave,
+    this.qrPayload,
+  });
 
   factory BrebLlave.fromJson(Map<String, dynamic> json) => BrebLlave(
         id: json['id'] as String? ?? '',
         label: json['label'] as String? ?? 'Llave',
         llave: json['llave'] as String? ?? '',
+        qrPayload: json['qrPayload'] as String?,
       );
 }
 

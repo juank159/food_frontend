@@ -139,6 +139,7 @@ dependencies:
   # En background/locked la notificación la entrega FCM directamente el SO.
   flutter_local_notifications: ^18.0.1
   geolocator: ^14.0.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
