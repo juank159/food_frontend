@@ -53,6 +53,14 @@ class _TenantPaymentAccountSelectorState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Bre-B no tiene "cuenta" seleccionable: la config real vive en las
+    // llaves (Ajustes → Bre-B) y el cobro nunca usa lo que se elija acá
+    // (ver PaymentsService/BrebService — no reciben tenant_payment_account_id
+    // para este método). Mostrarlo igual era un control que no hacía nada.
+    if (widget.category == PaymentMethod.brebB) {
+      return const SizedBox.shrink();
+    }
+
     return FutureBuilder<List<TenantPaymentAccount>>(
       future: _future,
       builder: (context, snapshot) {
