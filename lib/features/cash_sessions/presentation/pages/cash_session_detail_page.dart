@@ -6,6 +6,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/cash_session.dart';
 import '../controllers/cash_session_history_controller.dart';
 import 'cash_session_history_page.dart' show SessionStatusBadge;
@@ -151,6 +152,8 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
         if (session.isClosed) ...[
           const SizedBox(height: 12),
           _buildCloseCard(),
+          const SizedBox(height: 12),
+          _buildPrintButton(),
         ],
         const SizedBox(height: 12),
         _buildReportSection(),
@@ -450,6 +453,26 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
           ),
         ],
       ],
+    );
+  }
+
+  /// Reimprime el ticket de cierre de caja de ESTA sesión (ya cerrada).
+  /// Pensado para cuando se cerró la caja y, por lo que sea, no se
+  /// imprimió en el momento — acá se puede volver a imprimir en
+  /// cualquier momento, entrando desde el historial.
+  Widget _buildPrintButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () =>
+            PrintingOrchestrator.printCashSessionReport(sessionId: session.id),
+        icon: const Icon(Icons.print_outlined),
+        label: const Text('Imprimir cierre de caja'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          backgroundColor: AppColors.textPrimary,
+        ),
+      ),
     );
   }
 
