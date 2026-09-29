@@ -46,7 +46,6 @@ import '../../features/tab_sessions/presentation/bindings/open_tabs_binding.dart
 import '../../features/tab_sessions/presentation/bindings/tab_session_detail_binding.dart';
 import '../../features/tab_sessions/presentation/pages/open_tabs_page.dart';
 import '../../features/tab_sessions/presentation/pages/tab_session_detail_page.dart';
-import '../../features/tab_sessions/presentation/pages/tab_session_pay_page.dart';
 import '../../features/orders/presentation/pages/orders_page.dart';
 import '../../features/orders/presentation/pages/unpaid_orders_page.dart';
 import '../../features/checklist/presentation/screens/checklist_screen.dart';
@@ -83,8 +82,6 @@ import '../../features/settings/presentation/screens/printer_settings_screen.dar
 import '../../features/settings/presentation/screens/profile_screen.dart';
 import '../../features/settings/presentation/screens/security_settings_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
-import '../../features/tenant_payment_accounts/presentation/bindings/tenant_payment_account_binding.dart';
-import '../../features/tenant_payment_accounts/presentation/pages/payment_accounts_settings_page.dart';
 import '../../features/splash/presentation/bindings/splash_binding.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/subscriptions/presentation/bindings/subscription_binding.dart';
@@ -418,13 +415,6 @@ class AppPages {
       binding: TabSessionDetailBinding(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
-      transitionDuration: const Duration(milliseconds: 300),
-    ),
-    GetPage(
-      name: AppRoutes.tabSessionPay,
-      page: () => const TabSessionPayPage(),
-      middlewares: [AuthGuard()],
-      transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),
     // Edición de metadata de orden (instrucciones, ETA, cliente). Recibe
@@ -795,14 +785,6 @@ class AppPages {
     GetPage(
       name: AppRoutes.securitySettings,
       page: () => const SecuritySettingsScreen(),
-      middlewares: [AuthGuard()],
-      transition: Transition.cupertino,
-      transitionDuration: const Duration(milliseconds: 300),
-    ),
-    GetPage(
-      name: AppRoutes.paymentAccountsSettings,
-      page: () => const PaymentAccountsSettingsPage(),
-      binding: TenantPaymentAccountBinding(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),

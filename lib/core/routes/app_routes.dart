@@ -55,7 +55,6 @@ class AppRoutes {
   // Cuentas abiertas (TabSessions) — agrupan N tickets por mesa o grupo.
   static const String tabSessions = '/tab-sessions';
   static const String tabSessionDetail = '/tab-sessions/:id';
-  static const String tabSessionPay = '/tab-sessions/:id/pay';
 
   // Caja registradora (apertura / cierre / conciliación)
   static const String cashRegister = '/cash-register';
@@ -140,7 +139,6 @@ class AppRoutes {
   static const String printerSettings = '/settings/printer';
   static const String notificationSettings = '/settings/notifications';
   static const String securitySettings = '/settings/security';
-  static const String paymentAccountsSettings = '/settings/payment-accounts';
 
   // ==================== INVENTORY ROUTES ====================
   static const String inventory = '/inventory';

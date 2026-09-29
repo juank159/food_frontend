@@ -5,11 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
-import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
-import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
-import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import 'payment_confirmation_dialog.dart';
 import 'payment_method_selector.dart';
 
@@ -56,14 +53,12 @@ class ItemPayRequest {
   /// qué ítems específicos cubre este pago.
   final String? notesJson;
   final PaymentMethod method;
-  final String? tenantAccountId;
   final double? receivedAmount;
 
   const ItemPayRequest({
     required this.amount,
     this.notesJson,
     required this.method,
-    this.tenantAccountId,
     this.receivedAmount,
   });
 }
@@ -104,8 +99,6 @@ class ItemSelectionSheet extends StatefulWidget {
 
 class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
   PaymentMethod _method = PaymentMethod.cash;
-  TenantPaymentAccount? _account;
-  List<TenantPaymentAccount> _allAccounts = const [];
   final _cashCtrl = TextEditingController();
   bool _processing = false;
 
@@ -113,7 +106,6 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
   void initState() {
     super.initState();
     _cashCtrl.addListener(_rebuild);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccounts());
   }
 
   @override
@@ -126,19 +118,6 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
   void _rebuild() {
     if (mounted) setState(() {});
   }
-
-  Future<void> _loadAccounts() async {
-    final useCases = sl<TenantPaymentAccountUseCases>();
-    final result = await useCases.getAll(onlyActive: true);
-    result.fold((_) {}, (list) {
-      if (mounted) setState(() => _allAccounts = list);
-    });
-  }
-
-  List<TenantPaymentAccount> get _accountsForMethod => _allAccounts
-      .where((a) => a.category == _method && a.isActive)
-      .toList()
-    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
   double get _total =>
       widget.items.fold(0.0, (s, i) => s + i.selectedSubtotal);
@@ -165,7 +144,6 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
       context,
       amount: total,
       method: _method,
-      accountName: _account?.name,
       subtitle: widget.subtitle != null
           ? '${widget.subtitle} · $selectedCount ítem(s)'
           : '$selectedCount ítem(s) seleccionados',
@@ -183,7 +161,6 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
       amount: total,
       notesJson: notesJson,
       method: _method,
-      tenantAccountId: _account?.id,
       receivedAmount: _method == PaymentMethod.cash ? _parsedReceived : null,
     );
 
@@ -358,67 +335,9 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
                   onMethodSelected: (m) {
                     setState(() {
                       _method = m;
-                      _account = null;
                     });
                   },
                 ),
-                // Cuentas de cobro
-                Builder(builder: (_) {
-                  final accounts = _accountsForMethod;
-                  if (accounts.isEmpty) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '¿En qué cuenta?',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: accounts.map((acc) {
-                            final isSel = _account?.id == acc.id;
-                            return GestureDetector(
-                              onTap: () => setState(
-                                  () => _account = isSel ? null : acc),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: isSel
-                                      ? AppColors.primary
-                                      : AppColors.cardBackground,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isSel
-                                        ? AppColors.primary
-                                        : AppColors.border,
-                                  ),
-                                ),
-                                child: Text(
-                                  acc.name,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isSel
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
                 // Banner caja registradora
                 CashSessionRequiredBanner(
                     isCashSelected: _method == PaymentMethod.cash),

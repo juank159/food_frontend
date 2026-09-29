@@ -20,8 +20,6 @@ import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.d
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../payments/domain/usecases/process_tab_payment_usecase.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
-import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
-import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import '../../domain/entities/tab_session.dart';
 
 /// Cobro de una cuenta abierta — un solo diálogo, sin pasos anidados.
@@ -54,8 +52,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
   final TextEditingController _notesCtrl = TextEditingController();
 
   PaymentMethod _selectedMethod = PaymentMethod.cash;
-  TenantPaymentAccount? _selectedAccount;
-  List<TenantPaymentAccount> _accounts = const [];
   bool _isProcessing = false;
 
   TabSession get session => widget.session;
@@ -93,7 +89,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     _amountCtrl.text = NumberFormatHelper.formatNumber(session.balance.round());
     _amountCtrl.addListener(_rebuild);
     _receivedCtrl.addListener(_rebuild);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccounts());
   }
 
   @override
@@ -111,25 +106,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _loadAccounts() async {
-    final useCases = sl<TenantPaymentAccountUseCases>();
-    final result = await useCases.getAll(onlyActive: true);
-    result.fold((_) {}, (list) {
-      if (mounted) setState(() => _accounts = list);
-    });
-  }
-
-  // Bre-B no tiene "cuenta" seleccionable acá: la config real vive en las
-  // llaves (Ajustes → Bre-B) y el cobro nunca usa lo que se elija en este
-  // selector para ese método — mostrarlo era un control que no hacía nada.
-  List<TenantPaymentAccount> get _accountsForMethod =>
-      _selectedMethod == PaymentMethod.brebB
-          ? const []
-          : (_accounts
-              .where((a) => a.category == _selectedMethod && a.isActive)
-              .toList()
-            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
-
   Future<void> _processPayment() async {
     if (!_canSubmit || _isProcessing) return;
 
@@ -141,7 +117,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       context,
       amount: _amount,
       method: _selectedMethod,
-      accountName: _selectedAccount?.name,
       subtitle: session.displayLabel(),
     );
     if (!confirmed || !mounted) return;
@@ -164,7 +139,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       tabSessionId: session.id,
       amount: _amount,
       paymentMethod: _selectedMethod,
-      tenantPaymentAccountId: _selectedAccount?.id,
       receivedAmount: isCash && _received > 0 ? _received : null,
       transactionReference: _referenceCtrl.text.trim().isEmpty
           ? null
@@ -334,7 +308,6 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
             tabSessionId: session.id,
             amount: req.amount,
             paymentMethod: req.method,
-            tenantPaymentAccountId: req.tenantAccountId,
             // Sin esto, el backend nunca se entera de QUÉ ítems cubre este
             // pago — el sheet ya arma el JSON con `__items__`, pero antes
             // se descartaba acá. Por eso un ítem pagado no quedaba
@@ -462,13 +435,7 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
                       selected: _selectedMethod,
                       onSelect: (m) => setState(() {
                         _selectedMethod = m;
-                        _selectedAccount = null;
                       }),
-                    ),
-                    _AccountSelector(
-                      accounts: _accountsForMethod,
-                      selected: _selectedAccount,
-                      onSelect: (a) => setState(() => _selectedAccount = a),
                     ),
                     CashSessionRequiredBanner(
                       isCashSelected: _selectedMethod == PaymentMethod.cash,
@@ -760,61 +727,4 @@ class _MethodSelector extends StatelessWidget {
   }
 }
 
-class _AccountSelector extends StatelessWidget {
-  final List<TenantPaymentAccount> accounts;
-  final TenantPaymentAccount? selected;
-  final ValueChanged<TenantPaymentAccount?> onSelect;
-  const _AccountSelector({
-    required this.accounts,
-    required this.selected,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (accounts.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle('¿En qué cuenta?'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: accounts.map((acc) {
-              final isSelected = selected?.id == acc.id;
-              return GestureDetector(
-                onTap: () => onSelect(isSelected ? null : acc),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected ? AppColors.primary : AppColors.border,
-                    ),
-                  ),
-                  child: Text(
-                    acc.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color:
-                          isSelected ? Colors.white : AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-}
 

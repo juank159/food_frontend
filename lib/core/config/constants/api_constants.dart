@@ -117,13 +117,6 @@ class ApiConstants {
       '/payments/order/$orderId/split';
   static String refundPayment(String id) => '/payments/$id/refund';
 
-  // Tenant Payment Accounts (Nequi, Daviplata, Bancolombia, cajas, etc.)
-  static const String tenantPaymentAccounts = '/tenant-payment-accounts';
-  static String tenantPaymentAccountById(String id) =>
-      '/tenant-payment-accounts/$id';
-  static String toggleTenantPaymentAccount(String id) =>
-      '/tenant-payment-accounts/$id/toggle-active';
-
   // Tab Sessions (cuentas abiertas — agrupan N tickets por mesa o grupo)
   static const String tabSessions = '/tab-sessions';
   static const String tabSessionsOpen = '/tab-sessions/open';

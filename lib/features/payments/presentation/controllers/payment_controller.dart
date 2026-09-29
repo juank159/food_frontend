@@ -42,10 +42,6 @@ class PaymentController extends GetxController {
   final RxDouble receivedAmount = 0.0.obs;
   final RxString transactionReference = ''.obs;
   final RxString notes = ''.obs;
-  // ID de la cuenta de pago específica del tenant (Nequi #1, Bancolombia
-  // Ahorros, etc.). Opcional — si el tenant no tiene cuentas configuradas,
-  // queda null y el backend acepta el pago solo con la categoría.
-  final RxnString selectedTenantAccountId = RxnString();
 
   /// Carga los pagos de una orden
   Future<void> loadPaymentsByOrder(String orderId) async {
@@ -92,7 +88,6 @@ class PaymentController extends GetxController {
             ? transactionReference.value
             : null,
         notes: notes.value.isNotEmpty ? notes.value : null,
-        tenantPaymentAccountId: selectedTenantAccountId.value,
       );
 
       return result.fold(
@@ -160,7 +155,6 @@ class PaymentController extends GetxController {
     double? receivedAmount,
     String? transactionReference,
     String? notes,
-    String? tenantPaymentAccountId,
   }) async {
     try {
       isProcessing.value = true;
@@ -173,7 +167,6 @@ class PaymentController extends GetxController {
         receivedAmount: receivedAmount,
         transactionReference: transactionReference,
         notes: notes,
-        tenantPaymentAccountId: tenantPaymentAccountId,
       );
 
       return result.fold(
@@ -373,7 +366,6 @@ class PaymentController extends GetxController {
     receivedAmount.value = 0.0;
     transactionReference.value = '';
     notes.value = '';
-    selectedTenantAccountId.value = null;
   }
 
   /// Selecciona un pago

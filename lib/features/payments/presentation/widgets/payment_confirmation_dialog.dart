@@ -32,8 +32,6 @@ Color paymentMethodColor(PaymentMethod m) {
 class PaymentConfirmationDialog extends StatelessWidget {
   final double amount;
   final PaymentMethod method;
-  /// Cuenta puntual elegida (ej. "Bancolombia negocio"), si aplica.
-  final String? accountName;
   /// Contexto adicional — ej. "Mesa 5", "2 ítems seleccionados".
   final String? subtitle;
 
@@ -41,7 +39,6 @@ class PaymentConfirmationDialog extends StatelessWidget {
     super.key,
     required this.amount,
     required this.method,
-    this.accountName,
     this.subtitle,
   });
 
@@ -50,7 +47,6 @@ class PaymentConfirmationDialog extends StatelessWidget {
     BuildContext context, {
     required double amount,
     required PaymentMethod method,
-    String? accountName,
     String? subtitle,
   }) async {
     final result = await showDialog<bool>(
@@ -58,7 +54,6 @@ class PaymentConfirmationDialog extends StatelessWidget {
       builder: (_) => PaymentConfirmationDialog(
         amount: amount,
         method: method,
-        accountName: accountName,
         subtitle: subtitle,
       ),
     );
@@ -108,9 +103,7 @@ class PaymentConfirmationDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Text(
-                accountName != null
-                    ? '${paymentMethodName(method)} · $accountName'
-                    : paymentMethodName(method),
+                paymentMethodName(method),
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: color,
                   fontWeight: FontWeight.w800,

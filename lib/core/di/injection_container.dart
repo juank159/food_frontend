@@ -120,10 +120,6 @@ import '../../features/shifts/data/datasources/shift_remote_datasource.dart';
 import '../../features/shifts/data/repositories/shift_repository_impl.dart';
 import '../../features/shifts/domain/repositories/shift_repository.dart';
 import '../../features/shifts/domain/usecases/shift_usecases.dart';
-import '../../features/tenant_payment_accounts/data/datasources/tenant_payment_account_remote_datasource.dart';
-import '../../features/tenant_payment_accounts/data/repositories/tenant_payment_account_repository_impl.dart';
-import '../../features/tenant_payment_accounts/domain/repositories/tenant_payment_account_repository.dart';
-import '../../features/tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
 import '../../features/subscriptions/data/datasources/subscription_remote_datasource.dart';
 import '../../features/subscriptions/data/repositories/subscription_repository_impl.dart';
 import '../../features/subscriptions/domain/repositories/subscription_repository.dart';
@@ -170,7 +166,6 @@ import '../../features/customers/data/datasources/customer_local_datasource.dart
 import '../../features/printer_configs/data/printer_configs_local_datasource.dart';
 import '../../features/orders/data/datasources/order_local_datasource.dart';
 import '../../features/payments/data/datasources/payment_local_datasource.dart';
-import '../../features/tenant_payment_accounts/data/datasources/tenant_payment_account_local_datasource.dart';
 
 final sl = GetIt.instance;
 
@@ -505,24 +500,6 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<CashSessionRemoteDataSource>(
     () => CashSessionRemoteDataSourceImpl(dio: sl()),
-  );
-
-  // ========================================
-  // Features - Tenant Payment Accounts
-  // ========================================
-  sl.registerLazySingleton(() => TenantPaymentAccountUseCases(sl()));
-  sl.registerLazySingleton<TenantPaymentAccountRepository>(
-    () => TenantPaymentAccountRepositoryImpl(
-      remoteDataSource: sl(),
-      localDataSource: sl(),
-      networkInfo: sl(),
-    ),
-  );
-  sl.registerLazySingleton<TenantPaymentAccountRemoteDataSource>(
-    () => TenantPaymentAccountRemoteDataSourceImpl(dio: sl()),
-  );
-  sl.registerLazySingleton<TenantPaymentAccountLocalDataSource>(
-    () => TenantPaymentAccountLocalDataSourceImpl(cache: sl()),
   );
 
   // ========================================

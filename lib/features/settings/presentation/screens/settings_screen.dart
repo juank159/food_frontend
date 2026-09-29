@@ -85,16 +85,6 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       _SettingsTile(
-                        icon: Icons.account_balance_wallet_outlined,
-                        title: 'Cuentas de pago',
-                        subtitle:
-                            'Nequi, Daviplata, bancos, cajas, datáfonos',
-                        accent: AppColors.success,
-                        onTap: () =>
-                            Get.toNamed(AppRoutes.paymentAccountsSettings),
-                      ),
-                      const SizedBox(height: 10),
-                      _SettingsTile(
                         icon: Icons.campaign_outlined,
                         title: 'Banner de promoción',
                         subtitle:

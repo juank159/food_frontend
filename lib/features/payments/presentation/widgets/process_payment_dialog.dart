@@ -19,7 +19,6 @@ import 'item_selection_sheet.dart';
 import 'breb_payment_dialog.dart';
 import 'payment_confirmation_dialog.dart';
 import 'payment_method_selector.dart';
-import 'tenant_payment_account_selector.dart';
 
 /// Dialog principal para procesar pagos de una orden.
 /// Compacto y con calculadora de efectivo inline (sin segundo dialog).
@@ -132,7 +131,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     // procesar, por cuánto y con qué método — así un método que quedó
     // seleccionado por defecto (o un monto mal tipeado) no se cuela sin
     // que el cajero lo note.
-    final accountId = widget.controller.selectedTenantAccountId.value;
     final confirmed = await PaymentConfirmationDialog.show(
       context,
       amount: amount,
@@ -149,7 +147,7 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     if (method == PaymentMethod.cash && _received > 0) {
       widget.controller.receivedAmount.value = _received;
     }
-    await _executePayment(context, amount, accountId);
+    await _executePayment(context, amount);
   }
 
   Future<void> _processBrebPayment(BuildContext context, double amount) async {
@@ -182,7 +180,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   Future<void> _executePayment(
     BuildContext context,
     double amount,
-    String? tenantAccountId,
   ) async {
     // addPartialPayment ("pago parcial o total", ver su doc) reemplaza
     // acá tanto al viejo "pagar todo" como a "Dividir pago" — el
@@ -202,7 +199,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       notes: widget.controller.notes.value.isNotEmpty
           ? widget.controller.notes.value
           : null,
-      tenantPaymentAccountId: tenantAccountId,
     );
     if (payment != null && context.mounted) {
       HapticFeedback.mediumImpact();
@@ -273,7 +269,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
             notes: req.notesJson,
             receivedAmount:
                 req.method == PaymentMethod.cash ? req.receivedAmount : null,
-            tenantPaymentAccountId: req.tenantAccountId,
           );
           return payment != null;
         },
@@ -442,8 +437,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                           onMethodSelected: (m) {
                             if (widget.controller.selectedPaymentMethod.value !=
                                 m) {
-                              widget.controller.selectedTenantAccountId.value =
-                                  null;
                               // Reset cash state al cambiar de método
                               _cashCtrl.clear();
                               setState(() => _received = 0);
@@ -451,12 +444,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                             widget.controller.selectedPaymentMethod.value = m;
                           },
                           enabled: !widget.controller.isProcessing.value,
-                        )),
-
-                    Obx(() => TenantPaymentAccountSelector(
-                          category:
-                              widget.controller.selectedPaymentMethod.value,
-                          controller: widget.controller,
                         )),
 
                     Obx(() => CashSessionRequiredBanner(
