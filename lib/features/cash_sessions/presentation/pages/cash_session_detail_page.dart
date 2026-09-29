@@ -26,6 +26,12 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
   late final CashSessionHistoryController controller;
   CashSession? _session;
 
+  // Qué buckets de "Bre-B por llave" están expandidos mostrando su
+  // lista de transacciones individuales — colapsados por default para
+  // no abrumar con la lista completa de una vez; el cajero toca la
+  // llave/banco que quiere auditar y ahí se despliega.
+  final Set<String> _expandedBrebGroups = {};
+
   CashSession get session => _session!;
   bool get _hasSession => _session != null;
 
@@ -493,14 +499,34 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
 
       // Agrupamos por método para que cada uno tenga su propia lista
       // detallada — antes solo el efectivo se desglosaba en items
-      // individuales y el resto (tarjeta, transferencia, Bre-B, Nequi)
-      // quedaba nada más como un total sin forma de auditarlo.
+      // individuales y el resto (tarjeta, transferencia, Nequi) quedaba
+      // nada más como un total sin forma de auditarlo. Bre-B se excluye
+      // acá a propósito: ese método SIEMPRE se lista más abajo agrupado
+      // por llave/banco (`brebGroups`), nunca en un solo bloque
+      // "BRE-B (N)" que mezcle distintas llaves.
       final byMethodGrouped = <String, List<Map<String, dynamic>>>{};
       for (final p in allPayments) {
         final method = p['payment_method']?.toString() ?? 'unknown';
+        if (method == 'breb') continue;
         byMethodGrouped.putIfAbsent(method, () => []).add(p);
       }
-      final methodOrder = byMethod.entries.toList()
+      final methodOrder = byMethod.entries
+          .where((e) => e.key != 'breb')
+          .toList()
+        ..sort((a, b) => (b.value['total'] as num? ?? 0)
+            .compareTo(a.value['total'] as num? ?? 0));
+
+      // Pagos Bre-B agrupados por la MISMA clave que ya usa
+      // `breb_by_llave` (`breb_group_key`, calculado en el backend) —
+      // así el total de cada tarjeta y su lista de transacciones nunca
+      // se pueden desincronizar.
+      final brebGroups = <String, List<Map<String, dynamic>>>{};
+      for (final p in allPayments) {
+        if (p['payment_method']?.toString() != 'breb') continue;
+        final groupKey = p['breb_group_key']?.toString() ?? 'sin_identificar';
+        brebGroups.putIfAbsent(groupKey, () => []).add(p);
+      }
+      final brebOrder = brebByLlave.entries.toList()
         ..sort((a, b) => (b.value['total'] as num? ?? 0)
             .compareTo(a.value['total'] as num? ?? 0));
 
@@ -518,22 +544,30 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
             ),
             const SizedBox(height: 12),
           ],
-          // Bre-B específicamente, por CUÁL llave entró cada transferencia
-          // — "Otros medios de pago" antes juntaba todo Bre-B en un solo
-          // número sin decir a qué cuenta llegó cada una.
-          if (brebByLlave.isNotEmpty) ...[
+          // Bre-B por CUÁL llave (o banco, si no hay llave puntual —
+          // Nequi nunca la reporta) entró cada transferencia. Cada fila
+          // se puede tocar para desplegar sus transacciones individuales
+          // — pedido, valor y fecha/hora exacta, sin IDs técnicos.
+          if (brebOrder.isNotEmpty) ...[
             _InfoCard(
               header: 'BRE-B POR LLAVE',
               headerIcon: Icons.bolt_outlined,
               headerColor: AppColors.primary,
-              children: brebByLlave.entries
-                  .map((e) => _buildLlaveRow(e.value))
-                  .toList(),
+              children: [
+                for (final entry in brebOrder) ...[
+                  _buildLlaveRow(
+                    entry.key,
+                    entry.value,
+                    brebGroups[entry.key] ?? const [],
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 12),
           ],
-          // Detalle de cada cobro, agrupado por método — esto es lo que
-          // da trazabilidad real: quién pagó, cuándo, con qué referencia.
+          // Detalle de cada cobro NO Bre-B, agrupado por método — esto es
+          // lo que da trazabilidad real: quién pagó, cuándo, con qué
+          // referencia.
           for (final entry in methodOrder) ...[
             if ((byMethodGrouped[entry.key] ?? []).isNotEmpty) ...[
               _InfoCard(
@@ -553,41 +587,100 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
     });
   }
 
-  Widget _buildLlaveRow(dynamic data) {
+  /// Fila de una llave/banco Bre-B — tocable: despliega/colapsa la
+  /// lista de transacciones individuales de ESE bucket (pedido + valor +
+  /// fecha/hora, sin IDs). Pensada para alguien sin conocimiento técnico:
+  /// toca la llave que quiere revisar y ahí aparecen sus pagos, uno por
+  /// uno, para conciliar contra el banco.
+  Widget _buildLlaveRow(
+    String groupKey,
+    dynamic data,
+    List<Map<String, dynamic>> payments,
+  ) {
     final map = data as Map<String, dynamic>? ?? {};
-    final label = map['label']?.toString() ?? 'Sin llave identificada';
+    final label = map['label']?.toString() ?? 'Sin identificar';
     final count = (map['count'] as num?)?.toInt() ?? 0;
     final total = _parseDouble(map['total']);
+    final expanded = _expandedBrebGroups.contains(groupKey);
+    final sortedPayments = [...payments]..sort((a, b) {
+        final da = DateTime.tryParse(a['processed_at']?.toString() ?? '');
+        final db = DateTime.tryParse(b['processed_at']?.toString() ?? '');
+        if (da == null || db == null) return 0;
+        return db.compareTo(da); // más reciente primero
+      });
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: payments.isEmpty
+                ? null
+                : () => setState(() {
+                      if (expanded) {
+                        _expandedBrebGroups.remove(groupKey);
+                      } else {
+                        _expandedBrebGroups.add(groupKey);
+                      }
+                    }),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.bolt_outlined,
+                        size: 15, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '$label ($count)',
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(total),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (payments.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ],
+              ),
             ),
-            child: const Icon(Icons.bolt_outlined, size: 15, color: AppColors.primary),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '$label ($count)',
-              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          if (expanded && sortedPayments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 40, top: 2, bottom: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < sortedPayments.length; i++) ...[
+                    if (i > 0) const _Divider(),
+                    _PaymentRow(payment: sortedPayments[i]),
+                  ],
+                ],
+              ),
             ),
-          ),
-          Text(
-            CurrencyFormatter.format(total),
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
         ],
       ),
     );
@@ -725,7 +818,7 @@ class _PaymentRow extends StatelessWidget {
     final amount = _parse(payment['amount']);
     final orderNum = payment['order_number']?.toString() ?? '';
     final reference = payment['transaction_reference']?.toString();
-    final notes = payment['notes']?.toString();
+    final notes = _humanNotes(payment['notes']?.toString());
     final dateStr = payment['processed_at']?.toString();
     // Fecha + hora + zona horaria EXPLÍCITA (siempre Colombia, sin
     // depender de la zona del dispositivo) — para poder comparar este
@@ -802,6 +895,19 @@ class _PaymentRow extends StatelessWidget {
     if (v == null) return 0;
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0;
+  }
+
+  /// `notes` a veces trae JSON interno (`{"__items__":[{"id":"...",
+  /// "qty":1}]}`) que el flujo "Cobrar por ítems" usa para rastrear qué
+  /// ítem cubre un pago parcial — son UUIDs sin sentido para alguien
+  /// que no programa, así que NUNCA se muestran. Solo se muestra el
+  /// texto legible que sí arma Bre-B ("Pago Bre-B confirmado...").
+  String? _humanNotes(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('{') && trimmed.contains('__items__')) return null;
+    return trimmed;
   }
 }
 
