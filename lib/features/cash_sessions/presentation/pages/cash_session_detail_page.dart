@@ -485,6 +485,7 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
       }
 
       final byMethod = data['by_method'] as Map<String, dynamic>? ?? {};
+      final brebByLlave = data['breb_by_llave'] as Map<String, dynamic>? ?? {};
       final allPayments = (data['payments'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .toList();
@@ -516,6 +517,20 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
             ),
             const SizedBox(height: 12),
           ],
+          // Bre-B específicamente, por CUÁL llave entró cada transferencia
+          // — "Otros medios de pago" antes juntaba todo Bre-B en un solo
+          // número sin decir a qué cuenta llegó cada una.
+          if (brebByLlave.isNotEmpty) ...[
+            _InfoCard(
+              header: 'BRE-B POR LLAVE',
+              headerIcon: Icons.bolt_outlined,
+              headerColor: AppColors.primary,
+              children: brebByLlave.entries
+                  .map((e) => _buildLlaveRow(e.value))
+                  .toList(),
+            ),
+            const SizedBox(height: 12),
+          ],
           // Detalle de cada cobro, agrupado por método — esto es lo que
           // da trazabilidad real: quién pagó, cuándo, con qué referencia.
           for (final entry in methodOrder) ...[
@@ -535,6 +550,46 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
         ],
       );
     });
+  }
+
+  Widget _buildLlaveRow(dynamic data) {
+    final map = data as Map<String, dynamic>? ?? {};
+    final label = map['label']?.toString() ?? 'Sin llave identificada';
+    final count = (map['count'] as num?)?.toInt() ?? 0;
+    final total = _parseDouble(map['total']);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.bolt_outlined, size: 15, color: AppColors.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$label ($count)',
+              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            ),
+          ),
+          Text(
+            CurrencyFormatter.format(total),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMethodRow(String method, dynamic data) {

@@ -410,6 +410,32 @@ class _ActiveSession extends StatelessWidget {
           accent: AppColors.info,
           isHero: true,
         ),
+        const SizedBox(height: 10),
+        // Este total junta tarjeta + transferencia + billetera + Bre-B en
+        // un solo número — para saber CUÁL método específico (y, en
+        // Bre-B, a qué llave) hay que abrir el desglose completo.
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => Get.toNamed('/cash-history/${session.id}', arguments: session),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.pie_chart_outline, size: 15, color: AppColors.primary),
+                SizedBox(width: 6),
+                Text(
+                  'Ver desglose por método y por llave Bre-B',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
