@@ -4,6 +4,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
 
 import '../../../core/config/formatters/currency_formatter.dart';
+import '../../../core/config/formatters/datetime_formatter.dart';
 
 /// Datos que necesitamos para imprimir un ticket.
 /// El frontend los arma desde la `Order` ya cargada en memoria
@@ -129,6 +130,78 @@ class TicketModifierLine {
     required this.name,
     required this.quantity,
     required this.subtotal,
+  });
+}
+
+/// Un método de pago agregado del turno (ej. "Tarjeta: 3 cobros, $45.000").
+class CashSessionMethodLine {
+  final String method;
+  final int count;
+  final double total;
+
+  const CashSessionMethodLine({
+    required this.method,
+    required this.count,
+    required this.total,
+  });
+}
+
+/// Bre-B desglosado por llave (ej. "@llaveUno: 2 cobros, $17.000").
+class CashSessionLlaveLine {
+  final String label;
+  final int count;
+  final double total;
+
+  const CashSessionLlaveLine({
+    required this.label,
+    required this.count,
+    required this.total,
+  });
+}
+
+/// Datos para el ticket de cierre de caja — espejo de lo que arma
+/// `ThermalPrintService.generateCashSessionReportPdf` en el backend
+/// (mismo contenido, dos formatos: PDF allá para impresoras `system`,
+/// ESC/POS acá para impresoras `network`).
+class CashSessionReportData {
+  final String businessName;
+  final String? address;
+  final String? phone;
+
+  final String? cashierName;
+  final DateTime openedAt;
+  final DateTime? closedAt;
+  final bool isOpen;
+
+  final double openingAmount;
+  final double cashCollected;
+  final double cashExpenses;
+  final double expectedAmount;
+  final double? countedAmount;
+  final double? difference;
+
+  /// Métodos ≠ efectivo, EXCLUYENDO Bre-B cuando hay desglose por
+  /// llave (ese caso se imprime línea-por-llave en `llaves`, no acá) —
+  /// misma regla que el backend para no duplicar el total.
+  final List<CashSessionMethodLine> otherMethods;
+  final List<CashSessionLlaveLine> llaves;
+
+  const CashSessionReportData({
+    required this.businessName,
+    required this.address,
+    required this.phone,
+    required this.cashierName,
+    required this.openedAt,
+    required this.closedAt,
+    required this.isOpen,
+    required this.openingAmount,
+    required this.cashCollected,
+    required this.cashExpenses,
+    required this.expectedAmount,
+    required this.countedAmount,
+    required this.difference,
+    required this.otherMethods,
+    required this.llaves,
   });
 }
 
@@ -395,6 +468,198 @@ class EscPosGenerator {
   }
 
   /// Genera recibo del cliente (con precios + totales + método de pago).
+  /// Ticket de cierre de caja: fondo esperado en caja + desglose 100%
+  /// dinámico de "otros medios de pago" (Bre-B abierto por llave).
+  /// Espejo ESC/POS de `ThermalPrintService.generateCashSessionReportPdf`
+  /// del backend — mismo contenido, para impresoras `network`.
+  static Future<Uint8List> buildCashSessionReport({
+    required CashSessionReportData data,
+    required int paperWidthMm,
+  }) async {
+    final profile = await CapabilityProfile.load();
+    final paper = paperWidthMm == 58 ? PaperSize.mm58 : PaperSize.mm80;
+    final gen = Generator(paper, profile);
+
+    final bytes = <int>[];
+    bytes.addAll(gen.reset());
+
+    // ─── Header del negocio ───
+    bytes.addAll(
+      gen.text(
+        _sanitize(data.businessName.toUpperCase()),
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
+    );
+    if (data.address != null && data.address!.isNotEmpty) {
+      bytes.addAll(
+        gen.text(data.address!, styles: const PosStyles(align: PosAlign.center)),
+      );
+    }
+    if (data.phone != null && data.phone!.isNotEmpty) {
+      bytes.addAll(
+        gen.text('Tel: ${data.phone}',
+            styles: const PosStyles(align: PosAlign.center)),
+      );
+    }
+
+    bytes.addAll(
+      gen.text(
+        'CIERRE DE CAJA',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
+    bytes.addAll(gen.hr());
+
+    // ─── Metadata de sesión ───
+    if (data.cashierName != null && data.cashierName!.isNotEmpty) {
+      bytes.addAll(gen.text('Cajero: ${_sanitize(data.cashierName!)}'));
+    }
+    bytes.addAll(gen.text('Apertura: ${DateTimeFormatter.receiptDateTime(data.openedAt)}'));
+    bytes.addAll(
+      gen.text(
+        data.closedAt != null
+            ? 'Cierre: ${DateTimeFormatter.receiptDateTime(data.closedAt!)}'
+            : 'Cierre: En curso',
+      ),
+    );
+
+    bytes.addAll(gen.hr());
+
+    // ─── Efectivo / fondo esperado ───
+    bytes.addAll(
+      gen.row([
+        PosColumn(text: 'Fondo inicial:', width: 8),
+        PosColumn(
+          text: _money(data.openingAmount),
+          width: 4,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      gen.row([
+        PosColumn(text: 'Cobros en efectivo:', width: 8),
+        PosColumn(
+          text: _money(data.cashCollected),
+          width: 4,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    if (data.cashExpenses > 0) {
+      bytes.addAll(
+        gen.row([
+          PosColumn(text: 'Gastos del turno:', width: 8),
+          PosColumn(
+            text: '- ${_money(data.cashExpenses)}',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    bytes.addAll(
+      gen.text('FONDO ESPERADO EN CAJA', styles: const PosStyles(bold: true)),
+    );
+    bytes.addAll(
+      gen.text(
+        _money(data.expectedAmount),
+        styles: const PosStyles(
+          align: PosAlign.right,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
+    );
+
+    if (!data.isOpen && data.countedAmount != null) {
+      bytes.addAll(
+        gen.row([
+          PosColumn(text: 'Contado al cierre:', width: 8),
+          PosColumn(
+            text: _money(data.countedAmount!),
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      final diff = data.difference ?? 0;
+      bytes.addAll(
+        gen.row([
+          PosColumn(text: 'Diferencia:', width: 8),
+          PosColumn(
+            text: '${diff >= 0 ? '+' : ''}${_money(diff)}',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    bytes.addAll(gen.hr());
+
+    // ─── Otros medios de pago (dinámico, sin hardcodear métodos) ───
+    bytes.addAll(
+      gen.text('OTROS MEDIOS DE PAGO', styles: const PosStyles(bold: true)),
+    );
+
+    if (data.otherMethods.isEmpty && data.llaves.isEmpty) {
+      bytes.addAll(gen.text('(sin cobros en otros metodos)'));
+    }
+
+    for (final m in data.otherMethods) {
+      bytes.addAll(
+        gen.row([
+          PosColumn(
+            text: '${_formatPaymentMethod(m.method)} (${m.count})',
+            width: 8,
+          ),
+          PosColumn(
+            text: _money(m.total),
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+    for (final l in data.llaves) {
+      bytes.addAll(
+        gen.row([
+          PosColumn(text: 'Bre-B ${_sanitize(l.label)} (${l.count})', width: 8),
+          PosColumn(
+            text: _money(l.total),
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    bytes.addAll(gen.hr());
+    bytes.addAll(
+      gen.text(
+        'Cierre generado el',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(
+      gen.text(
+        DateTimeFormatter.receiptDateTime(DateTime.now()),
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+
+    bytes.addAll(gen.feed(1));
+    bytes.addAll(gen.cut());
+
+    return Uint8List.fromList(bytes);
+  }
+
   static Future<Uint8List> buildReceipt({
     required TicketData data,
     required int paperWidthMm,
@@ -826,6 +1091,10 @@ class EscPosGenerator {
         return 'Transferencia';
       case 'digital_wallet':
         return 'Billetera Digital';
+      case 'nequi':
+        return 'Nequi';
+      case 'breb':
+        return 'Bre-B';
       default:
         return method;
     }

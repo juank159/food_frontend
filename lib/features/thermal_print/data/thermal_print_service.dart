@@ -104,6 +104,17 @@ class ThermalPrintService {
     );
   }
 
+  /// Ticket de cierre de caja (fondo esperado + otros medios de pago).
+  Future<Uint8List> getCashSessionReportPdfBytes({
+    required String sessionId,
+    ThermalPaperWidth width = ThermalPaperWidth.mm80,
+  }) {
+    return _fetchPdf(
+      path: '/cash-sessions/$sessionId/print/report',
+      width: width,
+    );
+  }
+
   /// Pide el PDF A4 con varios QRs en grilla y lo imprime.
   /// perPage=1 → un QR enorme por hoja (ideal sticker individual).
   Future<bool> printQrSheet({

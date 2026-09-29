@@ -11,6 +11,7 @@ import '../../../core/utils/api_response_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/safe_get.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
+import '../../cash_sessions/data/models/cash_session_model.dart';
 import '../../orders/data/models/order_item_model.dart';
 import '../../orders/data/models/order_model.dart';
 import '../../tab_sessions/data/models/tab_session_model.dart';
@@ -333,6 +334,154 @@ class PrintingOrchestrator {
       printer: printer,
       silent: false,
       subtitle: subtitle,
+    );
+  }
+
+  // ── CIERRE DE CAJA ───────────────────────────────────────────────
+  //
+  // No encaja en `_runPrintJob` (pensado para `OrderModel`) porque el
+  // ticket de cierre de caja no es una orden — sale de
+  // `CashSessionsService.getReport()`. Implementación propia, mismo
+  // patrón de resolución de impresora / permisos / feedback.
+
+  /// Reusa el propósito `receipt` (misma impresora de caja) — no hay
+  /// un `PrinterPurpose` dedicado y no hace falta uno: el cierre de
+  /// caja se imprime desde el mismo punto físico que los recibos.
+  static Future<PrintResult> printCashSessionReport({
+    required String sessionId,
+  }) async {
+    final printer = await _resolveDefault(PrinterPurpose.receipt);
+    if (printer == null) {
+      _snackNoDefault('cierre de caja', PrinterPurpose.receipt);
+      return PrintResult.noPrinterConfigured;
+    }
+    if (!_userCanPrint(printer)) {
+      AppSnackbar.show('Sin permiso', 'Tu rol no tiene permiso para imprimir.');
+      return PrintResult.roleNotAllowed;
+    }
+    const docLabel = 'Cierre de caja';
+    try {
+      final bool ok;
+      switch (printer.connectionType) {
+        case PrinterConnectionType.network:
+          ok = await _printCashSessionReportNetwork(
+            sessionId: sessionId,
+            printer: printer,
+          );
+          break;
+        case PrinterConnectionType.system:
+          ok = await _printCashSessionReportSystem(
+            sessionId: sessionId,
+            printer: printer,
+          );
+          break;
+      }
+      if (ok) {
+        _snackOk(docLabel, printer);
+        return PrintResult.success;
+      }
+      return PrintResult.cancelled;
+    } catch (e) {
+      _snackError(docLabel, printer, e);
+      return PrintResult.printerError;
+    }
+  }
+
+  static Future<bool> _printCashSessionReportSystem({
+    required String sessionId,
+    required PrinterConfigModel printer,
+  }) async {
+    final width = printer.paperWidth == 58
+        ? ThermalPaperWidth.mm58
+        : ThermalPaperWidth.mm80;
+    final tps = sl<ThermalPrintService>();
+    final pdf = await tps.getCashSessionReportPdfBytes(
+      sessionId: sessionId,
+      width: width,
+    );
+    if (pdf.isEmpty) return true;
+    return PrinterDispatcher.printPdf(pdfBytes: pdf, jobName: 'Cierre de caja');
+  }
+
+  static Future<bool> _printCashSessionReportNetwork({
+    required String sessionId,
+    required PrinterConfigModel printer,
+  }) async {
+    final data = await _buildCashSessionReportData(sessionId);
+    final bytes = await EscPosGenerator.buildCashSessionReport(
+      data: data,
+      paperWidthMm: printer.paperWidth,
+    );
+    return PrinterDispatcher.printRawBytes(bytes: bytes, printer: printer);
+  }
+
+  /// Arma `CashSessionReportData` desde el JSON crudo de
+  /// `GET /cash-sessions/:id/report` — 100% dinámico: la lista de
+  /// "otros métodos" y de llaves Bre-B sale directo de `by_method` /
+  /// `breb_by_llave`, nunca hardcodea qué métodos o llaves existen.
+  /// Misma regla que el backend (`ThermalPrintService.
+  /// generateCashSessionReportPdf`): si Bre-B tiene llave(s)
+  /// identificada(s), se muestra desglosado por llave y NO además
+  /// como línea agregada (evitaría duplicar el total en el ticket).
+  static Future<CashSessionReportData> _buildCashSessionReportData(
+    String sessionId,
+  ) async {
+    final dio = sl<Dio>();
+    final response = await dio.get('/cash-sessions/$sessionId/report');
+    final data = ApiResponseUtils.object(response);
+    final session = CashSessionModel.fromJson(
+      (data['session'] as Map).cast<String, dynamic>(),
+    );
+    final tenant = await _getTenantInfo();
+
+    final byMethod =
+        (data['by_method'] as Map?)?.cast<String, dynamic>() ?? {};
+    final brebByLlave =
+        (data['breb_by_llave'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    double numOf(dynamic v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+    int intOf(dynamic v) =>
+        v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+
+    final llaves = brebByLlave.entries.map((e) {
+      final m = (e.value as Map).cast<String, dynamic>();
+      final label = (m['label'] as String?)?.trim();
+      return CashSessionLlaveLine(
+        label: (label != null && label.isNotEmpty) ? label : e.key,
+        count: intOf(m['count']),
+        total: numOf(m['total']),
+      );
+    }).toList();
+
+    final otherMethods = byMethod.entries
+        .where((e) => e.key != 'cash' && !(e.key == 'breb' && llaves.isNotEmpty))
+        .map((e) {
+      final m = (e.value as Map).cast<String, dynamic>();
+      return CashSessionMethodLine(
+        method: e.key,
+        count: intOf(m['count']),
+        total: numOf(m['total']),
+      );
+    }).toList();
+
+    return CashSessionReportData(
+      businessName: tenant.businessName,
+      address: tenant.address,
+      phone: tenant.phone,
+      cashierName: session.closedByName ?? session.openedByName,
+      openedAt: DateTime.parse(session.openedAt),
+      closedAt:
+          session.closedAt != null ? DateTime.parse(session.closedAt!) : null,
+      isOpen: session.status == 'open',
+      openingAmount: session.openingAmount,
+      cashCollected: numOf((byMethod['cash'] as Map?)?['total']),
+      cashExpenses: session.totalCashExpenses,
+      expectedAmount: session.expectedAmount ?? 0,
+      countedAmount: session.closingAmountCounted,
+      difference: session.difference,
+      otherMethods: otherMethods,
+      llaves: llaves,
     );
   }
 

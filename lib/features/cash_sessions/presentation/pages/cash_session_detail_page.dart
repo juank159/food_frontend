@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/cash_session.dart';
@@ -726,8 +727,11 @@ class _PaymentRow extends StatelessWidget {
     final reference = payment['transaction_reference']?.toString();
     final notes = payment['notes']?.toString();
     final dateStr = payment['processed_at']?.toString();
+    // Fecha + hora + zona horaria EXPLÍCITA (siempre Colombia, sin
+    // depender de la zona del dispositivo) — para poder comparar este
+    // pago contra el comprobante real del banco al cuadrar caja.
     final time = dateStr != null
-        ? DateFormat('HH:mm', 'es').format(DateTime.parse(dateStr).toLocal())
+        ? DateTimeFormatter.receiptDateTime(DateTime.parse(dateStr))
         : '';
 
     final subtitleParts = <String>[

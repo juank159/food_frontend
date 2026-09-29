@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/cash_session.dart';
 import '../controllers/cash_session_controller.dart';
 import '../widgets/close_cash_dialog.dart';
@@ -778,6 +779,18 @@ class _ClosedSummary extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () => PrintingOrchestrator.printCashSessionReport(
+              sessionId: session.id,
+            ),
+            icon: const Icon(Icons.print_outlined),
+            label: const Text('Imprimir cierre de caja'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: onDismiss,
             icon: const Icon(Icons.refresh),
