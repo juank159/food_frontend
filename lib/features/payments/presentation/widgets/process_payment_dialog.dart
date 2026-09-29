@@ -189,6 +189,14 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
         items: items,
         balance: _effectiveAmount,
         onPay: (req) async {
+          // Bre-B NUNCA se puede marcar "completado" al instante — hay
+          // que esperar la confirmación real del banco (mismo motivo que
+          // `_processBrebPayment` arriba). Antes esto caía derecho a
+          // `addPartialPayment` como cualquier otro método, lo que
+          // marcaba el pago como pagado sin que hubiera llegado plata.
+          if (req.method == PaymentMethod.brebB) {
+            return _confirmBrebItemPayment(context, req.amount);
+          }
           if (req.method == PaymentMethod.cash) {
             ctrl.receivedAmount.value = req.receivedAmount ?? 0;
           }
@@ -209,6 +217,41 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       HapticFeedback.mediumImpact();
       Navigator.pop(context);
     }
+  }
+
+  /// Abre el diálogo real de espera/confirmación Bre-B para un pago por
+  /// ítems. Devuelve `true` solo si el banco confirmó de verdad.
+  ///
+  /// Limitación conocida: a diferencia de efectivo/tarjeta, el `notes`
+  /// con `__items__` (qué ítem específico cubre este pago) NO se puede
+  /// adjuntar acá — `BrebPaymentController.createCharge` solo recibe
+  /// monto, no metadata de ítems, porque el pago real lo registra el
+  /// backend de forma asíncrona al llegar el correo del banco (ver
+  /// `BrebService._registerTenantPayment`), con sus propias notas
+  /// (pagador, llave, referencia). El monto se cobra bien igual, pero
+  /// esos ítems puntuales no van a quedar marcados como "Cobrado" en
+  /// pantalla. Arreglar esto de raíz requiere que el backend sepa
+  /// combinar ambas notas — pendiente si hace falta.
+  Future<bool> _confirmBrebItemPayment(
+    BuildContext context,
+    double amount,
+  ) async {
+    final brebCtrl = BrebPaymentController(dio: GetIt.instance<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        orderId: widget.orderId,
+        amount: amount,
+      ),
+    );
+    brebCtrl.cancel();
+    if (confirmed ?? false) {
+      await widget.controller.refreshAfterExternalPayment(widget.orderId);
+      return true;
+    }
+    return false;
   }
 
   Future<void> _showSplitPaymentDialog(BuildContext context) async {

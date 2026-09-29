@@ -306,6 +306,16 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         balance: session.balance,
         subtitle: session.displayLabel(),
         onPay: (req) async {
+          // Bre-B NUNCA se puede marcar "completado" al instante — hay
+          // que esperar la confirmación real del banco (mismo motivo que
+          // `_processBrebPayment` más arriba en este archivo). Antes esto
+          // caía derecho a `ProcessTabPaymentUseCase` como cualquier otro
+          // método, lo que marcaba el pago como pagado sin que hubiera
+          // llegado plata — bug real, preexistente.
+          if (req.method == PaymentMethod.brebB) {
+            return _confirmBrebItemPayment(req.amount);
+          }
+
           final result = await useCase(
             tabSessionId: session.id,
             amount: req.amount,
@@ -347,6 +357,25 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
       }
       Navigator.of(context).pop(true);
     }
+  }
+
+  /// Abre el diálogo real de espera/confirmación Bre-B para un pago por
+  /// ítems de esta cuenta. Devuelve `true` solo si el banco confirmó de
+  /// verdad — ver la limitación de `notes`/`__items__` documentada en
+  /// `ProcessPaymentDialog._confirmBrebItemPayment` (mismo caso acá).
+  Future<bool> _confirmBrebItemPayment(double amount) async {
+    final brebCtrl = BrebPaymentController(dio: sl<Dio>());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrebPaymentDialog(
+        controller: brebCtrl,
+        tabSessionId: session.id,
+        amount: amount,
+      ),
+    );
+    brebCtrl.cancel();
+    return confirmed ?? false;
   }
 
   @override
