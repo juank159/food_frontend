@@ -13,6 +13,7 @@ import '../../../../core/utils/input_formatters.dart';
 import '../../../payments/presentation/controllers/breb_payment_controller.dart';
 import '../../../payments/presentation/widgets/breb_payment_dialog.dart';
 import '../../../payments/presentation/widgets/item_selection_sheet.dart';
+import '../../../payments/presentation/widgets/payment_confirmation_dialog.dart';
 import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_error_handler.dart';
@@ -131,6 +132,19 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
 
   Future<void> _processPayment() async {
     if (!_canSubmit || _isProcessing) return;
+
+    // Último paso antes de cobrar: que quede clarísimo qué se va a
+    // procesar, por cuánto y con qué método — así un método que quedó
+    // seleccionado por defecto (o un monto mal tipeado) no se cuela sin
+    // que el cajero lo note.
+    final confirmed = await PaymentConfirmationDialog.show(
+      context,
+      amount: _amount,
+      method: _selectedMethod,
+      accountName: _selectedAccount?.name,
+      subtitle: session.displayLabel(),
+    );
+    if (!confirmed || !mounted) return;
 
     // Cubre TODO lo que falta de la cuenta — recién ahí se puede
     // considerar "cobrada completa" e imprimir el recibo final. Si el

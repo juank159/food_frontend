@@ -17,8 +17,8 @@ import '../../../orders/domain/entities/order.dart';
 import '../../domain/entities/payment.dart';
 import 'item_selection_sheet.dart';
 import 'breb_payment_dialog.dart';
+import 'payment_confirmation_dialog.dart';
 import 'payment_method_selector.dart';
-import 'split_payment_dialog.dart';
 import 'tenant_payment_account_selector.dart';
 
 /// Dialog principal para procesar pagos de una orden.
@@ -44,31 +44,52 @@ class ProcessPaymentDialog extends StatefulWidget {
 }
 
 class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
+  final _amountCtrl = TextEditingController();
   final _cashCtrl = TextEditingController();
   final _referenceCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   double _received = 0;
 
+  /// Todo lo que falta de la orden — fijo, no editable (referencia para
+  /// el header, el tope del monto y el campo "Recibido").
   double get _effectiveAmount => widget.amountDue ?? widget.orderTotal;
   bool get _hasPartial =>
       widget.amountDue != null && widget.amountDue! < widget.orderTotal - 0.01;
   double get _alreadyPaid => _hasPartial ? (widget.orderTotal - widget.amountDue!) : 0;
-  double get _change => _received - _effectiveAmount;
-  bool get _cashReady => _received >= _effectiveAmount;
+
+  /// Monto a cobrar AHORA — precargado con todo lo que falta (un solo
+  /// toque sigue cobrando todo), pero editable: si el cliente paga
+  /// parcial, el cajero lo cambia acá mismo, sin abrir "Dividir pago".
+  double get _amount =>
+      (NumberFormatHelper.parseFormattedInt(_amountCtrl.text) ?? 0).toDouble();
+  double get _change => _received - _amount;
+  bool get _cashReady => _received >= _amount;
+
+  void _useFullAmount() {
+    _amountCtrl.text = NumberFormatHelper.formatNumber(_effectiveAmount.round());
+  }
 
   @override
   void initState() {
     super.initState();
+    _amountCtrl.text = NumberFormatHelper.formatNumber(_effectiveAmount.round());
+    _amountCtrl.addListener(_rebuild);
     _cashCtrl.addListener(_onCashChanged);
   }
 
   @override
   void dispose() {
+    _amountCtrl.removeListener(_rebuild);
+    _amountCtrl.dispose();
     _cashCtrl.removeListener(_onCashChanged);
     _cashCtrl.dispose();
     _referenceCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
   }
 
   void _onCashChanged() {
@@ -77,36 +98,61 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   }
 
   void _setExact() {
-    _cashCtrl.text = NumberFormatHelper.formatNumber(_effectiveAmount.toInt());
+    _cashCtrl.text = NumberFormatHelper.formatNumber(_amount.round());
   }
 
   Future<void> _processPayment(BuildContext context) async {
     final method = widget.controller.selectedPaymentMethod.value;
+    final amount = _amount;
+
+    if (amount <= 0) {
+      AppSnackbar.show('Monto inválido', 'Ingresá cuánto vas a cobrar.');
+      return;
+    }
+    if (amount > _effectiveAmount + 0.01) {
+      AppSnackbar.show('Monto inválido',
+          'Supera lo que falta (${CurrencyFormatter.format(_effectiveAmount)}).');
+      return;
+    }
 
     // Sincronizar campos locales al controlador antes de procesar
     widget.controller.transactionReference.value = _referenceCtrl.text.trim();
     widget.controller.notes.value = _notesCtrl.text.trim();
 
+    if (method == PaymentMethod.cash) {
+      // Recibido es opcional; solo bloquear si ingresó un monto insuficiente
+      if (_received > 0 && _received < amount) {
+        AppSnackbar.show('Monto insuficiente',
+            'El recibido debe ser al menos ${CurrencyFormatter.format(amount)}');
+        return;
+      }
+    }
+
+    // Último paso antes de cobrar: que quede clarísimo qué se va a
+    // procesar, por cuánto y con qué método — así un método que quedó
+    // seleccionado por defecto (o un monto mal tipeado) no se cuela sin
+    // que el cajero lo note.
+    final accountId = widget.controller.selectedTenantAccountId.value;
+    final confirmed = await PaymentConfirmationDialog.show(
+      context,
+      amount: amount,
+      method: method,
+      subtitle: widget.order != null ? 'Orden ${widget.order!.orderNumber}' : null,
+    );
+    if (!confirmed || !context.mounted) return;
+
     if (method == PaymentMethod.brebB) {
-      await _processBrebPayment(context);
+      await _processBrebPayment(context, amount);
       return;
     }
 
-    if (method == PaymentMethod.cash) {
-      // Recibido es opcional; solo bloquear si ingresó un monto insuficiente
-      if (_received > 0 && _received < _effectiveAmount) {
-        AppSnackbar.show('Monto insuficiente',
-            'El recibido debe ser al menos ${CurrencyFormatter.format(_effectiveAmount)}');
-        return;
-      }
-      if (_received > 0) {
-        widget.controller.receivedAmount.value = _received;
-      }
+    if (method == PaymentMethod.cash && _received > 0) {
+      widget.controller.receivedAmount.value = _received;
     }
-    await _executePayment(context);
+    await _executePayment(context, amount, accountId);
   }
 
-  Future<void> _processBrebPayment(BuildContext context) async {
+  Future<void> _processBrebPayment(BuildContext context, double amount) async {
     final outerContext = context;
     final brebCtrl = BrebPaymentController(dio: GetIt.instance<Dio>());
     final confirmed = await showDialog<bool>(
@@ -115,13 +161,13 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       builder: (_) => BrebPaymentDialog(
         controller: brebCtrl,
         orderId: widget.orderId,
-        amount: _effectiveAmount,
+        amount: amount,
       ),
     );
     brebCtrl.cancel();
     if (confirmed ?? false) {
       // El pago Bre-B lo confirma el backend de forma asíncrona (correo
-      // conciliado) — no pasa por processOrderPayment, así que nadie más
+      // conciliado) — no pasa por addPartialPayment, así que nadie más
       // dispara el refresh normal. Sin esto, el diálogo cerraba pero el
       // detalle de la orden (saldo, historial, estado) quedaba con datos
       // viejos hasta un refresh manual.
@@ -133,10 +179,30 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     }
   }
 
-  Future<void> _executePayment(BuildContext context) async {
-    final payment = await widget.controller.processOrderPayment(
+  Future<void> _executePayment(
+    BuildContext context,
+    double amount,
+    String? tenantAccountId,
+  ) async {
+    // addPartialPayment ("pago parcial o total", ver su doc) reemplaza
+    // acá tanto al viejo "pagar todo" como a "Dividir pago" — el
+    // backend ya calcula lo mismo para ambos casos (processOrderPayment
+    // no es más que este mismo endpoint con amount = saldo completo).
+    final payment = await widget.controller.addPartialPayment(
       orderId: widget.orderId,
-      orderTotal: _effectiveAmount,
+      paymentMethod: widget.controller.selectedPaymentMethod.value,
+      amount: amount,
+      receivedAmount: widget.controller.selectedPaymentMethod.value ==
+              PaymentMethod.cash
+          ? widget.controller.receivedAmount.value
+          : null,
+      transactionReference: widget.controller.transactionReference.value.isNotEmpty
+          ? widget.controller.transactionReference.value
+          : null,
+      notes: widget.controller.notes.value.isNotEmpty
+          ? widget.controller.notes.value
+          : null,
+      tenantPaymentAccountId: tenantAccountId,
     );
     if (payment != null && context.mounted) {
       HapticFeedback.mediumImpact();
@@ -254,19 +320,6 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     return false;
   }
 
-  Future<void> _showSplitPaymentDialog(BuildContext context) async {
-    final outerContext = context;
-    final result = await showDialog<List<Payment>?>(
-      context: context,
-      builder: (_) => SplitPaymentDialog(
-        orderId: widget.orderId,
-        totalAmount: widget.orderTotal,
-        controller: widget.controller,
-      ),
-    );
-    if (outerContext.mounted) Navigator.pop(outerContext, result);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -345,6 +398,41 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                           orderId: widget.orderId),
                       const SizedBox(height: 12),
                     ],
+
+                    const _SectionLabel('Monto a cobrar'),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _amountCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [ThousandsSeparatorInputFormatter()],
+                            decoration: InputDecoration(
+                              prefixText: '\$ ',
+                              hintText: '0',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              isDense: true,
+                              helperText: _amount > _effectiveAmount + 0.01
+                                  ? 'Supera lo que falta (${CurrencyFormatter.format(_effectiveAmount)})'
+                                  : (_amount < _effectiveAmount - 0.01 && _amount > 0
+                                      ? 'Pago parcial — queda '
+                                          '${CurrencyFormatter.format(_effectiveAmount - _amount)}'
+                                      : null),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        FilledButton.tonal(
+                          onPressed: _useFullAmount,
+                          child: const Text('Todo'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
                     const _SectionLabel('Método de pago'),
                     const SizedBox(height: 8),
@@ -438,38 +526,21 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                     );
                   }),
 
-                  // Botones secundarios
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.splitscreen, size: 16),
-                          label: const Text('Dividir'),
-                          onPressed: () => _showSplitPaymentDialog(context),
-                          style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 40),
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8)),
-                        ),
+                  // "Por ítems" — sigue siendo distinto de tipear un monto:
+                  // elegís productos puntuales, no solo un número.
+                  if (widget.order != null && widget.order!.items.isNotEmpty) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.checklist_rtl, size: 16),
+                        label: const Text('Cobrar por ítems'),
+                        onPressed: () => _openItemSelection(context),
+                        style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 40)),
                       ),
-                      if (widget.order != null &&
-                          widget.order!.items.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.checklist_rtl, size: 16),
-                            label: const Text('Por ítems'),
-                            onPressed: () => _openItemSelection(context),
-                            style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, 40),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8)),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
 
                   // Botón principal
                   Obx(() {
@@ -480,7 +551,9 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                     final processing = widget.controller.isProcessing.value;
                     // Para efectivo además necesitamos que haya monto suficiente
                     final cashAmountOk = !isCash || _cashReady;
-                    final disabled = processing || !cashOk;
+                    final amountOk =
+                        _amount > 0 && _amount <= _effectiveAmount + 0.01;
+                    final disabled = processing || !cashOk || !amountOk;
 
                     return FilledButton.icon(
                       onPressed: disabled ? null : () => _processPayment(context),
@@ -500,7 +573,7 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                             ? 'Procesando...'
                             : !cashOk
                                 ? 'Abrí caja para cobrar'
-                                : 'Procesar pago',
+                                : 'Procesar pago ${CurrencyFormatter.format(_amount)}',
                         overflow: TextOverflow.ellipsis,
                       ),
                       style: FilledButton.styleFrom(
@@ -541,7 +614,7 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
           decoration: InputDecoration(
             labelText: 'Recibido (opcional)',
             prefixText: '\$ ',
-            hintText: NumberFormatHelper.formatNumber(_effectiveAmount.toInt()),
+            hintText: NumberFormatHelper.formatNumber(_amount.toInt()),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             filled: true,
             suffixIcon: TextButton(

@@ -10,6 +10,7 @@ import '../../../../core/utils/input_formatters.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import '../../../tenant_payment_accounts/domain/entities/tenant_payment_account.dart';
 import '../../../tenant_payment_accounts/domain/usecases/tenant_payment_account_usecases.dart';
+import 'payment_confirmation_dialog.dart';
 import 'payment_method_selector.dart';
 
 /// Un ítem a mostrar en el sheet de cobro por ítems.
@@ -157,6 +158,19 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
   Future<void> _confirm() async {
     if (!_canPay || _processing) return;
     final total = _total;
+    final selectedCount =
+        widget.items.where((i) => i.selectedQty > 0).length;
+
+    final confirmed = await PaymentConfirmationDialog.show(
+      context,
+      amount: total,
+      method: _method,
+      accountName: _account?.name,
+      subtitle: widget.subtitle != null
+          ? '${widget.subtitle} · $selectedCount ítem(s)'
+          : '$selectedCount ítem(s) seleccionados',
+    );
+    if (!confirmed || !mounted) return;
 
     final notesJson = jsonEncode({
       '__items__': widget.items
