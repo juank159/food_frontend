@@ -161,8 +161,9 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
   // ── Estado de la sesión ──────────────────────────────────────────────────
 
   Widget _buildStatusCard() {
-    final openedStr = DateFormat('dd MMM yyyy · HH:mm', 'es')
-        .format(session.openedAt.toLocal());
+    final openedLocal = session.openedAt.toLocal();
+    final openedStr =
+        '${DateFormat('dd MMM yyyy', 'es').format(openedLocal)} · ${DateTimeFormatter.time12(openedLocal)}';
     return _InfoCard(
       children: [
         Row(
@@ -189,7 +190,7 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
                   size: 14, color: AppColors.textSecondary),
               const SizedBox(width: 6),
               Text(
-                'Cierre: ${DateFormat('dd MMM yyyy · HH:mm', 'es').format(session.closedAt!.toLocal())}',
+                'Cierre: ${DateFormat('dd MMM yyyy', 'es').format(session.closedAt!.toLocal())} · ${DateTimeFormatter.time12(session.closedAt!.toLocal())}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,

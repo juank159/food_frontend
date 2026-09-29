@@ -6,6 +6,7 @@ import '../../features/cash_sessions/domain/usecases/cash_session_usecases.dart'
 import '../../features/cash_sessions/presentation/controllers/cash_session_controller.dart';
 import '../../features/cash_sessions/presentation/controllers/cash_session_guard.dart';
 import '../../features/cash_sessions/presentation/widgets/open_cash_dialog.dart';
+import '../config/formatters/datetime_formatter.dart';
 import '../config/theme/app_colors.dart';
 import '../di/injection_container.dart';
 
@@ -199,8 +200,7 @@ class _NoCashDialogState extends State<_NoCashDialog> {
 /// Permite continuar O ir a cerrar la caja del día anterior.
 Future<void> _showStaleCashWarning(
     BuildContext context, DateTime openedAt) async {
-  final timeStr =
-      DateFormat('HH:mm').format(openedAt.toLocal());
+  final timeStr = DateTimeFormatter.time12(openedAt.toLocal());
   final dateStr = DateFormat('d MMM', 'es').format(openedAt.toLocal());
 
   await showDialog<void>(

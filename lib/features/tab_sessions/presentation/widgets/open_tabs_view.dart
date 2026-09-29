@@ -1,9 +1,9 @@
 // lib/features/tab_sessions/presentation/widgets/open_tabs_view.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_dialog.dart';
@@ -657,7 +657,7 @@ class _TabCard extends StatelessWidget {
                         '${session.totalOrders} ${session.totalOrders == 1 ? "ticket" : "tickets"}',
                         if (session.partySize != null && session.partySize! > 0)
                           '${session.partySize} pers.',
-                        'desde ${DateFormat('HH:mm').format(session.openedAt)}',
+                        'desde ${DateTimeFormatter.time12(session.openedAt)}',
                       ].join(' · '),
                       style: const TextStyle(
                         fontSize: 12,

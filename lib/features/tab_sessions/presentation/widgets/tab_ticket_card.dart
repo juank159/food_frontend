@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 
@@ -118,8 +118,7 @@ class TabTicketCard extends StatelessWidget {
                         _destination(typeMeta.label),
                         '$totalItems items',
                         if (createdAt != null)
-                          DateFormat('HH:mm')
-                              .format(DateTime.parse(createdAt)),
+                          DateTimeFormatter.time12(DateTime.parse(createdAt)),
                       ].join(' · '),
                       style: const TextStyle(
                         fontSize: 11,

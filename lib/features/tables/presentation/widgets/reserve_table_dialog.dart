@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/table_status.dart';
 import '../../domain/enums/table_capacity.dart';
@@ -206,7 +207,7 @@ class _ReserveTableDialogState extends State<ReserveTableDialog> {
   }
 
   Widget _buildDateTimeField() {
-    final df = DateFormat('dd MMM yyyy · HH:mm');
+    final df = DateFormat('dd MMM yyyy');
     return _LabeledField(
       label: 'Fecha y hora',
       child: Material(
@@ -236,7 +237,7 @@ class _ReserveTableDialogState extends State<ReserveTableDialog> {
                   child: Text(
                     _reservedFor == null
                         ? 'Seleccionar fecha y hora'
-                        : df.format(_reservedFor!),
+                        : '${df.format(_reservedFor!)} · ${DateTimeFormatter.time12(_reservedFor!)}',
                     style: TextStyle(
                       fontSize: 14,
                       color: _reservedFor == null

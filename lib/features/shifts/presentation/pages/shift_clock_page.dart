@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../controllers/shift_controller.dart';
 
@@ -220,7 +221,7 @@ class _ShiftClockPageState extends State<ShiftClockPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Entrada: ${DateFormat('dd/MM HH:mm').format(s.clockIn.toLocal())}',
+            'Entrada: ${DateFormat('dd/MM').format(s.clockIn.toLocal())} ${DateTimeFormatter.time12(s.clockIn.toLocal())}',
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 18),
@@ -316,9 +317,9 @@ class _ShiftClockPageState extends State<ShiftClockPage> {
                           ),
                         ),
                         Text(
-                          '${DateFormat('HH:mm').format(s.clockIn.toLocal())}'
+                          '${DateTimeFormatter.time12(s.clockIn.toLocal())}'
                           ' → '
-                          '${s.clockOut != null ? DateFormat('HH:mm').format(s.clockOut!.toLocal()) : 'abierto'}',
+                          '${s.clockOut != null ? DateTimeFormatter.time12(s.clockOut!.toLocal()) : 'abierto'}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/cash_guard_utils.dart';
@@ -146,7 +146,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   String _headerSubtitle(TabSession s) {
     final parts = <String>[];
     parts.add('${s.totalOrders} tickets');
-    parts.add('Abierta ${DateFormat('HH:mm').format(s.openedAt)}');
+    parts.add('Abierta ${DateTimeFormatter.time12(s.openedAt)}');
     if (s.partySize != null && s.partySize! > 0) {
       parts.add('${s.partySize} personas');
     }

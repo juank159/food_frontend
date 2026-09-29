@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/cash_guard_utils.dart';
@@ -522,7 +523,7 @@ class _OrderHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${order.displayDestination} · ${DateFormat('dd MMM, HH:mm').format(order.createdAt)}',
+                  '${order.displayDestination} · ${DateFormat('dd MMM,').format(order.createdAt)} ${DateTimeFormatter.time12(order.createdAt)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -800,7 +801,7 @@ class _StatusTimeline extends StatelessWidget {
                     if (order.cancelledAt != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        DateFormat('dd MMM, HH:mm').format(order.cancelledAt!),
+                        '${DateFormat('dd MMM,').format(order.cancelledAt!)} ${DateTimeFormatter.time12(order.cancelledAt!)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,

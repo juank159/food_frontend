@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
@@ -304,7 +305,8 @@ class _ActiveSession extends StatelessWidget {
   }
 
   Widget _buildStatusBanner() {
-    final opened = DateFormat('dd MMM yyyy · HH:mm').format(session.openedAt);
+    final opened =
+        '${DateFormat('dd MMM yyyy').format(session.openedAt)} · ${DateTimeFormatter.time12(session.openedAt)}';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(

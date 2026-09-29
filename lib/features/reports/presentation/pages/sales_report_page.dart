@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -244,7 +245,7 @@ class _OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(order.status);
-    final fmt = DateFormat('dd/MM HH:mm');
+    final fmt = DateFormat('dd/MM');
     return Material(
       color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(14),
@@ -314,7 +315,7 @@ class _OrderTile extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${order.displayDestination} • ${fmt.format(order.createdAt.toLocal())}',
+                                '${order.displayDestination} • ${fmt.format(order.createdAt.toLocal())} ${DateTimeFormatter.time12(order.createdAt.toLocal())}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,

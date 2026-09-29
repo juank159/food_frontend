@@ -24,23 +24,53 @@ class DateTimeFormatter {
   /// Instante (en cualquier zona) → wall-clock de Bogotá.
   static DateTime _toBogota(DateTime dt) => dt.toUtc().add(_bogotaOffset);
 
-  /// `29/09/2026 · 14:27:36 (hora Colombia)` — fecha, hora y segundos
+  /// `29/09/2026 · 2:27:36 PM (hora Colombia)` — fecha, hora y segundos
   /// completos, con la zona horaria explícita en el texto. Pensado para
   /// comparar un pago puntual contra el comprobante del banco, o para
   /// el ticket impreso de cierre de caja.
+  ///
+  /// **12 horas con AM/PM, nunca 24h ("hora militar")** — a propósito.
+  /// Esta app la usa gente sin formación técnica; "14:27" es ambiguo
+  /// para ese público, "2:27 PM" no. Mismo criterio que ya usa el
+  /// ticket ESC/POS (`esc_pos_generator.dart` → `_hhmm`) — no se usa
+  /// `DateFormat('...a', 'es')` porque el locale `es` imprime
+  /// "p. m." (con puntos), más formal/confuso que el "PM" plano.
   static String receiptDateTime(DateTime dt) {
     final bog = _toBogota(dt);
     final date = DateFormat('dd/MM/yyyy', 'es').format(bog);
-    final time = DateFormat('HH:mm:ss', 'es').format(bog);
-    return '$date · $time (hora Colombia)';
+    return '$date · ${_time12(bog, seconds: true)} (hora Colombia)';
   }
 
   /// `29 sep 2026` — solo fecha, para encabezados.
   static String dateOnly(DateTime dt) =>
       DateFormat('dd MMM yyyy', 'es').format(_toBogota(dt));
 
-  /// `14:27` — solo hora (sin segundos), para listas compactas donde ya
-  /// se sabe/muestra la fecha por separado.
+  /// `2:27 PM` — solo hora (sin segundos, 12h con AM/PM), para listas
+  /// compactas donde ya se sabe/muestra la fecha por separado.
   static String timeOnly(DateTime dt) =>
-      DateFormat('HH:mm', 'es').format(_toBogota(dt));
+      _time12(_toBogota(dt), seconds: false);
+
+  /// `2:27 PM` — igual que [timeOnly], pero a partir de un `DateTime`
+  /// YA resuelto a la zona que quiera el caller (típicamente
+  /// `.toLocal()`), sin forzar la conversión a Bogotá. Pensado como
+  /// reemplazo directo de `DateFormat('HH:mm')` (24h / "hora militar")
+  /// en toda la app — no todas las pantallas necesitan el rigor de
+  /// zona horaria explícita de [receiptDateTime] (eso es solo para
+  /// conciliar Bre-B contra el banco), pero TODAS necesitan mostrar la
+  /// hora en 12h con AM/PM: esta app la usa gente sin formación
+  /// técnica y "14:27" es ambiguo para ese público.
+  static String time12(DateTime dt) => _time12(dt, seconds: false);
+
+  /// `2:27:36 PM` — igual que [time12], pero con segundos.
+  static String time12s(DateTime dt) => _time12(dt, seconds: true);
+
+  static String _time12(DateTime bogota, {required bool seconds}) {
+    final h = bogota.hour;
+    final period = h < 12 ? 'AM' : 'PM';
+    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final mm = bogota.minute.toString().padLeft(2, '0');
+    if (!seconds) return '$h12:$mm $period';
+    final ss = bogota.second.toString().padLeft(2, '0');
+    return '$h12:$mm:$ss $period';
+  }
 }

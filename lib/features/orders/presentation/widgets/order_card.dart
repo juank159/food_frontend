@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/order.dart' as order_entity;
 
@@ -376,13 +377,15 @@ class OrderCard extends StatelessWidget {
   static String _relativeTime(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
-    if (diff.isNegative) return DateFormat('dd/MM HH:mm').format(date);
+    if (diff.isNegative) {
+      return '${DateFormat('dd/MM').format(date)} ${DateTimeFormatter.time12(date)}';
+    }
     if (diff.inSeconds < 60) return 'hace un momento';
     if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'hace ${diff.inHours} h';
     if (diff.inDays == 1) return 'ayer';
     if (diff.inDays < 7) return 'hace ${diff.inDays} días';
-    return DateFormat('dd/MM/yyyy HH:mm').format(date);
+    return '${DateFormat('dd/MM/yyyy').format(date)} ${DateTimeFormatter.time12(date)}';
   }
 }
 

@@ -8,6 +8,7 @@ import '../../../../core/widgets/status_badge.dart';
 import '../../domain/entities/payment.dart';
 import '../controllers/payment_controller.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 
 /// Payment History Widget
 /// Widget para mostrar el historial completo de pagos de una orden
@@ -283,7 +284,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                             ),
                           ),
                         Text(
-                          DateFormat('dd/MM/yyyy HH:mm').format(payment.createdAt),
+                          '${DateFormat('dd/MM/yyyy').format(payment.createdAt)} ${DateTimeFormatter.time12(payment.createdAt)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -375,7 +376,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                       if (payment.refundedAt != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(payment.refundedAt!)}',
+                          'Fecha: ${DateFormat('dd/MM/yyyy').format(payment.refundedAt!)} ${DateTimeFormatter.time12(payment.refundedAt!)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -573,7 +574,7 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
             _buildDetailRow(
               theme,
               'Fecha de creación',
-              DateFormat('dd/MM/yyyy HH:mm:ss').format(payment.createdAt),
+              '${DateFormat('dd/MM/yyyy').format(payment.createdAt)} ${DateTimeFormatter.time12s(payment.createdAt)}',
             ),
 
             if (payment.processedBy.isNotEmpty) ...[

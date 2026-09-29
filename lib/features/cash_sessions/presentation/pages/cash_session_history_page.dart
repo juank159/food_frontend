@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/date_period.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -610,7 +611,7 @@ class _SessionCard extends StatelessWidget {
 
   String _formatDate(DateTime dt) {
     final local = dt.toLocal();
-    return DateFormat('dd MMM yyyy · HH:mm', 'es').format(local);
+    return '${DateFormat('dd MMM yyyy', 'es').format(local)} · ${DateTimeFormatter.time12(local)}';
   }
 }
 
