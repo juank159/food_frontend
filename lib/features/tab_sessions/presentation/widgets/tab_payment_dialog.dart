@@ -311,6 +311,14 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
             amount: req.amount,
             paymentMethod: req.method,
             tenantPaymentAccountId: req.tenantAccountId,
+            // Sin esto, el backend nunca se entera de QUÉ ítems cubre este
+            // pago — el sheet ya arma el JSON con `__items__`, pero antes
+            // se descartaba acá. Por eso un ítem pagado no quedaba
+            // marcado como "Cobrado" la próxima vez que se abría "Por
+            // ítems" en esta cuenta (bug real, preexistente).
+            notes: req.notesJson,
+            receivedAmount:
+                req.method == PaymentMethod.cash ? req.receivedAmount : null,
           );
           return result.fold(
             (failure) {
