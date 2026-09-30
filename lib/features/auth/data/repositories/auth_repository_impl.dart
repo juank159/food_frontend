@@ -7,6 +7,7 @@ import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_datasource.dart';
 import '../datasources/auth_remote_datasource.dart';
+import '../models/user_model.dart';
 
 /// Auth Repository Implementation
 /// Implements the domain repository contract
@@ -135,6 +136,51 @@ class AuthRepositoryImpl implements AuthRepository {
       return const Left(TokenExpiredFailure());
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, User>> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure());
+    }
+    try {
+      final cachedUser = await localDataSource.getUser();
+      if (cachedUser == null) {
+        return const Left(UnauthorizedFailure());
+      }
+
+      await remoteDataSource.updateProfile(
+        firstName: firstName,
+        lastName: lastName,
+        phoneNumber: phoneNumber,
+      );
+
+      // El backend confirmó el guardado — actualizamos el usuario en
+      // caché con los mismos valores que le mandamos (no re-parseamos
+      // su respuesta cruda, ver nota en el datasource).
+      final updatedEntity = cachedUser.toEntity().copyWith(
+            firstName: firstName,
+            lastName: lastName,
+            phoneNumber: phoneNumber,
+          );
+      await localDataSource.cacheUser(UserModel.fromEntity(updatedEntity));
+
+      return Right(updatedEntity);
+    } on UnauthorizedException {
+      return const Left(TokenExpiredFailure());
+    } on ValidationException catch (e) {
+      return Left(ValidationFailure(e.message));
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } catch (e) {

@@ -15,6 +15,7 @@ class ApiConstants {
   // User Endpoints
   static const String users = '/users';
   static String userById(String id) => '/users/$id';
+  static const String userProfile = '/users/me';
 
   // Product Endpoints
   static const String products = '/products';

@@ -11,6 +11,7 @@ import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/update_profile_usecase.dart';
 
 /// Auth Controller using GetX
 /// Manages authentication state and business logic
@@ -19,12 +20,14 @@ class AuthController extends GetxController {
   final RegisterUseCase registerUseCase;
   final LogoutUseCase logoutUseCase;
   final GetCurrentUserUseCase getCurrentUserUseCase;
+  final UpdateProfileUseCase updateProfileUseCase;
 
   AuthController({
     required this.loginUseCase,
     required this.registerUseCase,
     required this.logoutUseCase,
     required this.getCurrentUserUseCase,
+    required this.updateProfileUseCase,
   });
 
   // Observable state
@@ -205,6 +208,29 @@ class AuthController extends GetxController {
         // construir su Overlay → crash. La transición a /login es
         // feedback suficiente de que cerraste sesión.
         NavigationService.toLogin();
+      },
+    );
+  }
+
+  /// Actualiza nombre/apellido/teléfono del usuario autenticado contra
+  /// `PATCH /users/me`. Devuelve `null` en éxito (y refresca
+  /// [currentUser] al toque, sin re-login) o un mensaje de error
+  /// legible para mostrar en un snackbar.
+  Future<String?> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  }) async {
+    final result = await updateProfileUseCase(
+      firstName: firstName,
+      lastName: lastName,
+      phoneNumber: phoneNumber,
+    );
+    return result.fold(
+      (failure) => failure.message,
+      (user) {
+        _currentUser.value = user;
+        return null;
       },
     );
   }

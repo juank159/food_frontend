@@ -45,6 +45,33 @@ class User extends Equatable {
 
   String get fullName => '$firstName $lastName';
 
+  /// Copia con campos reemplazados — usado tras `PATCH /users/me` para
+  /// reflejar los cambios en el usuario en memoria sin tener que volver
+  /// a loguearse ni re-parsear la respuesta del backend (que devuelve
+  /// la entidad `User` del tenant tal cual — `full_name`/`phone`, no el
+  /// shape camelCase first/last que usa esta app — ver
+  /// `AuthController.updateProfile`).
+  User copyWith({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  }) {
+    return User(
+      id: id,
+      email: email,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      roleId: roleId,
+      roleName: roleName,
+      roleCode: roleCode,
+      permissions: permissions,
+      tenantId: tenantId,
+      isActive: isActive,
+      createdAt: createdAt,
+    );
+  }
+
   /// `true` si el usuario tiene rol administrativo (admin/manager).
   /// Lo usamos para mostrar/ocultar acciones sensibles en la UI.
   bool get isAdminOrManager =>

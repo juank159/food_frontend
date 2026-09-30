@@ -27,6 +27,19 @@ abstract class AuthRemoteDataSource {
   Future<AuthResponseModel> refreshToken(String refreshToken);
 
   Future<void> logout(String token);
+
+  /// `PATCH /users/me` — actualiza el perfil del usuario autenticado.
+  /// Los 3 campos son opcionales (solo se envía lo que cambió). El
+  /// backend devuelve la entidad `User` cruda del tenant (full_name/
+  /// phone, no el shape camelCase de `UserModel`) — por eso este
+  /// método no parsea la respuesta, solo confirma que el guardado fue
+  /// exitoso; el caller (`AuthRepositoryImpl`) arma el `User` actualizado
+  /// localmente con los valores que él mismo mandó.
+  Future<void> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  });
 }
 
 /// Auth Remote Data Source Implementation
@@ -198,6 +211,48 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         throw UnauthorizedException('Refresh token expired');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  }) async {
+    try {
+      // Sin headers manuales: el interceptor global de `dio` (ver
+      // injection_container.dart) ya agrega Authorization + x-tenant-id
+      // a cualquier ruta que no sea de /auth/*.
+      final response = await dio.patch(
+        ApiConstants.userProfile,
+        data: {
+          if (firstName != null) 'firstName': firstName,
+          if (lastName != null) 'lastName': lastName,
+          if (phoneNumber != null) 'phoneNumber': phoneNumber,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw ServerException('Failed to update profile', response.statusCode);
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw UnauthorizedException('Session expired');
+      } else if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Datos inválidos',
+        );
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
       } else {
         throw ServerException(
           ApiResponseUtils.errorMessage(e) ?? 'Server error',

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
-import '../../../../core/utils/app_snackbar.dart';
 
 /// Perfil del usuario. Muestra avatar grande con iniciales, nombre y
-/// formulario para editar datos personales. Por ahora "guardar"
-/// muestra un Snackbar — la integración con `PATCH /users/:id` es
-/// trabajo de otro agente.
+/// formulario para editar datos personales. "Guardar" llama a
+/// `AuthController.updateProfile` (`PATCH /users/me`) y refresca el
+/// usuario en memoria al toque — sin re-login.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -22,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -123,6 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             prefixIcon: Icons.phone_outlined,
                           ),
                           keyboardType: TextInputType.phone,
+                          validator: Validators.phone,
                         ),
                       ],
                     ),
@@ -132,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             AppFormSubmitBar(
-              isSaving: false,
+              isSaving: _isSaving,
               onCancel: () => Navigator.of(context).pop(),
               onSave: _handleSave,
               saveLabel: 'Guardar',
@@ -230,16 +233,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _handleSave() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate() || _isSaving) return;
+
+    final user = Get.find<AuthController>().currentUser;
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    // Solo mandamos lo que de verdad cambió — evita pisar el teléfono
+    // con null/vacío si el campo no se tocó, y evita el 400 del backend
+    // si el usuario borró el teléfono (el DTO valida formato E.164, no
+    // acepta string vacío).
+    final newFirstName = firstName != (user?.firstName ?? '') ? firstName : null;
+    final newLastName = lastName != (user?.lastName ?? '') ? lastName : null;
+    final newPhone =
+        phone.isNotEmpty && phone != (user?.phoneNumber ?? '') ? phone : null;
+
+    if (newFirstName == null && newLastName == null && newPhone == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    final error = await Get.find<AuthController>().updateProfile(
+      firstName: newFirstName,
+      lastName: newLastName,
+      phoneNumber: newPhone,
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'No se pudo guardar',
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
     AppSnackbar.show(
-      'Próximamente disponible',
-      'La actualización de perfil llega en una próxima versión.',
+      'Perfil actualizado',
+      'Tus datos se guardaron correctamente.',
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.info.withValues(alpha: 0.1),
+      backgroundColor: AppColors.success.withValues(alpha: 0.1),
       colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
     );
+    Navigator.of(context).pop();
   }
 }

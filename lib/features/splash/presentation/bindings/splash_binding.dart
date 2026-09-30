@@ -13,6 +13,7 @@ class SplashBinding extends Bindings {
         registerUseCase: di.sl(),
         logoutUseCase: di.sl(),
         getCurrentUserUseCase: di.sl(),
+        updateProfileUseCase: di.sl(),
       ),
       permanent: true,
     );

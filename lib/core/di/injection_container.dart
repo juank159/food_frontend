@@ -13,6 +13,7 @@ import '../../features/auth/domain/usecases/get_current_user_usecase.dart';
 import '../../features/auth/domain/usecases/login_usecase.dart';
 import '../../features/auth/domain/usecases/logout_usecase.dart';
 import '../../features/auth/domain/usecases/register_usecase.dart';
+import '../../features/auth/domain/usecases/update_profile_usecase.dart';
 import '../../features/categories/data/datasources/category_remote_datasource.dart';
 import '../../features/flavors/data/datasources/flavor_remote_datasource.dart';
 import '../../features/categories/data/repositories/category_repository_impl.dart';
@@ -180,6 +181,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => RegisterUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateProfileUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<AuthRepository>(

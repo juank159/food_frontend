@@ -26,6 +26,16 @@ abstract class AuthRepository {
   /// Get current user
   Future<Either<Failure, User>> getCurrentUser();
 
+  /// Actualiza el perfil del usuario autenticado (nombre, apellido,
+  /// teléfono). Devuelve el `User` actualizado — el caller debe
+  /// reemplazar el usuario en memoria (`AuthController.currentUser`)
+  /// con este resultado.
+  Future<Either<Failure, User>> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phoneNumber,
+  });
+
   /// Refresh access token
   Future<Either<Failure, AuthResponse>> refreshToken();
 
