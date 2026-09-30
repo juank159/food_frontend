@@ -3,6 +3,16 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../controllers/subscription_controller.dart';
 
+/// Tarjeta de "Uso y Límites" de la suscripción.
+///
+/// **Único límite real del negocio: empleados (usuarios).** Decisión
+/// explícita del dueño del producto — productos, categorías, mesas,
+/// zonas, clientes y pedidos NUNCA se limitan ni se muestran acá,
+/// aunque el backend llegara a mandar esos campos en `usage.limits`
+/// (hoy ya no los manda — ver `SubscriptionPlansSeeder`). Por eso este
+/// widget lee explícitamente `max_users`, no itera el mapa genérico:
+/// así queda blindado incluso si algún día vuelve a aparecer otro
+/// campo en la respuesta.
 class UsageLimitsCard extends GetView<SubscriptionController> {
   const UsageLimitsCard({super.key});
 
@@ -12,8 +22,18 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
       final usage = controller.usage.value;
       if (usage == null) return const SizedBox.shrink();
 
-      final limits = usage.limits;
-      if (limits.isEmpty) return const SizedBox.shrink();
+      final limitValue = usage.getLimit('max_users');
+      if (limitValue == null) return const SizedBox.shrink();
+
+      final isUnlimited = limitValue == -1;
+      final used = usage.getUsage('max_users') ?? 0;
+      // Caso raro (no debería pasar con el enforcement del backend,
+      // pero por las dudas si el conteo cambió entre requests): avisar
+      // en vez de mostrar una barra rota o un número que no cuadra.
+      final isOver = !isUnlimited && limitValue > 0 && used > limitValue;
+      final percentage = isUnlimited || limitValue == 0
+          ? 0.0
+          : (used / limitValue).clamp(0.0, 1.0);
 
       return Container(
         padding: const EdgeInsets.all(20),
@@ -33,10 +53,10 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
           children: [
             const Row(
               children: [
-                Icon(Icons.dashboard, color: AppColors.primary, size: 24),
+                Icon(Icons.people_outline, color: AppColors.primary, size: 24),
                 SizedBox(width: 12),
                 Text(
-                  'Uso y Límites',
+                  'Usuarios',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -46,161 +66,78 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
               ],
             ),
             const SizedBox(height: 20),
-            ...limits.entries.map((entry) {
-              final limit = entry.value is int ? entry.value as int : -1;
-              final isUnlimited = limit == -1;
-              final used = _getUsageValue(entry.key);
-              // Excedido de verdad: la barra se topa al 100%, así que sin
-              // este aviso "772 de 500" se veía igual que estar justo en
-              // el límite y nadie se enteraba.
-              final isOver = !isUnlimited && limit > 0 && used > limit;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _getLimitLabel(entry.key),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (isOver) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Excedido',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.error,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Text(
-                          isUnlimited ? 'Ilimitado' : '$used / $limit',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isUnlimited
-                                ? AppColors.success
-                                : (isOver
-                                    ? AppColors.error
-                                    : AppColors.primary),
-                          ),
-                        ),
-                      ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Empleados con cuenta',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
                     ),
-                    if (!isUnlimited) ...[
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: _calculateUsagePercentage(
-                          entry.key,
-                          limit,
-                        ),
-                        backgroundColor: AppColors.border,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          _getProgressColor(
-                            _calculateUsagePercentage(entry.key, limit),
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (isOver) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _overLimitHint(entry.key),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.error,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              );
-            }),
+                if (isOver) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Excedido',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  isUnlimited ? 'Ilimitado' : '$used / $limitValue',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isUnlimited
+                        ? AppColors.success
+                        : (isOver ? AppColors.error : AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
+            if (!isUnlimited) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: percentage,
+                backgroundColor: AppColors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _getProgressColor(percentage),
+                ),
+              ),
+            ],
+            if (isOver) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'No podés agregar más empleados hasta mejorar tu plan. '
+                'Los que ya tenés siguen funcionando normal.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.error,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ],
         ),
       );
     });
   }
 
-  /// Qué significa en la práctica estar excedido, que NO es lo mismo
-  /// para todos los recursos:
-  ///   - Configuración (usuarios, productos, categorías, mesas, zonas):
-  ///     el backend bloquea crear más (ver `PlanLimitsService`).
-  ///   - Volumen (pedidos del mes, clientes): NO se bloquea a propósito
-  ///     — cortarle los pedidos a un restaurante en plena jornada sería
-  ///     dejarlo sin vender, y los clientes se crean solos cuando la
-  ///     gente pide por QR.
-  String _overLimitHint(String key) {
-    const blocked = {
-      'max_users',
-      'max_products',
-      'max_categories',
-      'max_tables',
-      'max_zones',
-    };
-    if (blocked.contains(key)) {
-      return 'No podés agregar más hasta mejorar tu plan. '
-          'Los que ya tenés siguen funcionando normal.';
-    }
-    return 'Podés seguir operando con normalidad. '
-        'Mejorá tu plan para quedar al día.';
-  }
-
-  String _getLimitLabel(String key) {
-    const labels = {
-      'max_users': 'Usuarios',
-      'max_products': 'Productos',
-      'max_categories': 'Categorías',
-      'max_tables': 'Mesas',
-      'max_zones': 'Zonas',
-      'max_orders_per_month': 'Pedidos por Mes',
-      'max_customers': 'Clientes',
-      'storage_gb': 'Almacenamiento (GB)',
-      'api_calls_per_day': 'Llamadas API por Día',
-    };
-    return labels[key] ?? key;
-  }
-
-  /// Get actual usage value from backend data
-  int _getUsageValue(String limitName) {
-    final usage = controller.usage.value;
-    if (usage == null) return 0;
-
-    final usageValue = usage.usage[limitName];
-    if (usageValue == null) return 0;
-    if (usageValue is int) return usageValue;
-    if (usageValue is double) return usageValue.toInt();
-    return 0;
-  }
-
-  /// Calculate usage percentage based on actual usage from API
-  double _calculateUsagePercentage(String limitName, int maxLimit) {
-    final currentUsage = _getUsageValue(limitName);
-    if (maxLimit == 0) return 0.0;
-    return (currentUsage / maxLimit).clamp(0.0, 1.0);
-  }
-
-  /// Get progress bar color based on usage percentage
   Color _getProgressColor(double percentage) {
     if (percentage >= 0.9) return AppColors.error;
     if (percentage >= 0.7) return Colors.orange;
