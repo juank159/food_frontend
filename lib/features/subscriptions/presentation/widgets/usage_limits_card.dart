@@ -49,6 +49,11 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
             ...limits.entries.map((entry) {
               final limit = entry.value is int ? entry.value as int : -1;
               final isUnlimited = limit == -1;
+              final used = _getUsageValue(entry.key);
+              // Excedido de verdad: la barra se topa al 100%, así que sin
+              // este aviso "772 de 500" se veía igual que estar justo en
+              // el límite y nadie se enteraba.
+              final isOver = !isUnlimited && limit > 0 && used > limit;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -58,24 +63,45 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _getLimitLabel(entry.key),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
+                        Expanded(
+                          child: Text(
+                            _getLimitLabel(entry.key),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
+                        if (isOver) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'Excedido',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         Text(
-                          isUnlimited
-                              ? 'Ilimitado'
-                              : '${_getUsageValue(entry.key)} / $limit',
+                          isUnlimited ? 'Ilimitado' : '$used / $limit',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: isUnlimited
                                 ? AppColors.success
-                                : AppColors.primary,
+                                : (isOver
+                                    ? AppColors.error
+                                    : AppColors.primary),
                           ),
                         ),
                       ],
@@ -95,6 +121,17 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
                         ),
                       ),
                     ],
+                    if (isOver) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _overLimitHint(entry.key),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.error,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -103,6 +140,30 @@ class UsageLimitsCard extends GetView<SubscriptionController> {
         ),
       );
     });
+  }
+
+  /// Qué significa en la práctica estar excedido, que NO es lo mismo
+  /// para todos los recursos:
+  ///   - Configuración (usuarios, productos, categorías, mesas, zonas):
+  ///     el backend bloquea crear más (ver `PlanLimitsService`).
+  ///   - Volumen (pedidos del mes, clientes): NO se bloquea a propósito
+  ///     — cortarle los pedidos a un restaurante en plena jornada sería
+  ///     dejarlo sin vender, y los clientes se crean solos cuando la
+  ///     gente pide por QR.
+  String _overLimitHint(String key) {
+    const blocked = {
+      'max_users',
+      'max_products',
+      'max_categories',
+      'max_tables',
+      'max_zones',
+    };
+    if (blocked.contains(key)) {
+      return 'No podés agregar más hasta mejorar tu plan. '
+          'Los que ya tenés siguen funcionando normal.';
+    }
+    return 'Podés seguir operando con normalidad. '
+        'Mejorá tu plan para quedar al día.';
   }
 
   String _getLimitLabel(String key) {
