@@ -8,6 +8,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/reservation.dart';
+import '../../domain/entities/reservation_preorder.dart';
 import '../controllers/reservation_detail_controller.dart';
 import 'reservations_page.dart' show formatReservationWhen, reservationStatusColor, reservationStatusIcon;
 
@@ -505,12 +506,121 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
+                _buildCreateOrderCta(context, r, summary),
               ],
             ],
           ],
         ),
       );
     });
+  }
+
+  /// CTA para convertir el pre-pedido en una orden real. Solo aparece
+  /// cuando ya hay algo que convertir; se habilita recién con la
+  /// reserva confirmada (o sentada) y mesa asignada — antes de eso no
+  /// tiene sentido (el grupo todavía puede cambiar de idea).
+  Widget _buildCreateOrderCta(
+    BuildContext context,
+    Reservation r,
+    ReservationPreorderSummary summary,
+  ) {
+    if (summary.hasOrder) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => Get.toNamed(
+            AppRoutes.buildOrderDetail(summary.orderId!),
+          ),
+          icon: const Icon(Icons.receipt_long_outlined, size: 18),
+          label: const Text('Ver orden'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      );
+    }
+
+    final canCreate = r.isConfirmed || r.isSeated;
+    final mutating = controller.isMutatingPreorder.value;
+
+    String? blockedReason;
+    if (!canCreate) {
+      blockedReason = 'Confirmá la reserva para poder crear la orden.';
+    } else if (!r.hasTable) {
+      blockedReason = 'Asigná una mesa a la reserva para crear la orden.';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: (mutating || blockedReason != null)
+                ? null
+                : () => _confirmCreateOrder(context),
+            icon: mutating
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.point_of_sale_outlined, size: 18),
+            label: const Text('Crear orden'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+        if (blockedReason != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            blockedReason,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _confirmCreateOrder(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Crear la orden?'),
+        content: const Text(
+          'Se va a crear una orden real con todo lo que pidió el grupo '
+          'hasta ahora, a los precios actuales de la carta. Después de '
+          'esto, cualquier cambio se maneja desde la orden (como una '
+          'orden normal del POS).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Crear orden'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.createOrderFromPreorder();
+    }
   }
 
   // ─────────────────────────── Acciones ───────────────────────────

@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/usecases/cancel_reservation_usecase.dart';
+import '../../domain/usecases/create_order_from_preorder_usecase.dart';
 import '../../domain/usecases/delete_reservation_usecase.dart';
 import '../../domain/usecases/get_or_create_preorder_link_usecase.dart';
 import '../../domain/usecases/get_preorder_summary_usecase.dart';
@@ -24,6 +25,7 @@ class ReservationDetailBinding extends Bindings {
         getOrCreatePreorderLinkUseCase: sl<GetOrCreatePreorderLinkUseCase>(),
         setPreorderLockUseCase: sl<SetPreorderLockUseCase>(),
         getPreorderSummaryUseCase: sl<GetPreorderSummaryUseCase>(),
+        createOrderFromPreorderUseCase: sl<CreateOrderFromPreorderUseCase>(),
       ),
     );
   }

@@ -179,6 +179,8 @@ class ApiConstants {
       '/reservations/$id/preorder-lock';
   static String reservationPreorder(String id) =>
       '/reservations/$id/preorder';
+  static String reservationCreateOrder(String id) =>
+      '/reservations/$id/create-order';
 
   // Subscription Endpoints
   static const String subscriptionPlans = '/subscriptions/plans';

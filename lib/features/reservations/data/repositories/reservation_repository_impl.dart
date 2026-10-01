@@ -206,4 +206,9 @@ class ReservationRepositoryImpl implements ReservationRepository {
       return result.toEntity();
     });
   }
+
+  @override
+  Future<Either<Failure, String>> createOrderFromPreorder(String id) {
+    return _guard(() => remoteDataSource.createOrderFromPreorder(id));
+  }
 }

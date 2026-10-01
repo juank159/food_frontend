@@ -148,6 +148,7 @@ import '../../features/reservations/domain/repositories/reservation_repository.d
 import '../../features/reservations/domain/usecases/cancel_reservation_usecase.dart';
 import '../../features/reservations/domain/usecases/create_reservation_usecase.dart';
 import '../../features/reservations/domain/usecases/delete_reservation_usecase.dart';
+import '../../features/reservations/domain/usecases/create_order_from_preorder_usecase.dart';
 import '../../features/reservations/domain/usecases/get_or_create_preorder_link_usecase.dart';
 import '../../features/reservations/domain/usecases/get_preorder_summary_usecase.dart';
 import '../../features/reservations/domain/usecases/get_reservation_by_id_usecase.dart';
@@ -592,6 +593,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetOrCreatePreorderLinkUseCase(sl()));
   sl.registerLazySingleton(() => SetPreorderLockUseCase(sl()));
   sl.registerLazySingleton(() => GetPreorderSummaryUseCase(sl()));
+  sl.registerLazySingleton(() => CreateOrderFromPreorderUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<ReservationRepository>(

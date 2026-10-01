@@ -103,6 +103,7 @@ class ReservationPreorderSummaryModel {
   final String? preorderToken;
   final bool preorderOpen;
   final String? preorderUrl;
+  final String? orderId;
   final List<ReservationPreorderGuestModel> guests;
   final double total;
 
@@ -111,6 +112,7 @@ class ReservationPreorderSummaryModel {
     this.preorderToken,
     required this.preorderOpen,
     this.preorderUrl,
+    this.orderId,
     required this.guests,
     required this.total,
   });
@@ -126,6 +128,7 @@ class ReservationPreorderSummaryModel {
       preorderToken: json['preorder_token'] as String?,
       preorderOpen: json['preorder_open'] as bool? ?? true,
       preorderUrl: json['preorder_url'] as String?,
+      orderId: json['order_id'] as String?,
       guests: guests,
       total: json['total'] != null
           ? _asNum(json['total']).toDouble()
@@ -138,6 +141,7 @@ class ReservationPreorderSummaryModel {
         preorderToken: preorderToken,
         preorderOpen: preorderOpen,
         preorderUrl: preorderUrl,
+        orderId: orderId,
         guests: guests.map((g) => g.toEntity()).toList(),
         total: total,
       );

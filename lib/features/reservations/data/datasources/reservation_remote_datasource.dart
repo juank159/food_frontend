@@ -66,6 +66,9 @@ abstract class ReservationRemoteDataSource {
   Future<void> setPreorderLock({required String id, required bool open});
 
   Future<ReservationPreorderSummaryModel> getPreorderSummary(String id);
+
+  /// Devuelve el `id` de la orden recién creada.
+  Future<String> createOrderFromPreorder(String id);
 }
 
 class ReservationRemoteDataSourceImpl implements ReservationRemoteDataSource {
@@ -373,6 +376,23 @@ class ReservationRemoteDataSourceImpl implements ReservationRemoteDataSource {
         );
       }
       throw ServerException('Failed to load preorder summary');
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<String> createOrderFromPreorder(String id) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.reservationCreateOrder(id),
+      );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = _unwrap(response.data) as Map<String, dynamic>;
+        return data['id'] as String;
+      }
+      throw ServerException('Failed to create order from preorder');
     } on DioException catch (e) {
       _handleDioException(e);
       rethrow;

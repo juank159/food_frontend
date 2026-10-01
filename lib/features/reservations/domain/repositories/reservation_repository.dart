@@ -88,4 +88,8 @@ abstract class ReservationRepository {
   Future<Either<Failure, ReservationPreorderSummary>> getPreorderSummary(
     String id,
   );
+
+  /// `POST /reservations/:id/create-order` — convierte el pre-pedido en
+  /// una orden real (dine-in). Devuelve el `id` de la orden creada.
+  Future<Either<Failure, String>> createOrderFromPreorder(String id);
 }

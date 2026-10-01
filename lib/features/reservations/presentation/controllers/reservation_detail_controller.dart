@@ -7,6 +7,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/reservation.dart';
 import '../../domain/entities/reservation_preorder.dart';
 import '../../domain/usecases/cancel_reservation_usecase.dart';
+import '../../domain/usecases/create_order_from_preorder_usecase.dart';
 import '../../domain/usecases/delete_reservation_usecase.dart';
 import '../../domain/usecases/get_or_create_preorder_link_usecase.dart';
 import '../../domain/usecases/get_preorder_summary_usecase.dart';
@@ -14,6 +15,7 @@ import '../../domain/usecases/get_reservation_by_id_usecase.dart';
 import '../../domain/usecases/set_preorder_lock_usecase.dart';
 import '../../domain/usecases/update_reservation_status_usecase.dart';
 import './reservations_controller.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
 /// Estado de carga para el detalle.
@@ -29,6 +31,7 @@ class ReservationDetailController extends GetxController {
   final GetOrCreatePreorderLinkUseCase getOrCreatePreorderLinkUseCase;
   final SetPreorderLockUseCase setPreorderLockUseCase;
   final GetPreorderSummaryUseCase getPreorderSummaryUseCase;
+  final CreateOrderFromPreorderUseCase createOrderFromPreorderUseCase;
 
   ReservationDetailController({
     required this.getReservationByIdUseCase,
@@ -38,6 +41,7 @@ class ReservationDetailController extends GetxController {
     required this.getOrCreatePreorderLinkUseCase,
     required this.setPreorderLockUseCase,
     required this.getPreorderSummaryUseCase,
+    required this.createOrderFromPreorderUseCase,
   });
 
   // ─────────────────────────── Estado ───────────────────────────
@@ -162,6 +166,25 @@ class ReservationDetailController extends GetxController {
               : 'Ya no se van a aceptar más platos de invitados',
         );
         loadPreorder();
+      },
+    );
+  }
+
+  /// Convierte el pre-pedido en una orden real (dine-in) y navega al
+  /// detalle de esa orden. Paso manual y deliberado — recién disponible
+  /// cuando la reserva ya está confirmada, para dejar margen a cambios
+  /// de último momento del grupo antes de "cerrar" el pedido.
+  Future<void> createOrderFromPreorder() async {
+    if (reservationId == null) return;
+    isMutatingPreorder.value = true;
+    final result = await createOrderFromPreorderUseCase(reservationId!);
+    isMutatingPreorder.value = false;
+    await result.fold(
+      (failure) async => _snack('Error', failure.message, error: true),
+      (orderId) async {
+        _snack('Orden creada', 'El pre-pedido ya quedó como una orden real');
+        await loadPreorder();
+        Get.toNamed(AppRoutes.buildOrderDetail(orderId));
       },
     );
   }

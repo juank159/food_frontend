@@ -53,6 +53,7 @@ class ReservationPreorderSummary extends Equatable {
   final String? preorderToken;
   final bool preorderOpen;
   final String? preorderUrl;
+  final String? orderId;
   final List<ReservationPreorderGuest> guests;
   final double total;
 
@@ -61,16 +62,25 @@ class ReservationPreorderSummary extends Equatable {
     this.preorderToken,
     required this.preorderOpen,
     this.preorderUrl,
+    this.orderId,
     required this.guests,
     required this.total,
   });
 
   bool get hasLink => preorderToken != null && preorderToken!.isNotEmpty;
   bool get isEmpty => guests.isEmpty;
+  bool get hasOrder => orderId != null && orderId!.isNotEmpty;
 
   @override
-  List<Object?> get props =>
-      [reservationId, preorderToken, preorderOpen, preorderUrl, guests, total];
+  List<Object?> get props => [
+        reservationId,
+        preorderToken,
+        preorderOpen,
+        preorderUrl,
+        orderId,
+        guests,
+        total,
+      ];
 }
 
 /// Link público (token + URL completa) para compartir con el grupo.
