@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_tts
   geolocator_windows
   printing
+  share_plus
   url_launcher_windows
 )
 

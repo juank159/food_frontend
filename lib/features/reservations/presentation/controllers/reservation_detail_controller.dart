@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/reservation.dart';
@@ -108,8 +109,10 @@ class ReservationDetailController extends GetxController {
     );
   }
 
-  /// Genera (si hace falta) el link público y lo copia al portapapeles
-  /// para que el host lo pegue en el chat del grupo.
+  /// Genera (si hace falta) el link público y abre el panel nativo de
+  /// "Compartir" (WhatsApp, Mensajes, etc.) — mismo mecanismo que ya usa
+  /// "Compartir PDF" de la carta. También lo copia al portapapeles como
+  /// respaldo, por si el usuario cierra el panel sin elegir nada.
   Future<void> shareOrCopyPreorderLink() async {
     if (reservationId == null) return;
     isMutatingPreorder.value = true;
@@ -119,10 +122,22 @@ class ReservationDetailController extends GetxController {
       (failure) => _snack('Error', failure.message, error: true),
       (link) async {
         await Clipboard.setData(ClipboardData(text: link.url));
-        _snack(
-          'Link copiado',
-          'Compartilo con el grupo para que cada quién elija lo suyo',
-        );
+        try {
+          await SharePlus.instance.share(
+            ShareParams(
+              text:
+                  'Reservaste con nosotros — elegí tus platos acá: ${link.url}',
+              subject: 'Pre-pedido de la reserva',
+            ),
+          );
+        } catch (_) {
+          // Sin panel de compartir disponible (ej. desktop sin soporte) —
+          // el link ya quedó copiado al portapapeles como respaldo.
+          _snack(
+            'Link copiado',
+            'Compartilo con el grupo para que cada quién elija lo suyo',
+          );
+        }
         await loadPreorder();
       },
     );
