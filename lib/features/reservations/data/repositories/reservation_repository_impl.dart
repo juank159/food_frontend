@@ -4,6 +4,7 @@ import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/reservation.dart';
+import '../../domain/entities/reservation_preorder.dart';
 import '../../domain/repositories/reservation_repository.dart';
 import '../datasources/reservation_remote_datasource.dart';
 
@@ -174,5 +175,35 @@ class ReservationRepositoryImpl implements ReservationRepository {
   @override
   Future<Either<Failure, void>> deleteReservation(String id) {
     return _guard(() => remoteDataSource.deleteReservation(id));
+  }
+
+  @override
+  Future<Either<Failure, ReservationPreorderLink>> getOrCreatePreorderLink(
+    String id,
+  ) {
+    return _guard(() async {
+      final result = await remoteDataSource.getOrCreatePreorderLink(id);
+      return result.toEntity();
+    });
+  }
+
+  @override
+  Future<Either<Failure, void>> setPreorderLock({
+    required String id,
+    required bool open,
+  }) {
+    return _guard(
+      () => remoteDataSource.setPreorderLock(id: id, open: open),
+    );
+  }
+
+  @override
+  Future<Either<Failure, ReservationPreorderSummary>> getPreorderSummary(
+    String id,
+  ) {
+    return _guard(() async {
+      final result = await remoteDataSource.getPreorderSummary(id);
+      return result.toEntity();
+    });
   }
 }

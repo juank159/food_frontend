@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/reservation.dart';
+import '../../domain/entities/reservation_preorder.dart';
 import '../../domain/usecases/cancel_reservation_usecase.dart';
 import '../../domain/usecases/delete_reservation_usecase.dart';
+import '../../domain/usecases/get_or_create_preorder_link_usecase.dart';
+import '../../domain/usecases/get_preorder_summary_usecase.dart';
 import '../../domain/usecases/get_reservation_by_id_usecase.dart';
+import '../../domain/usecases/set_preorder_lock_usecase.dart';
 import '../../domain/usecases/update_reservation_status_usecase.dart';
 import './reservations_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -20,12 +25,18 @@ class ReservationDetailController extends GetxController {
   final UpdateReservationStatusUseCase updateReservationStatusUseCase;
   final CancelReservationUseCase cancelReservationUseCase;
   final DeleteReservationUseCase deleteReservationUseCase;
+  final GetOrCreatePreorderLinkUseCase getOrCreatePreorderLinkUseCase;
+  final SetPreorderLockUseCase setPreorderLockUseCase;
+  final GetPreorderSummaryUseCase getPreorderSummaryUseCase;
 
   ReservationDetailController({
     required this.getReservationByIdUseCase,
     required this.updateReservationStatusUseCase,
     required this.cancelReservationUseCase,
     required this.deleteReservationUseCase,
+    required this.getOrCreatePreorderLinkUseCase,
+    required this.setPreorderLockUseCase,
+    required this.getPreorderSummaryUseCase,
   });
 
   // ─────────────────────────── Estado ───────────────────────────
@@ -35,6 +46,12 @@ class ReservationDetailController extends GetxController {
   final RxString errorMessage = ''.obs;
   final Rxn<Reservation> reservation = Rxn<Reservation>();
   final RxBool isMutating = false.obs;
+
+  // ── Pre-pedido colaborativo ──────────────────────────────────────
+  final Rxn<ReservationPreorderSummary> preorder =
+      Rxn<ReservationPreorderSummary>();
+  final RxBool isLoadingPreorder = false.obs;
+  final RxBool isMutatingPreorder = false.obs;
 
   String? reservationId;
 
@@ -48,6 +65,7 @@ class ReservationDetailController extends GetxController {
       return;
     }
     loadReservation();
+    loadPreorder();
   }
 
   // ─────────────────────────── Carga ───────────────────────────
@@ -70,7 +88,68 @@ class ReservationDetailController extends GetxController {
     );
   }
 
-  Future<void> refreshAll() => loadReservation();
+  Future<void> refreshAll() async {
+    await Future.wait([loadReservation(), loadPreorder()]);
+  }
+
+  // ───────────────────── Pre-pedido colaborativo ───────────────────
+
+  Future<void> loadPreorder() async {
+    if (reservationId == null) return;
+    isLoadingPreorder.value = true;
+    final result = await getPreorderSummaryUseCase(reservationId!);
+    isLoadingPreorder.value = false;
+    result.fold(
+      // Silencioso: si todavía no existe link, el backend igual devuelve
+      // un resumen vacío (preorder_token null) — un error acá no debería
+      // tapar el resto del detalle de la reserva.
+      (failure) {},
+      (summary) => preorder.value = summary,
+    );
+  }
+
+  /// Genera (si hace falta) el link público y lo copia al portapapeles
+  /// para que el host lo pegue en el chat del grupo.
+  Future<void> shareOrCopyPreorderLink() async {
+    if (reservationId == null) return;
+    isMutatingPreorder.value = true;
+    final result = await getOrCreatePreorderLinkUseCase(reservationId!);
+    isMutatingPreorder.value = false;
+    result.fold(
+      (failure) => _snack('Error', failure.message, error: true),
+      (link) async {
+        await Clipboard.setData(ClipboardData(text: link.url));
+        _snack(
+          'Link copiado',
+          'Compartilo con el grupo para que cada quién elija lo suyo',
+        );
+        await loadPreorder();
+      },
+    );
+  }
+
+  /// Abre/cierra la recepción de nuevos items de invitados.
+  Future<void> togglePreorderLock(bool open) async {
+    if (reservationId == null) return;
+    isMutatingPreorder.value = true;
+    final result = await setPreorderLockUseCase(
+      id: reservationId!,
+      open: open,
+    );
+    isMutatingPreorder.value = false;
+    result.fold(
+      (failure) => _snack('Error', failure.message, error: true),
+      (_) {
+        _snack(
+          open ? 'Pre-pedido abierto' : 'Pre-pedido cerrado',
+          open
+              ? 'Los invitados ya pueden volver a agregar platos'
+              : 'Ya no se van a aceptar más platos de invitados',
+        );
+        loadPreorder();
+      },
+    );
+  }
 
   // ─────────────────────────── Acciones ───────────────────────────
 

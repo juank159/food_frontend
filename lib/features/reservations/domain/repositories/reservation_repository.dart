@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/error/failures.dart';
 import '../entities/reservation.dart';
+import '../entities/reservation_preorder.dart';
 
 /// Reservation Repository — contrato del dominio.
 ///
@@ -69,4 +70,22 @@ abstract class ReservationRepository {
 
   /// `DELETE /reservations/:id` — soft delete.
   Future<Either<Failure, void>> deleteReservation(String id);
+
+  /// `POST /reservations/:id/preorder-link` — genera (o devuelve) el
+  /// link público de pre-pedido colaborativo para compartir con el grupo.
+  Future<Either<Failure, ReservationPreorderLink>> getOrCreatePreorderLink(
+    String id,
+  );
+
+  /// `PATCH /reservations/:id/preorder-lock` — abre/cierra la recepción
+  /// de nuevos items de invitados.
+  Future<Either<Failure, void>> setPreorderLock({
+    required String id,
+    required bool open,
+  });
+
+  /// `GET /reservations/:id/preorder` — resumen agrupado por invitado.
+  Future<Either<Failure, ReservationPreorderSummary>> getPreorderSummary(
+    String id,
+  );
 }

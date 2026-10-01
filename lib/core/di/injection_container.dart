@@ -148,9 +148,12 @@ import '../../features/reservations/domain/repositories/reservation_repository.d
 import '../../features/reservations/domain/usecases/cancel_reservation_usecase.dart';
 import '../../features/reservations/domain/usecases/create_reservation_usecase.dart';
 import '../../features/reservations/domain/usecases/delete_reservation_usecase.dart';
+import '../../features/reservations/domain/usecases/get_or_create_preorder_link_usecase.dart';
+import '../../features/reservations/domain/usecases/get_preorder_summary_usecase.dart';
 import '../../features/reservations/domain/usecases/get_reservation_by_id_usecase.dart';
 import '../../features/reservations/domain/usecases/get_reservations_usecase.dart';
 import '../../features/reservations/domain/usecases/get_upcoming_reservations_usecase.dart';
+import '../../features/reservations/domain/usecases/set_preorder_lock_usecase.dart';
 import '../../features/reservations/domain/usecases/update_reservation_status_usecase.dart';
 import '../../features/reservations/domain/usecases/update_reservation_usecase.dart';
 import '../config/constants/api_constants.dart';
@@ -586,6 +589,9 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UpdateReservationStatusUseCase(sl()));
   sl.registerLazySingleton(() => CancelReservationUseCase(sl()));
   sl.registerLazySingleton(() => DeleteReservationUseCase(sl()));
+  sl.registerLazySingleton(() => GetOrCreatePreorderLinkUseCase(sl()));
+  sl.registerLazySingleton(() => SetPreorderLockUseCase(sl()));
+  sl.registerLazySingleton(() => GetPreorderSummaryUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<ReservationRepository>(

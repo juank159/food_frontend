@@ -3,6 +3,7 @@ import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/reservation_model.dart';
+import '../models/reservation_preorder_model.dart';
 
 /// Reservation Remote Data Source
 ///
@@ -59,6 +60,12 @@ abstract class ReservationRemoteDataSource {
   });
 
   Future<void> deleteReservation(String id);
+
+  Future<ReservationPreorderLinkModel> getOrCreatePreorderLink(String id);
+
+  Future<void> setPreorderLock({required String id, required bool open});
+
+  Future<ReservationPreorderSummaryModel> getPreorderSummary(String id);
 }
 
 class ReservationRemoteDataSourceImpl implements ReservationRemoteDataSource {
@@ -309,6 +316,63 @@ class ReservationRemoteDataSourceImpl implements ReservationRemoteDataSource {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw ServerException('Failed to delete reservation');
       }
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  // ─────────────────────────── Pre-pedido colaborativo ───────────────────
+
+  @override
+  Future<ReservationPreorderLinkModel> getOrCreatePreorderLink(
+    String id,
+  ) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.reservationPreorderLink(id),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ReservationPreorderLinkModel.fromJson(_unwrap(response.data));
+      }
+      throw ServerException('Failed to get preorder link');
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> setPreorderLock({
+    required String id,
+    required bool open,
+  }) async {
+    try {
+      final response = await dio.patch(
+        ApiConstants.reservationPreorderLock(id),
+        data: {'open': open},
+      );
+      if (response.statusCode != 200) {
+        throw ServerException('Failed to update preorder lock');
+      }
+    } on DioException catch (e) {
+      _handleDioException(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ReservationPreorderSummaryModel> getPreorderSummary(
+    String id,
+  ) async {
+    try {
+      final response = await dio.get(ApiConstants.reservationPreorder(id));
+      if (response.statusCode == 200) {
+        return ReservationPreorderSummaryModel.fromJson(
+          _unwrap(response.data),
+        );
+      }
+      throw ServerException('Failed to load preorder summary');
     } on DioException catch (e) {
       _handleDioException(e);
       rethrow;

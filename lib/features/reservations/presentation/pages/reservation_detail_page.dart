@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
+import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -228,6 +229,8 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
                 const SizedBox(height: 16),
                 _buildDetailsSection(r),
                 const SizedBox(height: 16),
+                _buildPreorderSection(context, r),
+                const SizedBox(height: 16),
                 _buildActionsSection(context, r),
                 const SizedBox(height: 16),
                 _buildDangerZone(context, r),
@@ -344,6 +347,170 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
         ],
       ),
     );
+  }
+
+  // ─────────────────────────── Pre-pedido colaborativo ───────────────────
+
+  /// Sección "Pre-pedido de invitados": el CTA para compartir el link
+  /// público (basado en `public-menu`) + lo que cada invitado ya pidió.
+  /// Reemplaza el ida-y-vuelta manual por WhatsApp/Excel que el negocio
+  /// hacía antes para reservas de grupo.
+  Widget _buildPreorderSection(BuildContext context, Reservation r) {
+    return Obx(() {
+      final summary = controller.preorder.value;
+      final mutating = controller.isMutatingPreorder.value;
+
+      return _DetailSection(
+        title: 'Pre-pedido de invitados',
+        icon: Icons.groups_outlined,
+        accent: AppColors.success,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Compartí este link con el grupo: cada invitado pone su '
+              'nombre y elige sus platos desde el menú digital, sin que '
+              'tengas que anotar todo a mano.',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: (mutating || r.isTerminal)
+                    ? null
+                    : controller.shareOrCopyPreorderLink,
+                icon: mutating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.share_outlined, size: 16),
+                label: Text(
+                  summary?.hasLink == true
+                      ? 'Copiar link de nuevo'
+                      : 'Compartir link con el grupo',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.success,
+                  side: const BorderSide(color: AppColors.success),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            if (summary != null && summary.hasLink) ...[
+              const Divider(height: 24, color: AppColors.divider),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      summary.preorderOpen
+                          ? 'Aceptando pedidos de invitados'
+                          : 'Pre-pedido cerrado',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: summary.preorderOpen
+                            ? AppColors.success
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Switch(
+                    value: summary.preorderOpen,
+                    onChanged: mutating || r.isTerminal
+                        ? null
+                        : (v) => controller.togglePreorderLock(v),
+                    activeThumbColor: AppColors.success,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (summary.isEmpty)
+                const Text(
+                  'Todavía nadie pidió nada por acá.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              else ...[
+                ...summary.guests.map(
+                  (g) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                g.guestName,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                g.items
+                                    .map((i) => '${i.quantity}× ${i.productName}')
+                                    .join(', '),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(g.subtotal),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Divider(height: 16, color: AppColors.divider),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total estimado',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      CurrencyFormatter.format(summary.total),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ],
+        ),
+      );
+    });
   }
 
   // ─────────────────────────── Acciones ───────────────────────────
