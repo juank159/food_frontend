@@ -42,12 +42,23 @@ class _SellModeSheetState extends State<SellModeSheet> {
   /// abiertas, así que esa sección directamente no aplica.
   bool _isCounterTicketsOnlyBusiness = false;
 
+  /// `true` si el negocio declaró "Por mesas" como su único modo de
+  /// operación — acá es al revés: lo que no aplica es vender SIN mesa
+  /// (mostrador, turno, para llevar/domicilio sueltos, cuenta libre).
+  /// Para llevar/domicilio siguen existiendo, pero como un ticket más
+  /// dentro de la cuenta de una mesa (ver `SellMode.tabSession` +
+  /// `withOrderType` — eso no se toca acá, vive en el form de venta).
+  bool _isTablesOnlyBusiness = false;
+
   @override
   void initState() {
     super.initState();
     _openTabsFuture = _loadOpenTabs();
     OperationModePreference.isCounterTicketsOnly().then((hide) {
       if (mounted && hide) setState(() => _isCounterTicketsOnlyBusiness = hide);
+    });
+    OperationModePreference.isTablesOnly().then((hide) {
+      if (mounted && hide) setState(() => _isTablesOnlyBusiness = hide);
     });
   }
 
@@ -99,42 +110,50 @@ class _SellModeSheetState extends State<SellModeSheet> {
             ),
             const SizedBox(height: 18),
 
-            _sectionTitle('Venta rápida'),
-            _modeTile(
-              icon: Icons.point_of_sale,
-              color: AppColors.accent,
-              title: 'Mostrador',
-              subtitle: 'Cobro inmediato, sin cliente',
-              mode: const SellMode.counter(),
-            ),
-            // Si el negocio ya es "solo turnos", Mostrador (y Para llevar/
-            // Domicilio) YA asignan turno automático — ver
-            // `OrderFormController.submitOrder`. Mostrar además esta opción
-            // sería confuso ("¿cuál elijo, Mostrador o Turno?" cuando hacen
-            // lo mismo). Para negocios mixtos sigue disponible como opción
-            // puntual.
-            if (!_isCounterTicketsOnlyBusiness)
+            // Negocios "100% por mesas" (Ajustes → Modo de operación) no
+            // venden suelto sin mesa — por eso toda esta sección
+            // desaparece para ellos. Para llevar/domicilio NO
+            // desaparecen del todo: siguen disponibles como un ticket
+            // más dentro de la cuenta de una mesa (ver sección de abajo
+            // + `SellMode.tabSession.withOrderType` en el form de venta).
+            if (!_isTablesOnlyBusiness) ...[
+              _sectionTitle('Venta rápida'),
               _modeTile(
-                icon: Icons.confirmation_number_outlined,
+                icon: Icons.point_of_sale,
                 color: AppColors.accent,
-                title: 'Turno de mostrador',
-                subtitle: 'Asigná un número, avisá cuando esté listo',
-                mode: const SellMode.counterTicket(),
+                title: 'Mostrador',
+                subtitle: 'Cobro inmediato, sin cliente',
+                mode: const SellMode.counter(),
               ),
-            _modeTile(
-              icon: Icons.shopping_bag_outlined,
-              color: AppColors.warning,
-              title: 'Para llevar',
-              subtitle: 'Cliente retira en el local',
-              mode: const SellMode.takeaway(),
-            ),
-            _modeTile(
-              icon: Icons.delivery_dining,
-              color: AppColors.info,
-              title: 'Domicilio',
-              subtitle: 'Reparto a domicilio',
-              mode: const SellMode.delivery(),
-            ),
+              // Si el negocio ya es "solo turnos", Mostrador (y Para llevar/
+              // Domicilio) YA asignan turno automático — ver
+              // `OrderFormController.submitOrder`. Mostrar además esta opción
+              // sería confuso ("¿cuál elijo, Mostrador o Turno?" cuando hacen
+              // lo mismo). Para negocios mixtos sigue disponible como opción
+              // puntual.
+              if (!_isCounterTicketsOnlyBusiness)
+                _modeTile(
+                  icon: Icons.confirmation_number_outlined,
+                  color: AppColors.accent,
+                  title: 'Turno de mostrador',
+                  subtitle: 'Asigná un número, avisá cuando esté listo',
+                  mode: const SellMode.counterTicket(),
+                ),
+              _modeTile(
+                icon: Icons.shopping_bag_outlined,
+                color: AppColors.warning,
+                title: 'Para llevar',
+                subtitle: 'Cliente retira en el local',
+                mode: const SellMode.takeaway(),
+              ),
+              _modeTile(
+                icon: Icons.delivery_dining,
+                color: AppColors.info,
+                title: 'Domicilio',
+                subtitle: 'Reparto a domicilio',
+                mode: const SellMode.delivery(),
+              ),
+            ],
 
             // Negocios "solo turnos de mostrador" (Ajustes → Modo de
             // operación) no usan mesas ni cuentas abiertas — mostrar
@@ -150,13 +169,16 @@ class _SellModeSheetState extends State<SellModeSheet> {
                 subtitle: 'Elegir mesa del plano',
                 onTap: _openTablePicker,
               ),
-              _modeTile(
-                icon: Icons.add_circle_outline,
-                color: AppColors.accent,
-                title: 'Nueva cuenta libre',
-                subtitle: 'Cliente sin mesa (césped, sillas, etc.)',
-                onTap: _openFreeAccountDialog,
-              ),
+              // "Cuenta libre" (sin mesa) no aplica para un negocio
+              // 100% por mesas — toda venta ahí nace de una mesa.
+              if (!_isTablesOnlyBusiness)
+                _modeTile(
+                  icon: Icons.add_circle_outline,
+                  color: AppColors.accent,
+                  title: 'Nueva cuenta libre',
+                  subtitle: 'Cliente sin mesa (césped, sillas, etc.)',
+                  onTap: _openFreeAccountDialog,
+                ),
               const SizedBox(height: 18),
               FutureBuilder<List<TabSession>>(
                 future: _openTabsFuture,

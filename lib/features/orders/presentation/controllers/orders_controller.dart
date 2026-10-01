@@ -6,6 +6,7 @@ import '../../domain/usecases/get_active_orders_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
+import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/date_period.dart';
 import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
@@ -51,14 +52,20 @@ class OrdersController extends GetxController {
   final RxInt selectedTabIndex = 0.obs;
 
   /// Vista principal de la pantalla: 0 = "Órdenes" (lista de tickets),
-  /// 1 = "Cuentas abiertas" (segmento embebido). Unifica las dos
-  /// pantallas que antes estaban separadas en un solo lugar.
+  /// 1 = "Cuentas abiertas" (segmento embebido), 2 = "Mesas" (solo
+  /// visible si el negocio es 100% por mesas — ver [isTablesOnlyMode]).
+  /// Unifica pantallas que antes estaban separadas en un solo lugar.
   final RxInt mainView = 0.obs;
 
-  /// Cambia entre "Órdenes" y "Cuentas abiertas". Al entrar a cuentas
-  /// refresca la lista de cuentas (el controller embebido es el mismo
-  /// `OpenTabsController` global). Al volver a órdenes refresca la lista
-  /// por si se cobró/cerró una cuenta desde el otro segmento.
+  /// `true` si el negocio declaró "Por mesas" como su único modo de
+  /// operación — habilita el segmento "Mesas" y arranca la pantalla
+  /// ahí en vez de en la lista plana de órdenes.
+  final RxBool isTablesOnlyMode = false.obs;
+
+  /// Cambia entre "Órdenes", "Cuentas abiertas" y "Mesas". Al entrar a
+  /// cuentas refresca la lista de cuentas (el controller embebido es el
+  /// mismo `OpenTabsController` global). Al volver a órdenes refresca la
+  /// lista por si se cobró/cerró una cuenta desde otro segmento.
   void switchMainView(int view) {
     if (mainView.value == view) return;
     mainView.value = view;
@@ -66,7 +73,7 @@ class OrdersController extends GetxController {
       if (Get.isRegistered<OpenTabsController>()) {
         Get.find<OpenTabsController>().load();
       }
-    } else {
+    } else if (view == 0) {
       loadOrders();
     }
   }
@@ -125,6 +132,19 @@ class OrdersController extends GetxController {
     loadOrders();
     // Badge de "por cobrar" (independiente de la fecha visible).
     loadUnpaidOrders();
+
+    // Negocios 100% por mesas: arrancar directo en el segmento "Mesas"
+    // en vez de la lista plana — ahí es donde pasa el 99% de la
+    // operación cuando no se vende suelto. Chequeo async porque
+    // `OperationModePreference` cachea el modo del tenant via HTTP; el
+    // usuario ve un parpadeo breve de "Órdenes" mientras resuelve (igual
+    // patrón que `SellModeSheet._isTablesOnlyBusiness`).
+    OperationModePreference.isTablesOnly().then((tablesOnly) {
+      if (tablesOnly) {
+        isTablesOnlyMode.value = true;
+        if (mainView.value == 0) mainView.value = 2;
+      }
+    });
   }
 
   /// Carga todas las órdenes con filtros

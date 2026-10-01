@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_filter_chip.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
 import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import '../../../tab_sessions/presentation/widgets/open_tabs_view.dart';
+import '../../../tables/presentation/pages/floor_plans_list_page.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../controllers/orders_controller.dart';
 import '../widgets/order_card.dart';
@@ -48,6 +49,14 @@ class OrdersPage extends GetView<OrdersController> {
                 if (controller.mainView.value == 1) {
                   return const OpenTabsView();
                 }
+                // Segmento "Mesas" (solo negocios 100% por mesas) — misma
+                // pantalla que ya usa el tab "Mesas" del bottom nav para
+                // waiter/cashier. Reusar el widget tal cual es seguro: ya
+                // convive hoy con otras pantallas dentro de un mismo
+                // IndexedStack (ver heroTag de su FAB).
+                if (controller.mainView.value == 2) {
+                  return const FloorPlansListPage();
+                }
                 return Column(
                   children: [
                     _OrdersFilterBar(controller: controller),
@@ -66,9 +75,12 @@ class OrdersPage extends GetView<OrdersController> {
       // el bottomNavigationBar — más prominente y sin riesgo de
       // overflow del label.
       floatingActionButton: Obx(() {
-        // En el segmento "Cuentas abiertas" el FAB de "Nueva orden" no
-        // aplica — esa vista tiene su propio botón "Abrir cuenta libre".
-        if (controller.mainView.value == 1) return const SizedBox.shrink();
+        // En los segmentos "Cuentas abiertas" y "Mesas" el FAB de "Nueva
+        // orden" no aplica — esas vistas tienen su propio FAB (abrir
+        // cuenta libre / nuevo plano, con heroTag propio).
+        if (controller.mainView.value == 1 || controller.mainView.value == 2) {
+          return const SizedBox.shrink();
+        }
         if (!controller.hasOrders) return const SizedBox.shrink();
         return FloatingActionButton(
           // heroTag único — el HomeScreen monta varias pantallas con FAB
@@ -86,7 +98,9 @@ class OrdersPage extends GetView<OrdersController> {
       }),
       bottomNavigationBar: Obx(() {
         // Solo en el segmento de Órdenes y cuando no hay órdenes.
-        if (controller.mainView.value == 1) return const SizedBox.shrink();
+        if (controller.mainView.value == 1 || controller.mainView.value == 2) {
+          return const SizedBox.shrink();
+        }
         if (controller.hasOrders || controller.isLoading.value) {
           return const SizedBox.shrink();
         }
@@ -146,6 +160,17 @@ class _ViewToggle extends StatelessWidget {
                 onTap: () => controller.switchMainView(1),
               ),
             ),
+            // Solo negocios 100% por mesas (Ajustes → Modo de operación)
+            // — el resto ya tiene "Cuentas abiertas" para lo mismo.
+            if (controller.isTablesOnlyMode.value)
+              Expanded(
+                child: _segment(
+                  label: 'Mesas',
+                  icon: Icons.table_restaurant_outlined,
+                  selected: view == 2,
+                  onTap: () => controller.switchMainView(2),
+                ),
+              ),
           ],
         );
       }),

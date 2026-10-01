@@ -7,12 +7,17 @@ import '../utils/api_response_utils.dart';
 /// `OperationMode` enum del backend (`common/constants/enums.ts`):
 /// 'tables' | 'open_tabs' | 'counter_tickets' | 'mixed'.
 ///
-/// Es SOLO una preferencia (confirmado con el negocio: nunca bloquea
-/// nada a nivel backend) — pero el frontend sí la usa para simplificar
-/// la experiencia cuando un negocio declaró que opera EXCLUSIVAMENTE
-/// por turnos de mostrador (sin mesas ni cuentas abiertas):
-///   - `SellPage` arranca directo en `SellMode.counterTicket()`.
-///   - `SellModeSheet` oculta la sección "Mesa o cuenta abierta".
+/// Nunca bloquea nada a nivel backend (sigue siendo una preferencia, no
+/// una regla de negocio dura) — pero el frontend SÍ la usa para
+/// simplificar la experiencia cuando un negocio declaró un modo
+/// EXCLUSIVO:
+///   - `counter_tickets` (solo turnos): `SellModeSheet` oculta toda la
+///     sección "Mesa o cuenta abierta" — ver `isCounterTicketsOnly`.
+///   - `tables` (solo mesas): `SellModeSheet` oculta "Venta rápida"
+///     (mostrador/turno/para llevar/domicilio sueltos) y "Nueva cuenta
+///     libre" — ver `isTablesOnly`. Para llevar/domicilio NO
+///     desaparecen del todo: siguen disponibles como un ticket más
+///     dentro de la cuenta de una mesa ya abierta.
 ///
 /// Cacheado 10 min (mismo TTL que `PrintingOrchestrator._getTenantInfo`)
 /// — el negocio cambia esto rarísima vez, no vale la pena pedir
@@ -28,6 +33,17 @@ class OperationModePreference {
   static Future<bool> isCounterTicketsOnly() async {
     final mode = await _getMode();
     return mode == 'counter_tickets';
+  }
+
+  /// `true` si el negocio configuró "Por mesas" como su único modo de
+  /// operación. A diferencia de `isCounterTicketsOnly` (que oculta
+  /// mesas/cuentas), acá es al revés: se oculta vender SIN mesa
+  /// (mostrador, turno, para llevar/domicilio sueltos, cuenta libre).
+  /// Para llevar/domicilio NO desaparecen del todo — siguen
+  /// disponibles como un ticket más dentro de la cuenta de una mesa.
+  static Future<bool> isTablesOnly() async {
+    final mode = await _getMode();
+    return mode == 'tables';
   }
 
   static Future<String?> _getMode() async {
