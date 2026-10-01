@@ -10,6 +10,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/scroll_into_view.dart';
 import '../../../payments/presentation/controllers/breb_payment_controller.dart';
 import '../../../payments/presentation/widgets/breb_payment_dialog.dart';
 import '../../../payments/presentation/widgets/item_selection_sheet.dart';
@@ -50,6 +51,10 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
   final TextEditingController _receivedCtrl = TextEditingController();
   final TextEditingController _referenceCtrl = TextEditingController();
   final TextEditingController _notesCtrl = TextEditingController();
+  // Para que el campo quede visible por encima del teclado numérico al
+  // enfocarlo — ver `ensureFieldVisible`.
+  final _amountFieldKey = GlobalKey();
+  final _receivedFieldKey = GlobalKey();
 
   PaymentMethod _selectedMethod = PaymentMethod.cash;
   bool _isProcessing = false;
@@ -406,9 +411,11 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
                       children: [
                         Expanded(
                           child: TextField(
+                            key: _amountFieldKey,
                             controller: _amountCtrl,
                             keyboardType: TextInputType.number,
                             inputFormatters: [ThousandsSeparatorInputFormatter()],
+                            onTap: () => ensureFieldVisible(_amountFieldKey),
                             decoration: _inputDecoration(
                               prefix: '\$ ',
                               hint: '0',
@@ -445,9 +452,11 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
                       _SectionTitle('Recibido (opcional)'),
                       const SizedBox(height: 8),
                       TextField(
+                        key: _receivedFieldKey,
                         controller: _receivedCtrl,
                         keyboardType: TextInputType.number,
                         inputFormatters: [ThousandsSeparatorInputFormatter()],
+                        onTap: () => ensureFieldVisible(_receivedFieldKey),
                         decoration: _inputDecoration(
                             prefix: '\$ ', hint: 'Cuánto entregó el cliente'),
                       ),

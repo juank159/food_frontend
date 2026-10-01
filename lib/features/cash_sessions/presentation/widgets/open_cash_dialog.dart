@@ -5,6 +5,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/utils/safe_get.dart';
+import '../../../../core/utils/scroll_into_view.dart';
 import '../bindings/cash_session_binding.dart';
 import '../controllers/cash_session_controller.dart';
 
@@ -20,6 +21,9 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
   final _formKey = GlobalKey<FormState>();
   final _openingCtrl = TextEditingController(text: '0');
   final _notesCtrl = TextEditingController();
+  // Para que el campo quede visible por encima del teclado numérico al
+  // enfocarlo — ver `ensureFieldVisible`.
+  final _openingFieldKey = GlobalKey();
 
   @override
   void dispose() {
@@ -115,6 +119,7 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
                 _label('Fondo inicial'),
                 const SizedBox(height: 6),
                 TextFormField(
+                  key: _openingFieldKey,
                   controller: _openingCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: [ThousandsSeparatorInputFormatter()],
@@ -128,6 +133,7 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
                     helper:
                         'Efectivo ya disponible para dar cambio. 0 si no hay fondo.',
                   ),
+                  onTap: () => ensureFieldVisible(_openingFieldKey),
                   onChanged: (_) => setState(() {}),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Requerido';

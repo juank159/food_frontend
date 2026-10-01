@@ -6,6 +6,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/scroll_into_view.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
 import 'payment_confirmation_dialog.dart';
 import 'payment_method_selector.dart';
@@ -100,6 +101,9 @@ class ItemSelectionSheet extends StatefulWidget {
 class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
   PaymentMethod _method = PaymentMethod.cash;
   final _cashCtrl = TextEditingController();
+  // Para que el campo quede visible por encima del teclado numérico al
+  // enfocarlo — ver `ensureFieldVisible`.
+  final _cashFieldKey = GlobalKey();
   bool _processing = false;
 
   @override
@@ -346,9 +350,11 @@ class _ItemSelectionSheetState extends State<ItemSelectionSheet> {
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
                     child: TextField(
+                      key: _cashFieldKey,
                       controller: _cashCtrl,
                       keyboardType: TextInputType.number,
                       inputFormatters: [ThousandsSeparatorInputFormatter()],
+                      onTap: () => ensureFieldVisible(_cashFieldKey),
                       decoration: InputDecoration(
                         labelText: 'Recibido del cliente (opcional)',
                         prefixText: '\$ ',

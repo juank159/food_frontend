@@ -7,6 +7,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/utils/safe_get.dart';
+import '../../../../core/utils/scroll_into_view.dart';
 import '../../../payments/presentation/widgets/payment_method_selector.dart';
 import '../../domain/entities/cash_session.dart';
 import '../../domain/usecases/cash_session_usecases.dart';
@@ -32,6 +33,11 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
   final _formKey = GlobalKey<FormState>();
   final _countedCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  // Para que el campo quede visible por encima del teclado numérico al
+  // enfocarlo — ver `ensureFieldVisible`. Este campo en particular
+  // queda bastante abajo en el scroll (después del resumen esperado +
+  // desglose por método), así que es el que más se beneficia del fix.
+  final _countedFieldKey = GlobalKey();
   bool _force = false;
 
   // Desglose de cobros por método (cash, card, transfer, breb, etc.) —
@@ -168,6 +174,7 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
                 _label('Conteo (efectivo contado)'),
                 const SizedBox(height: 6),
                 TextFormField(
+                  key: _countedFieldKey,
                   controller: _countedCtrl,
                   keyboardType: TextInputType.number,
                   inputFormatters: [ThousandsSeparatorInputFormatter()],
@@ -179,6 +186,7 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
                     prefix: '\$ ',
                     hint: 'Ingresá el efectivo contado',
                   ),
+                  onTap: () => ensureFieldVisible(_countedFieldKey),
                   onChanged: (_) => setState(() {}),
                   validator: (v) {
                     if (v == null || v.isEmpty) {

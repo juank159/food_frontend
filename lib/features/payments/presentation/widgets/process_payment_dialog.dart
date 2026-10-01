@@ -10,6 +10,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
+import '../../../../core/utils/scroll_into_view.dart';
 import '../controllers/payment_controller.dart';
 import '../controllers/breb_payment_controller.dart';
 import '../../../cash_sessions/presentation/widgets/cash_session_required_banner.dart';
@@ -47,6 +48,10 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
   final _cashCtrl = TextEditingController();
   final _referenceCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  // Para que el campo quede visible por encima del teclado numérico al
+  // enfocarlo — ver `ensureFieldVisible`.
+  final _amountFieldKey = GlobalKey();
+  final _cashFieldKey = GlobalKey();
   double _received = 0;
 
   /// Todo lo que falta de la orden — fijo, no editable (referencia para
@@ -401,9 +406,11 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
                       children: [
                         Expanded(
                           child: TextField(
+                            key: _amountFieldKey,
                             controller: _amountCtrl,
                             keyboardType: TextInputType.number,
                             inputFormatters: [ThousandsSeparatorInputFormatter()],
+                            onTap: () => ensureFieldVisible(_amountFieldKey),
                             decoration: InputDecoration(
                               prefixText: '\$ ',
                               hintText: '0',
@@ -595,9 +602,11 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
+          key: _cashFieldKey,
           controller: _cashCtrl,
           keyboardType: TextInputType.number,
           inputFormatters: [ThousandsSeparatorInputFormatter()],
+          onTap: () => ensureFieldVisible(_cashFieldKey),
           decoration: InputDecoration(
             labelText: 'Recibido (opcional)',
             prefixText: '\$ ',
