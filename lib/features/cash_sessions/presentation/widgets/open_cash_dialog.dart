@@ -52,6 +52,15 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    // `Dialog` reserva el alto del teclado por su cuenta sumándolo al
+    // `insetPadding` (fijo, acá abajo) — pero el límite de alto que le
+    // damos al contenido de ESTE lado también tiene que restarlo, si
+    // no, con el teclado abierto el contenido pide más alto del que
+    // realmente le queda disponible y se desborda/recorta en vez de
+    // encogerse con scroll. El piso de 300 también baja a 220 — con
+    // teclado+pantalla chica, 300 fijo podía seguir pidiendo de más.
+    final kb = mq.viewInsets.bottom;
     return Dialog(
       backgroundColor: AppColors.cardBackground,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -59,11 +68,12 @@ class _OpenCashDialogState extends State<OpenCashDialog> {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 460,
-          maxHeight: (MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).viewPadding.top -
-                  MediaQuery.of(context).viewPadding.bottom -
+          maxHeight: (mq.size.height -
+                  mq.viewPadding.top -
+                  mq.viewPadding.bottom -
+                  kb -
                   48)
-              .clamp(300.0, 640.0),
+              .clamp(220.0, 640.0),
         ),
         child: Form(
           key: _formKey,

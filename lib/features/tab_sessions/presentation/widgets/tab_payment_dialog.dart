@@ -383,9 +383,13 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         : (screen.width < 900 ? 480.0 : 500.0);
     final maxH = (screen.height - kb - 2 * vPad).clamp(0.0, 700.0);
 
+    // `Dialog` ya suma `MediaQuery.viewInsets` (el teclado) a este
+    // `insetPadding` por su cuenta — sumar `kb` acá también lo contaba
+    // DOS veces y encogía el diálogo mucho más de lo necesario con el
+    // teclado abierto. Ver nota igual en `process_payment_dialog.dart`.
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(

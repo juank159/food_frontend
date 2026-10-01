@@ -332,9 +332,17 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
     final maxW = screen.width < 600 ? screen.width * 0.94 : 480.0;
     final maxH = (screen.height - safeV - kb - 2 * vPad).clamp(0.0, 680.0);
 
+    // `Dialog` SUMA SOLO `MediaQuery.viewInsets` (el alto del teclado) a
+    // este `insetPadding` automáticamente — está documentado en el
+    // propio widget de Flutter. Pasarle acá `vPad + kb` lo contaba DOS
+    // VECES (una nuestra, otra la de Flutter), así que con el teclado
+    // abierto el diálogo quedaba con el doble de espacio restado del
+    // que debía — por eso se "recogía" tanto que tapaba el campo que
+    // se estaba escribiendo. `maxH` de arriba ya resta `kb` UNA vez,
+    // que es lo correcto — acá va fijo, sin tocar `kb`.
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad + kb),
+      insetPadding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Column(

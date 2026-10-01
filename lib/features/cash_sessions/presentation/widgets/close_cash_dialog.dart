@@ -144,6 +144,14 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    // Mismo fix que en `open_cash_dialog.dart`: `Dialog` ya reserva el
+    // alto del teclado sumándolo a `insetPadding` (fijo, acá abajo) —
+    // el límite de alto del contenido también tiene que restarlo o
+    // pide más espacio del que le queda disponible. Piso bajado de 400
+    // a 280 para que, con teclado abierto en pantallas chicas, no siga
+    // pidiendo más alto del que hay.
+    final kb = mq.viewInsets.bottom;
     return Dialog(
       backgroundColor: AppColors.cardBackground,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -151,11 +159,12 @@ class _CloseCashDialogState extends State<CloseCashDialog> {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 480,
-          maxHeight: (MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).viewPadding.top -
-                  MediaQuery.of(context).viewPadding.bottom -
+          maxHeight: (mq.size.height -
+                  mq.viewPadding.top -
+                  mq.viewPadding.bottom -
+                  kb -
                   48)
-              .clamp(400.0, 720.0),
+              .clamp(280.0, 720.0),
         ),
         child: Form(
           key: _formKey,
