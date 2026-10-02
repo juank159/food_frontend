@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/table_status.dart';
 import '../../../../core/config/constants/table_enums.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
+import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/enums/table_capacity.dart';
 import '../../../../core/widgets/widgets.dart';
 
@@ -98,6 +100,21 @@ class TableStatusCard extends StatelessWidget {
                         Icons.access_time,
                         _formatDuration(tableStatus.occupiedDuration!),
                       ),
+                    // Hora de la reserva, bien visible — antes solo se
+                    // veía (si acaso) escondida en la nota en itálica de
+                    // más abajo. Útil sobre todo ahora que una reserva
+                    // real del módulo de Reservaciones marca la mesa
+                    // sola (ver ReservationsService._syncTableStatus en
+                    // el backend) — el anfitrión necesita ver de un
+                    // vistazo "reservada para las 7:00 PM", no abrir la
+                    // mesa para enterarse.
+                    if (tableStatus.status == TableStatus.reserved &&
+                        tableStatus.reservedAt != null)
+                      _buildInfoChip(
+                        context,
+                        Icons.schedule,
+                        DateTimeFormatter.time12(tableStatus.reservedAt!),
+                      ),
                   ],
                 ),
 
@@ -168,42 +185,48 @@ class TableStatusCard extends StatelessWidget {
     );
   }
 
+  // Mismos colores semánticos que usa el resto de la pantalla (la hoja
+  // de acciones que se abre al tocar la mesa, los chips del header) —
+  // antes esta tarjeta usaba `Colors.green[700]`/`Colors.red[700]`
+  // crudos, que no coincidían exactamente con `AppColors.success`/
+  // `AppColors.error` del resto de la app: una mesa "ocupada" se veía
+  // de un rojo distinto en la lista que en la hoja de acciones.
   _StatusConfig _getStatusConfig(TableStatus status) {
     switch (status) {
       case TableStatus.available:
         return _StatusConfig(
           icon: Icons.check_circle,
-          color: Colors.green[700]!,
+          color: AppColors.success,
           label: 'Disponible',
         );
       case TableStatus.occupied:
         return _StatusConfig(
           icon: Icons.people,
-          color: Colors.red[700]!,
+          color: AppColors.error,
           label: 'Ocupada',
         );
       case TableStatus.reserved:
         return _StatusConfig(
           icon: Icons.event,
-          color: Colors.orange[700]!,
+          color: AppColors.warning,
           label: 'Reservada',
         );
       case TableStatus.cleaning:
         return _StatusConfig(
           icon: Icons.cleaning_services,
-          color: Colors.blue[700]!,
+          color: AppColors.info,
           label: 'Limpieza',
         );
       case TableStatus.maintenance:
         return _StatusConfig(
           icon: Icons.build,
-          color: Colors.grey[700]!,
+          color: AppColors.textSecondary,
           label: 'Mantenimiento',
         );
       case TableStatus.unavailable:
         return _StatusConfig(
           icon: Icons.block,
-          color: Colors.grey[900]!,
+          color: AppColors.textPrimary,
           label: 'No disponible',
         );
     }

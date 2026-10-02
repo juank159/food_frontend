@@ -17,6 +17,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/services/floor_plan_view_preference.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
@@ -75,6 +76,16 @@ class _TableStatusPageState extends State<TableStatusPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadData();
     });
+
+    // Vista por defecto del tenant (lista o mapa) — arranca en 'list'
+    // (igual que antes) mientras se resuelve la preferencia guardada,
+    // y cambia sola apenas llega sin que el usuario note un salto raro
+    // (todavía no tocó nada en esta pantalla).
+    FloorPlanViewPreference.getDefaultView().then((view) {
+      if (mounted && view == 'map') {
+        setState(() => _viewMode = ServiceViewMode.map);
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -108,11 +119,19 @@ class _TableStatusPageState extends State<TableStatusPage> {
   }
 
   void _toggleViewMode() {
-    setState(() {
-      _viewMode = _viewMode == ServiceViewMode.list
-          ? ServiceViewMode.map
-          : ServiceViewMode.list;
-    });
+    final next = _viewMode == ServiceViewMode.list
+        ? ServiceViewMode.map
+        : ServiceViewMode.list;
+    setState(() => _viewMode = next);
+    // Guardamos la elección como la vista por defecto del tenant — así
+    // "predefinir la vista" es tan simple como dejarla en la que uno
+    // prefiere; la próxima vez (cualquier usuario, cualquier
+    // dispositivo) "Estado de Mesas" arranca directo ahí. Silencioso:
+    // un fallo de red acá no debe interrumpir el cambio de vista que
+    // el usuario ya está viendo en pantalla.
+    FloorPlanViewPreference.setDefaultView(
+      next == ServiceViewMode.map ? 'map' : 'list',
+    );
   }
 
   @override

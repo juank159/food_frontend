@@ -133,7 +133,15 @@ class ReserveTableDto extends Equatable {
     return {
       'partySize': partySize,
       if (reservationId != null) 'reservationId': reservationId,
-      if (reservedFor != null) 'reservedFor': reservedFor!.toIso8601String(),
+      // `.toUtc()` antes de serializar — sin esto, un DateTime naive
+      // (el que arma el date+time picker) viaja sin zona horaria, y el
+      // backend lo interpreta con SU PROPIA hora local (el servidor
+      // corre en UTC por defecto en Docker) en vez de la de Colombia:
+      // "reservada para las 7pm" podía guardarse como la 7pm UTC (2pm
+      // Colombia). Mismo bug ya encontrado y corregido en todo el resto
+      // de la app — acá se había escapado.
+      if (reservedFor != null)
+        'reservedFor': reservedFor!.toUtc().toIso8601String(),
       if (notes != null) 'notes': notes,
     };
   }
