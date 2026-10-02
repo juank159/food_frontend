@@ -5,7 +5,6 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
-import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/utils/safe_get.dart';
 import '../../../../core/utils/ui_access.dart';
@@ -202,25 +201,16 @@ class DashboardTab extends GetView<HomeController> {
                     title: 'Vender',
                     subtitle: 'Mostrador, mesa, llevar…',
                     accent: AppColors.accent,
-                    // Abre la pantalla unificada con modo Mostrador por
-                    // defecto. El operario cambia el destino con un
-                    // toque en el pill superior — sin navegar a otra
-                    // pantalla.
+                    // Abre la pantalla unificada con modo Mostrador
+                    // por defecto. El operario cambia el destino
+                    // con un toque en el pill superior — sin navegar
+                    // a otra pantalla.
                     //
-                    // Excepción: negocios "100% por mesas" no venden
-                    // suelto — Mostrador ni siquiera aparece como
-                    // opción en ese modo (ver `SellModeSheet`), así que
-                    // arrancar ahí sería un callejón sin salida. Para
-                    // esos negocios, "Vender" va directo al mapa de
-                    // mesas (mismo destino que ya usa el tile "Estado
-                    // de mesas").
-                    onTap: () async {
-                      if (await OperationModePreference.isTablesOnly()) {
-                        NavigationService.toTables();
-                      } else {
-                        Get.toNamed(AppRoutes.sell);
-                      }
-                    },
+                    // Negocios "100% por mesas": `SellPage` detecta
+                    // sola que no vino un modo preseteado y abre el
+                    // sheet "¿Vendiendo a...?" de una — no hace falta
+                    // ramificar nada acá (ver `SellPage._applyInitialMode`).
+                    onTap: () => Get.toNamed(AppRoutes.sell),
                   ),
                 ),
               ),

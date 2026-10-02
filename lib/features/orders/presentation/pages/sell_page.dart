@@ -7,6 +7,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
@@ -62,31 +63,58 @@ class _SellPageState extends State<SellPage> {
 
   void _applyInitialMode() {
     final args = Get.arguments;
-    if (args is! Map) return;
-    final mode = args['mode'];
-    if (mode is SellMode) {
-      controller.applyMode(mode);
-      return;
+    if (args is Map) {
+      final mode = args['mode'];
+      if (mode is SellMode) {
+        controller.applyMode(mode);
+        return;
+      }
+      // Compat con callers viejos que pasan args sueltos.
+      final tabSessionId = args['fromTabSession'] as String?;
+      final tableElementId = args['tableElementId'] as String?;
+      final tableId = args['tableId'] as String?;
+      final tableName = args['tableName'] as String?;
+      if (tabSessionId != null) {
+        controller.applyMode(SellMode.tabSession(
+          sessionId: tabSessionId,
+          sessionLabel: tableName ?? 'Cuenta abierta',
+          tableElementId: tableElementId,
+          tableId: tableId,
+          tableName: tableName,
+        ));
+        return;
+      } else if (tableElementId != null && tableName != null) {
+        controller.applyMode(SellMode.dineIn(
+          tableElementId: tableElementId,
+          tableId: tableId,
+          tableName: tableName,
+        ));
+        return;
+      }
     }
-    // Compat con callers viejos que pasan args sueltos.
-    final tabSessionId = args['fromTabSession'] as String?;
-    final tableElementId = args['tableElementId'] as String?;
-    final tableId = args['tableId'] as String?;
-    final tableName = args['tableName'] as String?;
-    if (tabSessionId != null) {
-      controller.applyMode(SellMode.tabSession(
-        sessionId: tabSessionId,
-        sessionLabel: tableName ?? 'Cuenta abierta',
-        tableElementId: tableElementId,
-        tableId: tableId,
-        tableName: tableName,
-      ));
-    } else if (tableElementId != null && tableName != null) {
-      controller.applyMode(SellMode.dineIn(
-        tableElementId: tableElementId,
-        tableId: tableId,
-        tableName: tableName,
-      ));
+    // Sin preset explícito (ej. "Vender" del Home, sin argumentos): el
+    // default es Mostrador, pero para un negocio 100% por mesas esa
+    // opción ni siquiera aparece en el sheet (ver `SellModeSheet`) — es
+    // un callejón sin salida. Abrimos el sheet "¿Vendiendo a...?" de
+    // una, igual que si el operario hubiera tocado el pill, para que
+    // elija Mesa directo sin aterrizar antes en un estado inválido.
+    _maybeOpenSheetForTablesOnlyBusiness();
+  }
+
+  Future<void> _maybeOpenSheetForTablesOnlyBusiness() async {
+    final tablesOnly = await OperationModePreference.isTablesOnly();
+    if (!tablesOnly || !mounted) return;
+    // Mismo sheet que abre el pill superior (`_ModePill._openModeSheet`)
+    // — duplicado acá porque ese método vive en otro widget privado del
+    // archivo y no hay forma limpia de reusarlo desde este State.
+    final newMode = await showModalBottomSheet<SellMode>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SellModeSheet(currentMode: controller.currentMode.value),
+    );
+    if (newMode != null) {
+      controller.applyMode(newMode);
     }
   }
 
