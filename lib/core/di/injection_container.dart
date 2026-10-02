@@ -82,21 +82,10 @@ import '../../features/products/domain/usecases/delete_modifier_group_usecase.da
 import '../../features/products/domain/usecases/add_modifiers_to_group_usecase.dart';
 import '../../features/products/domain/usecases/remove_modifier_from_group_usecase.dart';
 import '../../features/tables/data/datasources/floor_plan_datasource.dart';
-import '../../features/tables/data/datasources/table_remote_datasource.dart';
 import '../../features/tables/data/datasources/table_status_datasource.dart';
 import '../../features/tables/data/repositories/floor_plan_repository_impl.dart';
-import '../../features/tables/data/repositories/table_repository_impl.dart';
 import '../../features/tables/data/repositories/table_status_repository.dart';
 import '../../features/tables/domain/repositories/floor_plan_repository.dart';
-import '../../features/tables/domain/repositories/table_repository.dart';
-import '../../features/tables/domain/usecases/create_table_usecase.dart';
-import '../../features/tables/domain/usecases/get_available_tables_usecase.dart';
-import '../../features/tables/domain/usecases/get_table_by_id_usecase.dart';
-import '../../features/tables/domain/usecases/get_tables_usecase.dart';
-import '../../features/tables/domain/usecases/occupy_table_usecase.dart';
-import '../../features/tables/domain/usecases/update_table_status_usecase.dart';
-import '../../features/tables/domain/usecases/update_table_position_usecase.dart';
-import '../../features/tables/domain/usecases/update_table_usecase.dart';
 import '../../features/payments/data/datasources/payment_remote_datasource.dart';
 import '../../features/payments/data/repositories/payment_repository_impl.dart';
 import '../../features/payments/domain/repositories/payment_repository.dart';
@@ -385,29 +374,6 @@ Future<void> init() async {
   // ========================================
   // Features - Tables
   // ========================================
-
-  // Use Cases
-  sl.registerLazySingleton(() => GetTablesUseCase(sl()));
-  sl.registerLazySingleton(() => GetTableByIdUseCase(sl()));
-  sl.registerLazySingleton(() => GetAvailableTablesUseCase(sl()));
-  sl.registerLazySingleton(() => CreateTableUseCase(sl()));
-  sl.registerLazySingleton(() => UpdateTableUseCase(sl()));
-  sl.registerLazySingleton(() => UpdateTableStatusUseCase(sl()));
-  sl.registerLazySingleton(() => OccupyTableUseCase(sl()));
-  sl.registerLazySingleton(() => UpdateTablePositionUseCase(sl()));
-
-  // Repository
-  sl.registerLazySingleton<TableRepository>(
-    () => TableRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
-  );
-
-  // Data Sources
-  sl.registerLazySingleton<TableRemoteDataSource>(
-    () => TableRemoteDataSourceImpl(dio: sl()),
-  );
 
   // Table Status (separate datasource/repository — used by the order create
   // flow's TableSelectorWidget, registered here so GetIt can resolve it).
