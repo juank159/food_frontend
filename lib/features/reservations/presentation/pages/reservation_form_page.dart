@@ -198,9 +198,14 @@ class ReservationFormPage extends GetView<ReservationFormController> {
               '${reservedFor.month.toString().padLeft(2, '0')}/'
               '${reservedFor.year}'
           : 'Elegí fecha';
+      // 12h con AM/PM — reformateo directo del valor elegido en el
+      // picker, SIN pasar por conversión de zona horaria: acá `hour`/
+      // `minute` son exactamente lo que la persona acaba de tocar en la
+      // rueda del time picker (no un instante guardado que haya que
+      // reinterpretar), convertirlo con offset de Bogotá mostraría una
+      // hora distinta a la que se ve en el picker nativo.
       final timeLabel = reservedFor != null
-          ? '${reservedFor.hour.toString().padLeft(2, '0')}:'
-              '${reservedFor.minute.toString().padLeft(2, '0')}'
+          ? _format12h(reservedFor.hour, reservedFor.minute)
           : 'Elegí hora';
       return Row(
         children: [
@@ -468,4 +473,14 @@ class _StepperButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// `7:30 PM` a partir de [hour] (0-23) + [minute] — reformateo simple de
+/// un valor elegido en el time picker nativo, sin zona horaria de por
+/// medio (ya está en la hora de pared que la persona quiso elegir).
+String _format12h(int hour, int minute) {
+  final period = hour < 12 ? 'AM' : 'PM';
+  final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+  final mm = minute.toString().padLeft(2, '0');
+  return '$h12:$mm $period';
 }

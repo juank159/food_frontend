@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
@@ -822,9 +823,6 @@ class _PreviousPaymentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final time = TimeOfDay.fromDateTime(payment.createdAt);
-    final hh = time.hour.toString().padLeft(2, '0');
-    final mm = time.minute.toString().padLeft(2, '0');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
@@ -846,7 +844,11 @@ class _PreviousPaymentRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '$hh:$mm',
+                  // Hora de Colombia en 12h con AM/PM — antes usaba
+                  // `TimeOfDay.fromDateTime` directo sobre un DateTime
+                  // que llega en UTC del backend, sin convertir: mostraba
+                  // la hora UTC (5h adelantada) y encima en 24h.
+                  DateTimeFormatter.time12(payment.createdAt),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

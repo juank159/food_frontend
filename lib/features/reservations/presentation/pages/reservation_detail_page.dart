@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -873,15 +874,12 @@ class ReservationDetailPage extends GetView<ReservationDetailController> {
 
   // ─────────────────────────── Helpers ───────────────────────────
 
-  static String _formatFullDateTime(DateTime d) {
-    const months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-    ];
-    final hour = d.hour.toString().padLeft(2, '0');
-    final minute = d.minute.toString().padLeft(2, '0');
-    return '${d.day} ${months[d.month - 1]} ${d.year} · $hour:$minute';
-  }
+  // Fecha y hora de Colombia, 12h con AM/PM — antes armaba la hora leyendo
+  // `.hour`/`.minute` directo del DateTime en UTC que manda el backend,
+  // sin convertir ni formatear: mostraba la hora UTC (5h adelantada) y
+  // en 24h. `DateTimeFormatter` resuelve ambas cosas de una.
+  static String _formatFullDateTime(DateTime d) =>
+      '${DateTimeFormatter.dateOnly(d)} · ${DateTimeFormatter.time12(d)}';
 }
 
 // ─────────────────────────── Sub-widgets ───────────────────────────

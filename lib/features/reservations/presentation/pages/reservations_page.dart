@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -305,11 +306,9 @@ String _formatDateTime(DateTime d) {
       '${d.year} ${_formatTime(d)}';
 }
 
-String _formatTime(DateTime d) {
-  final hour = d.hour.toString().padLeft(2, '0');
-  final minute = d.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
-}
+// Hora de Colombia en 12h con AM/PM — antes leía `.hour`/`.minute` del
+// DateTime directo (24h, sin convertir zona horaria).
+String _formatTime(DateTime d) => DateTimeFormatter.time12(d);
 
 // ─────────────────────────── Reservation Card ───────────────────────────
 
