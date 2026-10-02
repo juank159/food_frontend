@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../data/models/menu_schedule_grid_item.dart';
 import '../controllers/menu_schedules_controller.dart';
@@ -250,7 +251,9 @@ class _DateAndStats extends StatelessWidget {
   String _formatDate(String ymd) {
     final dt = DateTime.tryParse(ymd);
     if (dt == null) return ymd;
-    final today = DateTime.now();
+    // Hora de Colombia real — antes usaba `DateTime.now()` del
+    // dispositivo para decidir "Hoy"/"Mañana".
+    final today = DateTimeFormatter.nowInBogota();
     final isToday = dt.year == today.year &&
         dt.month == today.month &&
         dt.day == today.day;

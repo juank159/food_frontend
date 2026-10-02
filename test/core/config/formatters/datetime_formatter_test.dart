@@ -65,5 +65,32 @@ void main() {
       final result = DateTimeFormatter.receiptDateTime(instant);
       expect(result, '01/10/2026 · 6:30:00 PM (hora Colombia)');
     });
+
+    test(
+        'isSameBogotaDay: dos instantes que son el mismo día en Bogotá '
+        'pero días distintos en UTC', () {
+      // 23:30 UTC del 1 de oct (6:30pm Bogotá, 1 oct) vs 02:00 UTC del 2
+      // de oct (9:00pm Bogotá, TODAVÍA 1 de oct) — mismo día en Bogotá,
+      // pero en UTC caen en fechas distintas.
+      final a = DateTime.utc(2026, 10, 1, 23, 30);
+      final b = DateTime.utc(2026, 10, 2, 2, 0);
+      expect(DateTimeFormatter.isSameBogotaDay(a, b), isTrue);
+    });
+
+    test('isSameBogotaDay: false para días realmente distintos en Bogotá',
+        () {
+      final a = DateTime.utc(2026, 10, 1, 5, 0); // 00:00 Bogotá, 1 oct
+      final b = DateTime.utc(2026, 10, 2, 4, 59); // 23:59 Bogotá, 1 oct... espera
+      // Ajustamos b para que sea CLARAMENTE el día siguiente en Bogotá.
+      final c = DateTime.utc(2026, 10, 2, 5, 0); // 00:00 Bogotá, 2 oct
+      expect(DateTimeFormatter.isSameBogotaDay(a, b), isTrue);
+      expect(DateTimeFormatter.isSameBogotaDay(a, c), isFalse);
+    });
+
+    test('bogotaDateOnly: normaliza a medianoche del día de Bogotá', () {
+      final instant = DateTime.utc(2026, 10, 2, 2, 0); // 9pm Bogotá, 1 oct
+      final result = DateTimeFormatter.bogotaDateOnly(instant);
+      expect(result, DateTime(2026, 10, 1));
+    });
   });
 }

@@ -4,6 +4,7 @@ import '../../../orders/domain/entities/order.dart' as order_entity;
 import '../../../orders/domain/usecases/get_orders_usecase.dart';
 import '../../domain/entities/sales_report.dart';
 import '../../domain/usecases/get_sales_report_usecase.dart';
+import '../../../../core/utils/date_period.dart';
 
 /// Presets de rango de fechas que ofrece la pantalla de Ventas.
 enum SalesRangePreset {
@@ -62,22 +63,24 @@ class SalesReportController extends GetxController {
       return;
     }
     preset.value = newPreset;
-    final now = DateTime.now();
-    final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    // Límites en hora de Colombia real (vía `resolveDatePeriod`, ya
+    // corregido) — antes se reimplementaban acá con `DateTime.now()`
+    // del dispositivo, mismo bug que en Cuentas Abiertas/Órdenes/Caja.
     switch (newPreset) {
       case SalesRangePreset.today:
-        dateFrom.value = DateTime(now.year, now.month, now.day);
-        dateTo.value = endOfToday;
+        final range = resolveDatePeriod(DatePeriod.today);
+        dateFrom.value = range.start;
+        dateTo.value = range.end;
         break;
       case SalesRangePreset.last7Days:
-        dateFrom.value = DateTime(now.year, now.month, now.day)
-            .subtract(const Duration(days: 6));
-        dateTo.value = endOfToday;
+        final range = resolveDatePeriod(DatePeriod.last7Days);
+        dateFrom.value = range.start;
+        dateTo.value = range.end;
         break;
       case SalesRangePreset.last30Days:
-        dateFrom.value = DateTime(now.year, now.month, now.day)
-            .subtract(const Duration(days: 29));
-        dateTo.value = endOfToday;
+        final today = resolveDatePeriod(DatePeriod.today);
+        dateFrom.value = today.start!.subtract(const Duration(days: 29));
+        dateTo.value = today.end;
         break;
       case SalesRangePreset.custom:
         break;

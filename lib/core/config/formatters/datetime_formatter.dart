@@ -88,4 +88,36 @@ class DateTimeFormatter {
     final ss = bogota.second.toString().padLeft(2, '0');
     return '$h12:$mm:$ss $period';
   }
+
+  /// "Ahora", pero en hora de pared de Bogotá — **sin depender de la
+  /// zona horaria del dispositivo**. Reemplazo directo de
+  /// `DateTime.now()` en CUALQUIER lugar que decida "¿esto es hoy?",
+  /// "¿ya venció?", "¿cuántos días faltan?" sobre un instante guardado
+  /// (reservas, turnos, caja, clientes, menú del día, KPIs del
+  /// dashboard...). Bug real que esto corrige: con el reloj/zona del
+  /// dispositivo mal puesta, una reserva/venta de la noche se
+  /// clasificaba como "de mañana" o "de ayer" según la pantalla —
+  /// encontrado duplicado en más de 15 lugares de la app, cada uno
+  /// reimplementando `DateTime.now()` por su cuenta.
+  static DateTime nowInBogota() => _toBogota(DateTime.now());
+
+  /// `true` si [a] y [b] caen en el MISMO día calendario en Bogotá —
+  /// sin importar si llegan en UTC crudo, `.toLocal()`'d, o ya
+  /// resueltos a Bogotá. Reemplazo directo de comparar
+  /// `a.year==b.year && a.month==b.month && a.day==b.day` a mano, que
+  /// es exactamente donde vivía el bug (esos campos reflejan la zona
+  /// que tenga CADA DateTime por separado, no necesariamente Bogotá).
+  static bool isSameBogotaDay(DateTime a, DateTime b) {
+    final ba = _toBogota(a);
+    final bb = _toBogota(b);
+    return ba.year == bb.year && ba.month == bb.month && ba.day == bb.day;
+  }
+
+  /// Día calendario de Bogotá para [dt], como `DateTime` normalizado a
+  /// medianoche (año/mes/día nada más) — útil para restar días y sacar
+  /// "hace cuántos días" sin que la hora del día meta ruido.
+  static DateTime bogotaDateOnly(DateTime dt) {
+    final b = _toBogota(dt);
+    return DateTime(b.year, b.month, b.day);
+  }
 }

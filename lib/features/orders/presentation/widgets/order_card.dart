@@ -378,14 +378,21 @@ class OrderCard extends StatelessWidget {
     final now = DateTime.now();
     final diff = now.difference(date);
     if (diff.isNegative) {
-      return '${DateFormat('dd/MM').format(date)} ${DateTimeFormatter.time12(date)}';
+      return '${DateFormat('dd/MM').format(DateTimeFormatter.bogotaDateOnly(date))} '
+          '${DateTimeFormatter.time12(date)}';
     }
     if (diff.inSeconds < 60) return 'hace un momento';
     if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'hace ${diff.inHours} h';
-    if (diff.inDays == 1) return 'ayer';
+    // "ayer" por día calendario de Bogotá, no por horas transcurridas
+    // (antes `diff.inDays == 1` podía fallar cerca de medianoche).
+    if (DateTimeFormatter.isSameBogotaDay(
+        date, now.subtract(const Duration(days: 1)))) {
+      return 'ayer';
+    }
     if (diff.inDays < 7) return 'hace ${diff.inDays} días';
-    return '${DateFormat('dd/MM/yyyy').format(date)} ${DateTimeFormatter.time12(date)}';
+    return '${DateFormat('dd/MM/yyyy').format(DateTimeFormatter.bogotaDateOnly(date))} '
+        '${DateTimeFormatter.time12(date)}';
   }
 }
 

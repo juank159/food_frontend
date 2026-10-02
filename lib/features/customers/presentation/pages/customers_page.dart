@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
@@ -524,9 +525,12 @@ class _CustomerCard extends StatelessWidget {
 
   static String _relativeDate(DateTime date) {
     final now = DateTime.now();
+    // "hoy"/"ayer" por día calendario de Bogotá, no por horas
+    // transcurridas — ver misma nota en customer_detail_page.dart.
+    if (DateTimeFormatter.isSameBogotaDay(date, now)) return 'hoy';
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (DateTimeFormatter.isSameBogotaDay(date, yesterday)) return 'ayer';
     final diff = now.difference(date);
-    if (diff.inDays == 0) return 'hoy';
-    if (diff.inDays == 1) return 'ayer';
     if (diff.inDays < 7) return 'hace ${diff.inDays} días';
     if (diff.inDays < 30) {
       final weeks = (diff.inDays / 7).floor();

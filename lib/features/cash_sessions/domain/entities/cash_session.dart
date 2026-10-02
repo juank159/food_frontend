@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 
 enum CashSessionStatus {
   open('open', 'Abierta'),
@@ -75,15 +76,14 @@ class CashSession extends Equatable {
   bool get isClosed => status == CashSessionStatus.closed;
   bool get isVoided => status == CashSessionStatus.voided;
 
-  /// True si la caja está abierta Y se abrió en un día diferente al de hoy
-  /// (hora local del dispositivo). Indica turno olvidado del día anterior.
+  /// True si la caja está abierta Y se abrió en un día diferente al de
+  /// hoy **en Bogotá** (antes comparaba contra la hora local del
+  /// dispositivo — con el reloj/zona mal puesta, podía no detectar un
+  /// turno olvidado real, o marcar como "olvidado" uno abierto hoy
+  /// mismo). Indica turno olvidado del día anterior.
   bool get isFromPreviousDay {
     if (!isOpen) return false;
-    final now = DateTime.now();
-    final opened = openedAt.toLocal();
-    return opened.year != now.year ||
-        opened.month != now.month ||
-        opened.day != now.day;
+    return !DateTimeFormatter.isSameBogotaDay(openedAt, DateTime.now());
   }
 
   /// Monto esperado en vivo (para sesiones abiertas: opening + cash_in - gastos;

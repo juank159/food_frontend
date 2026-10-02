@@ -8,6 +8,7 @@ import '../../domain/usecases/delete_reservation_usecase.dart';
 import '../../domain/usecases/get_reservations_usecase.dart';
 import '../../domain/usecases/get_upcoming_reservations_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/date_period.dart';
 
 /// Filtro inline disponible en la lista. Mapea a un `ReservationStatus`
 /// concreto o a una vista derivada (próximas / hoy / todas).
@@ -81,10 +82,15 @@ class ReservationsController extends GetxController {
       case ReservationListFilter.upcoming:
         return getUpcomingReservationsUseCase(hours: 24);
       case ReservationListFilter.today:
-        final now = DateTime.now();
-        final start = DateTime(now.year, now.month, now.day);
-        final end = start.add(const Duration(days: 1));
-        return getReservationsUseCase(dateFrom: start, dateTo: end);
+        // `resolveDatePeriod` calcula "hoy" en hora de Colombia real —
+        // antes esto se reimplementaba acá con `DateTime.now()` del
+        // dispositivo (mismo bug que ya se corrigió en
+        // Cuentas Abiertas/Órdenes/Reportes/Caja).
+        final range = resolveDatePeriod(DatePeriod.today);
+        return getReservationsUseCase(
+          dateFrom: range.start,
+          dateTo: range.end,
+        );
       case ReservationListFilter.pending:
         return getReservationsUseCase(status: ReservationStatus.pending);
       case ReservationListFilter.confirmed:

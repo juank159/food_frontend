@@ -221,7 +221,8 @@ class _ShiftClockPageState extends State<ShiftClockPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Entrada: ${DateFormat('dd/MM').format(s.clockIn.toLocal())} ${DateTimeFormatter.time12(s.clockIn.toLocal())}',
+            'Entrada: ${DateFormat('dd/MM').format(DateTimeFormatter.bogotaDateOnly(s.clockIn))} '
+                '${DateTimeFormatter.time12(s.clockIn)}',
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 18),
@@ -310,16 +311,16 @@ class _ShiftClockPageState extends State<ShiftClockPage> {
                       children: [
                         Text(
                           DateFormat('EEEE d MMM', 'es')
-                              .format(s.clockIn.toLocal()),
+                              .format(DateTimeFormatter.bogotaDateOnly(s.clockIn)),
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         Text(
-                          '${DateTimeFormatter.time12(s.clockIn.toLocal())}'
+                          '${DateTimeFormatter.time12(s.clockIn)}'
                           ' → '
-                          '${s.clockOut != null ? DateTimeFormatter.time12(s.clockOut!.toLocal()) : 'abierto'}',
+                          '${s.clockOut != null ? DateTimeFormatter.time12(s.clockOut!) : 'abierto'}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,

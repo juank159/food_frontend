@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../../../core/utils/date_period.dart';
 import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/data/models/customer_statistics_model.dart';
 import '../../../employees/data/models/employee_model.dart';
@@ -137,15 +138,17 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
       // Antes el reporte leía `total_sales_amount`/`total_orders_handled`
       // de la entity User, que NUNCA se actualizaban → todo en 0. Ahora
       // los valores son reales (mes en curso).
-      final now = DateTime.now();
-      final monthStart = DateTime(now.year, now.month, 1);
+      // Mes en curso, en hora de Colombia real — antes se calculaba con
+      // `DateTime.now()` del dispositivo, lo que podía atribuir ventas
+      // de fin de mes al mes equivocado.
+      final range = resolveDatePeriod(DatePeriod.thisMonth);
       final results = await Future.wait([
         dio.get(ApiConstants.users),
         dio.get(
           '/finance/employee-sales',
           queryParameters: <String, dynamic>{
-            'date_from': monthStart.toUtc().toIso8601String(),
-            'date_to': now.toUtc().toIso8601String(),
+            'date_from': range.start!.toUtc().toIso8601String(),
+            'date_to': range.end!.toUtc().toIso8601String(),
           },
         ),
       ]);

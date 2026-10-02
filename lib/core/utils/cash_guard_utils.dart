@@ -200,8 +200,11 @@ class _NoCashDialogState extends State<_NoCashDialog> {
 /// Permite continuar O ir a cerrar la caja del día anterior.
 Future<void> _showStaleCashWarning(
     BuildContext context, DateTime openedAt) async {
-  final timeStr = DateTimeFormatter.time12(openedAt.toLocal());
-  final dateStr = DateFormat('d MMM', 'es').format(openedAt.toLocal());
+  // Hora/fecha de Colombia real — antes usaba `.toLocal()` (zona del
+  // dispositivo) para ambas.
+  final timeStr = DateTimeFormatter.time12(openedAt);
+  final dateStr =
+      DateFormat('d MMM', 'es').format(DateTimeFormatter.bogotaDateOnly(openedAt));
 
   await showDialog<void>(
     context: context,

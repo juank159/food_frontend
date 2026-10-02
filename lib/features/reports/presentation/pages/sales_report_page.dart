@@ -315,7 +315,9 @@ class _OrderTile extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${order.displayDestination} • ${fmt.format(order.createdAt.toLocal())} ${DateTimeFormatter.time12(order.createdAt.toLocal())}',
+                                '${order.displayDestination} • '
+                                    '${fmt.format(DateTimeFormatter.bogotaDateOnly(order.createdAt))} '
+                                    '${DateTimeFormatter.time12(order.createdAt)}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,

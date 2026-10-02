@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -248,7 +249,10 @@ class _PayrollFormState extends State<_PayrollForm> {
   }
 
   String _defaultPeriod() {
-    final n = DateTime.now();
+    // Hora de Colombia real — antes usaba `DateTime.now()` del
+    // dispositivo, lo que podía proponer el mes equivocado los últimos
+    // días/horas de cada mes.
+    final n = DateTimeFormatter.nowInBogota();
     return '${n.year}-${n.month.toString().padLeft(2, '0')}';
   }
 

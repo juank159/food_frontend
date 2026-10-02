@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../customers/domain/entities/customer.dart';
@@ -279,7 +280,10 @@ class _CustomerTile extends StatelessWidget {
                                 Text(
                                   lastOrder == null
                                       ? 'Sin órdenes'
-                                      : fmt.format(lastOrder.toLocal()),
+                                      : fmt.format(
+                                          DateTimeFormatter.bogotaDateOnly(
+                                              lastOrder),
+                                        ),
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary,

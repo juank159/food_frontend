@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../../../core/config/constants/reservation_enums.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 
 /// Reservation Entity
 ///
@@ -71,13 +72,14 @@ class Reservation extends Equatable {
   /// `true` si `reservedFor` ya pasó.
   bool get isPast => reservedFor.isBefore(DateTime.now());
 
-  /// `true` si la reserva es para hoy (mismo día calendario).
-  bool get isToday {
-    final now = DateTime.now();
-    return reservedFor.year == now.year &&
-        reservedFor.month == now.month &&
-        reservedFor.day == now.day;
-  }
+  /// `true` si la reserva es para hoy (mismo día calendario **en
+  /// Bogotá**, no en la zona del dispositivo). Antes comparaba
+  /// `.year/.month/.day` directo contra `DateTime.now()` — ambos
+  /// quedan en la zona del dispositivo, así que si esa zona no es
+  /// exactamente UTC-5, una reserva cerca de medianoche podía
+  /// clasificarse como "de mañana" o "de ayer" en vez de "hoy".
+  bool get isToday =>
+      DateTimeFormatter.isSameBogotaDay(reservedFor, DateTime.now());
 
   /// `true` si la reserva es dentro de las próximas 24 horas Y todavía
   /// no llegó. Útil para el filtro "Próximas".

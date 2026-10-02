@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
@@ -79,7 +80,11 @@ class DashboardTab extends GetView<HomeController> {
         ? '${user.firstName[0]}${user.lastName[0]}'.toUpperCase()
         : 'U';
     final name = user?.firstName ?? 'Usuario';
-    final greeting = _greetingForHour(DateTime.now().hour);
+    // Hora de Colombia real — antes usaba `DateTime.now().hour` del
+    // dispositivo, que podía saludar "Buenas noches" de mañana si el
+    // reloj/zona del dispositivo estaba mal puesta.
+    final greeting =
+        _greetingForHour(DateTimeFormatter.nowInBogota().hour);
 
     // Admin/Manager ven KPIs financieros (ventas del día, delta vs. ayer).
     // Waiter/Cashier ven KPIs operativos (órdenes activas, mesas) — no

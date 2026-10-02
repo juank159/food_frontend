@@ -284,7 +284,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                             ),
                           ),
                         Text(
-                          '${DateFormat('dd/MM/yyyy').format(payment.createdAt)} ${DateTimeFormatter.time12(payment.createdAt)}',
+                          '${DateFormat('dd/MM/yyyy').format(DateTimeFormatter.bogotaDateOnly(payment.createdAt))} '
+                              '${DateTimeFormatter.time12(payment.createdAt)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -376,7 +377,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
                       if (payment.refundedAt != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Fecha: ${DateFormat('dd/MM/yyyy').format(payment.refundedAt!)} ${DateTimeFormatter.time12(payment.refundedAt!)}',
+                          'Fecha: ${DateFormat('dd/MM/yyyy').format(DateTimeFormatter.bogotaDateOnly(payment.refundedAt!))} '
+                              '${DateTimeFormatter.time12(payment.refundedAt!)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -574,7 +576,8 @@ class _PaymentHistoryWidgetState extends State<PaymentHistoryWidget> {
             _buildDetailRow(
               theme,
               'Fecha de creación',
-              '${DateFormat('dd/MM/yyyy').format(payment.createdAt)} ${DateTimeFormatter.time12s(payment.createdAt)}',
+              '${DateFormat('dd/MM/yyyy').format(DateTimeFormatter.bogotaDateOnly(payment.createdAt))} '
+                  '${DateTimeFormatter.time12s(payment.createdAt)}',
             ),
 
             if (payment.processedBy.isNotEmpty) ...[

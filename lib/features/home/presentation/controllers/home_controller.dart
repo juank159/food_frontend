@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/date_period.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 
@@ -129,13 +130,15 @@ class HomeController extends GetxController {
   /// Ganancia neta del mes en curso → `GET /finance/pnl`.
   Future<void> _loadNetProfitMonth(Dio dio) async {
     try {
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, 1);
+      // "Hoy"/"este mes" en hora de Colombia real — antes se calculaba
+      // con `DateTime.now()` del dispositivo (mismo bug ya corregido en
+      // Órdenes/Cuentas Abiertas/Reportes/Caja).
+      final range = resolveDatePeriod(DatePeriod.thisMonth);
       final res = await dio.get(
         '/finance/pnl',
         queryParameters: {
-          'date_from': start.toUtc().toIso8601String(),
-          'date_to': now.toUtc().toIso8601String(),
+          'date_from': range.start!.toUtc().toIso8601String(),
+          'date_to': range.end!.toUtc().toIso8601String(),
         },
       );
       final data = res.data;
@@ -156,22 +159,16 @@ class HomeController extends GetxController {
   /// `date_to` por `<=` así que incluye toda la jornada.
   Future<void> _loadTotalSalesToday(Dio dio) async {
     try {
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, now.day);
-      final end = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      );
+      // "Hoy" en hora de Colombia real — antes se calculaba con
+      // `DateTime.now()` del dispositivo (mismo bug ya corregido en
+      // Órdenes/Cuentas Abiertas/Reportes/Caja): con el reloj/zona mal
+      // puesta, ventas de la noche quedaban fuera de este total.
+      final range = resolveDatePeriod(DatePeriod.today);
       final res = await dio.get(
         '/orders/statistics',
         queryParameters: {
-          'date_from': start.toUtc().toIso8601String(),
-          'date_to': end.toUtc().toIso8601String(),
+          'date_from': range.start!.toUtc().toIso8601String(),
+          'date_to': range.end!.toUtc().toIso8601String(),
         },
       );
       final data = res.data;
@@ -223,22 +220,13 @@ class HomeController extends GetxController {
   /// "Primera venta del día" en vez de un porcentaje falso.
   Future<void> _loadTotalSalesYesterday(Dio dio) async {
     try {
-      final now = DateTime.now();
-      final yesterday = DateTime(now.year, now.month, now.day - 1);
-      final endYesterday = DateTime(
-        yesterday.year,
-        yesterday.month,
-        yesterday.day,
-        23,
-        59,
-        59,
-        999,
-      );
+      // "Ayer" en hora de Colombia real — mismo criterio que "hoy".
+      final range = resolveDatePeriod(DatePeriod.yesterday);
       final res = await dio.get(
         '/orders/statistics',
         queryParameters: {
-          'date_from': yesterday.toUtc().toIso8601String(),
-          'date_to': endYesterday.toUtc().toIso8601String(),
+          'date_from': range.start!.toUtc().toIso8601String(),
+          'date_to': range.end!.toUtc().toIso8601String(),
         },
       );
       final data = res.data;

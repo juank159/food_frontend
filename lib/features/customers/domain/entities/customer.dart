@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import 'customer_address.dart';
 
 /// Customer Entity
@@ -45,10 +46,13 @@ class Customer extends Equatable {
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
-  /// Indica si el cliente fue creado este mes (para KPI "nuevos").
+  /// Indica si el cliente fue creado este mes (para KPI "nuevos"), en
+  /// hora de Colombia real — antes comparaba contra `DateTime.now()`
+  /// del dispositivo.
   bool get isNewThisMonth {
-    final now = DateTime.now();
-    return createdAt.year == now.year && createdAt.month == now.month;
+    final now = DateTimeFormatter.nowInBogota();
+    final created = DateTimeFormatter.bogotaDateOnly(createdAt);
+    return created.year == now.year && created.month == now.month;
   }
 
   /// Indica si tiene actividad reciente (orden en los últimos 30 días).

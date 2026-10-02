@@ -6,6 +6,7 @@ import '../../domain/usecases/get_active_orders_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/date_period.dart';
@@ -522,15 +523,15 @@ class OrdersController extends GetxController {
     return orders.where((order) => order.isReady).length;
   }
 
-  /// Obtiene el total de ventas del día
+  /// Obtiene el total de ventas del día (hoy en hora de Colombia real —
+  /// antes comparaba `.year/.month/.day` contra `DateTime.now()` del
+  /// dispositivo, mismo bug ya corregido en otros lados de la app).
   double get totalSalesToday {
-    final today = DateTime.now();
+    final now = DateTime.now();
     return orders
         .where(
           (order) =>
-              order.createdAt.year == today.year &&
-              order.createdAt.month == today.month &&
-              order.createdAt.day == today.day &&
+              DateTimeFormatter.isSameBogotaDay(order.createdAt, now) &&
               order.isCompleted,
         )
         .fold(0.0, (sum, order) => sum + order.totalAmount);

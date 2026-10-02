@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
@@ -305,8 +304,8 @@ class _ActiveSession extends StatelessWidget {
   }
 
   Widget _buildStatusBanner() {
-    final opened =
-        '${DateFormat('dd MMM yyyy').format(session.openedAt)} · ${DateTimeFormatter.time12(session.openedAt)}';
+    final opened = '${DateTimeFormatter.dateOnly(session.openedAt)} · '
+        '${DateTimeFormatter.time12(session.openedAt)}';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(

@@ -288,10 +288,12 @@ String formatReservationWhen(Reservation r) {
   if (r.isToday) {
     return 'hoy ${_formatTime(r.reservedFor)}';
   }
-  final tomorrow = DateTime(now.year, now.month, now.day + 1);
-  if (r.reservedFor.year == tomorrow.year &&
-      r.reservedFor.month == tomorrow.month &&
-      r.reservedFor.day == tomorrow.day) {
+  // "Mañana" en el día calendario de BOGOTÁ, no del dispositivo — mismo
+  // criterio que `Reservation.isToday` (antes comparaba contra
+  // `DateTime.now()` del dispositivo directo).
+  final tomorrowBogota =
+      DateTimeFormatter.bogotaDateOnly(now).add(const Duration(days: 1));
+  if (DateTimeFormatter.bogotaDateOnly(r.reservedFor) == tomorrowBogota) {
     return 'mañana ${_formatTime(r.reservedFor)}';
   }
   if (diff.inDays < 7) {

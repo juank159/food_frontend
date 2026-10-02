@@ -523,7 +523,9 @@ class _OrderHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${order.displayDestination} · ${DateFormat('dd MMM,').format(order.createdAt)} ${DateTimeFormatter.time12(order.createdAt)}',
+                  '${order.displayDestination} · '
+                      '${DateFormat('dd MMM,').format(DateTimeFormatter.bogotaDateOnly(order.createdAt))} '
+                      '${DateTimeFormatter.time12(order.createdAt)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -801,7 +803,8 @@ class _StatusTimeline extends StatelessWidget {
                     if (order.cancelledAt != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        '${DateFormat('dd MMM,').format(order.cancelledAt!)} ${DateTimeFormatter.time12(order.cancelledAt!)}',
+                        '${DateFormat('dd MMM,').format(DateTimeFormatter.bogotaDateOnly(order.cancelledAt!))} '
+                            '${DateTimeFormatter.time12(order.cancelledAt!)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,

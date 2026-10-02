@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -315,9 +316,14 @@ class CustomerDetailPage extends GetView<CustomerDetailController> {
 
   static String _relativeDate(DateTime date) {
     final now = DateTime.now();
+    // "Hoy"/"Ayer" por día calendario de Bogotá, no por horas
+    // transcurridas — antes `diff.inDays == 0` podía decir "Hoy" para
+    // algo de AYER a la noche (menos de 24h atrás pero otro día
+    // calendario), y viceversa cerca de la medianoche del dispositivo.
+    if (DateTimeFormatter.isSameBogotaDay(date, now)) return 'Hoy';
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (DateTimeFormatter.isSameBogotaDay(date, yesterday)) return 'Ayer';
     final diff = now.difference(date);
-    if (diff.inDays == 0) return 'Hoy';
-    if (diff.inDays == 1) return 'Ayer';
     if (diff.inDays < 7) return 'hace ${diff.inDays} d';
     if (diff.inDays < 30) {
       final weeks = (diff.inDays / 7).floor();

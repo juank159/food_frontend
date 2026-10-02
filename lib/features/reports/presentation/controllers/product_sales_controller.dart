@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../../domain/entities/product_sales_report.dart';
 import '../../domain/usecases/get_product_sales_usecase.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
+import '../../../../core/utils/date_period.dart';
 
 enum ProductSalesPreset { today, yesterday, thisWeek, thisMonth }
 
@@ -22,29 +24,37 @@ class ProductSalesController extends GetxController {
     selectPreset(ProductSalesPreset.today);
   }
 
+  // Límites en hora de Colombia real — antes se reimplementaban acá con
+  // `DateTime.now()` del dispositivo, mismo bug ya corregido en
+  // Cuentas Abiertas/Órdenes/Caja/otros reportes.
   void selectPreset(ProductSalesPreset p) {
     preset.value = p;
-    final now = DateTime.now();
     switch (p) {
       case ProductSalesPreset.today:
-        dateFrom.value = DateTime(now.year, now.month, now.day);
-        dateTo.value = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        final range = resolveDatePeriod(DatePeriod.today);
+        dateFrom.value = range.start!;
+        dateTo.value = range.end!;
         break;
       case ProductSalesPreset.yesterday:
-        final y = now.subtract(const Duration(days: 1));
-        dateFrom.value = DateTime(y.year, y.month, y.day);
-        dateTo.value = DateTime(y.year, y.month, y.day, 23, 59, 59);
+        final range = resolveDatePeriod(DatePeriod.yesterday);
+        dateFrom.value = range.start!;
+        dateTo.value = range.end!;
         break;
       case ProductSalesPreset.thisWeek:
-        // lunes de la semana actual
-        final weekday = now.weekday; // 1=lun, 7=dom
-        final monday = now.subtract(Duration(days: weekday - 1));
-        dateFrom.value = DateTime(monday.year, monday.month, monday.day);
-        dateTo.value = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        // Lunes de la semana actual, en Bogotá. `DatePeriod` no tiene
+        // un preset de "esta semana" — se arma a mano pero anclado a
+        // `nowInBogota()`, no al reloj del dispositivo.
+        final today = resolveDatePeriod(DatePeriod.today);
+        final bogotaNow = DateTimeFormatter.nowInBogota();
+        final weekday = bogotaNow.weekday; // 1=lun, 7=dom
+        final monday = today.start!.subtract(Duration(days: weekday - 1));
+        dateFrom.value = monday;
+        dateTo.value = today.end!;
         break;
       case ProductSalesPreset.thisMonth:
-        dateFrom.value = DateTime(now.year, now.month, 1);
-        dateTo.value = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        final range = resolveDatePeriod(DatePeriod.thisMonth);
+        dateFrom.value = range.start!;
+        dateTo.value = range.end!;
         break;
     }
     load();

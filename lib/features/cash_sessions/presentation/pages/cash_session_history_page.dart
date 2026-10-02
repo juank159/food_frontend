@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
@@ -609,10 +608,8 @@ class _SessionCard extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime dt) {
-    final local = dt.toLocal();
-    return '${DateFormat('dd MMM yyyy', 'es').format(local)} · ${DateTimeFormatter.time12(local)}';
-  }
+  String _formatDate(DateTime dt) =>
+      '${DateTimeFormatter.dateOnly(dt)} · ${DateTimeFormatter.time12(dt)}';
 }
 
 // ─────────────────────── Metric cell ─────────────────────────────────────────

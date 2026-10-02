@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
@@ -76,7 +75,7 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
   // ── Header ─────────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    final date = DateFormat('dd MMM yyyy', 'es').format(session.openedAt.toLocal());
+    final date = DateTimeFormatter.dateOnly(session.openedAt);
     return AppGradientHeader(
       title: 'Sesión · $date',
       subtitle: _subtitleForSession(session),
@@ -164,9 +163,8 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
   // ── Estado de la sesión ──────────────────────────────────────────────────
 
   Widget _buildStatusCard() {
-    final openedLocal = session.openedAt.toLocal();
-    final openedStr =
-        '${DateFormat('dd MMM yyyy', 'es').format(openedLocal)} · ${DateTimeFormatter.time12(openedLocal)}';
+    final openedStr = '${DateTimeFormatter.dateOnly(session.openedAt)} · '
+        '${DateTimeFormatter.time12(session.openedAt)}';
     return _InfoCard(
       children: [
         Row(
@@ -193,7 +191,8 @@ class _CashSessionDetailPageState extends State<CashSessionDetailPage> {
                   size: 14, color: AppColors.textSecondary),
               const SizedBox(width: 6),
               Text(
-                'Cierre: ${DateFormat('dd MMM yyyy', 'es').format(session.closedAt!.toLocal())} · ${DateTimeFormatter.time12(session.closedAt!.toLocal())}',
+                'Cierre: ${DateTimeFormatter.dateOnly(session.closedAt!)} · '
+                    '${DateTimeFormatter.time12(session.closedAt!)}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,

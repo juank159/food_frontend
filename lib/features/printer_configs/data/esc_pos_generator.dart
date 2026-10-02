@@ -1102,21 +1102,17 @@ class EscPosGenerator {
 
   static String _money(double n) => CurrencyFormatter.format(n);
 
-  // Las fechas del backend vienen en UTC (…Z). Convertimos a hora LOCAL
-  // del dispositivo (ej. Colombia UTC-5) para que la hora de la comanda
-  // sea la real, no 5 horas adelantada.
-  static String _hhmm(DateTime d) {
-    final l = d.toLocal();
-    final h = l.hour;
-    final period = h < 12 ? 'AM' : 'PM';
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    return '$h12:${l.minute.toString().padLeft(2, '0')} $period';
-  }
+  // Las fechas del backend vienen en UTC (…Z). Antes esto convertía con
+  // `.toLocal()` (zona del DISPOSITIVO que imprime) — si esa zona no
+  // está bien puesta, el ticket FÍSICO queda con la hora equivocada sin
+  // forma de corregirlo después. `DateTimeFormatter` usa el offset fijo
+  // de Bogotá (UTC-5) en vez de confiar en el dispositivo.
+  static String _hhmm(DateTime d) => DateTimeFormatter.time12(d);
 
   static String _fullDate(DateTime d) {
-    final l = d.toLocal();
-    return '${l.day.toString().padLeft(2, '0')}/'
-        '${l.month.toString().padLeft(2, '0')}/'
-        '${l.year}  ${_hhmm(l)}';
+    final bog = DateTimeFormatter.bogotaDateOnly(d);
+    return '${bog.day.toString().padLeft(2, '0')}/'
+        '${bog.month.toString().padLeft(2, '0')}/'
+        '${bog.year}  ${_hhmm(d)}';
   }
 }

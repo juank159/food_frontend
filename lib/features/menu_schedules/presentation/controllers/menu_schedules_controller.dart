@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../data/menu_schedules_remote_datasource.dart';
@@ -171,8 +172,13 @@ class MenuSchedulesController extends GetxController {
 
   // ----------------------------------------------------------------
 
+  // "Hoy" en hora de Colombia real — tiene que coincidir con
+  // `todayColombia()` del backend (que filtra `menu_schedules` por
+  // este mismo día). Antes usaba `DateTime.now()` del dispositivo: con
+  // el reloj/zona mal puesta, el mesero podía terminar viendo/editando
+  // el menú programado del día equivocado.
   static String _todayString() {
-    final now = DateTime.now();
+    final now = DateTimeFormatter.nowInBogota();
     return '${now.year.toString().padLeft(4, '0')}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
