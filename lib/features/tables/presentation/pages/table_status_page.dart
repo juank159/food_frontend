@@ -473,7 +473,18 @@ class _TableStatusPageState extends State<TableStatusPage> {
   void _showOccupyDialog(TableStatusEntity tableStatus) {
     showDialog(
       context: context,
-      builder: (context) => OccupyTableDialog(
+      // OJO con el nombre de este parámetro: antes se llamaba `context`
+      // igual que el de `_TableStatusPageState`, y esa sombra rompía el
+      // flujo de "un solo paso" de acá abajo — el diálogo se cierra
+      // (`Navigator.pop`) ANTES de llamar a `onOccupy` (ver
+      // `OccupyTableDialog`), así que para cuando este callback corría,
+      // el `context` sombreado (el del diálogo ya cerrado) daba
+      // `.mounted == false` SIEMPRE, aunque `occupyTable()` hubiera
+      // funcionado. Resultado: la navegación al catálogo nunca se
+      // disparaba y el operario quedaba parado en Estado de Mesas,
+      // obligado a tocar la mesa otra vez y elegir "Tomar orden" para
+      // recién ahí llegar a los productos — el "doble paso" reportado.
+      builder: (dialogBuilderContext) => OccupyTableDialog(
         tableStatus: tableStatus,
         onOccupy: (partySize, serverId, notes) async {
           final success = await tableStatusController.occupyTable(
@@ -482,6 +493,8 @@ class _TableStatusPageState extends State<TableStatusPage> {
             serverId: serverId,
             notes: notes,
           );
+          // `context` acá es el de `_TableStatusPageState` (la pantalla
+          // de fondo, que sigue viva) — no el del diálogo ya cerrado.
           if (success && context.mounted) {
             _navigateToCreateOrder(
               tableStatus: tableStatus,
