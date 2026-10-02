@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/role_labels.dart';
@@ -273,7 +274,11 @@ class EmployeeDetailPage extends GetView<EmployeeDetailController> {
     if (diff.isNegative) return _formatDate(date);
     if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'hace ${diff.inHours} h';
-    if (diff.inDays == 1) return 'ayer';
+    // "ayer" por día calendario de Bogotá, no por horas transcurridas.
+    if (DateTimeFormatter.isSameBogotaDay(
+        date, now.subtract(const Duration(days: 1)))) {
+      return 'ayer';
+    }
     if (diff.inDays < 7) return 'hace ${diff.inDays} d';
     if (diff.inDays < 30) {
       final weeks = (diff.inDays / 7).floor();
@@ -282,10 +287,13 @@ class EmployeeDetailPage extends GetView<EmployeeDetailController> {
     return _formatDate(date);
   }
 
+  // Fecha en día calendario de Bogotá — antes leía `.day/.month/.year`
+  // directo del DateTime en UTC del backend, sin convertir.
   static String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
+    final bog = DateTimeFormatter.bogotaDateOnly(date);
+    return '${bog.day.toString().padLeft(2, '0')}/'
+        '${bog.month.toString().padLeft(2, '0')}/'
+        '${bog.year}';
   }
 }
 

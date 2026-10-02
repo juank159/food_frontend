@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -1053,6 +1054,8 @@ class _MovementRow extends StatelessWidget {
     if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'hace ${diff.inHours} h';
     if (diff.inDays < 7) return 'hace ${diff.inDays} d';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    // Fecha en día calendario de Bogotá, no del dispositivo.
+    final bog = DateTimeFormatter.bogotaDateOnly(dt);
+    return '${bog.day.toString().padLeft(2, '0')}/${bog.month.toString().padLeft(2, '0')}/${bog.year}';
   }
 }
