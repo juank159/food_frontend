@@ -4,6 +4,7 @@ import '../../domain/entities/reservation.dart';
 import '../../domain/usecases/create_reservation_usecase.dart';
 import '../../domain/usecases/update_reservation_usecase.dart';
 import './reservations_controller.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
 /// Reservation Form Controller — crea o edita una reservación.
@@ -59,8 +60,11 @@ class ReservationFormController extends GetxController {
     if (reservationToEdit != null) {
       _hydrateFromReservation(reservationToEdit!);
     } else {
-      // Default sensato para creación: hoy a las 20:00 (cena).
-      final now = DateTime.now();
+      // Default sensato para creación: hoy a las 20:00 (cena), en el
+      // día calendario real de Colombia — antes usaba `DateTime.now()`
+      // del dispositivo: con el reloj/zona mal puesta, podía sugerir
+      // "esta noche" para un día que ya no es hoy en Colombia.
+      final now = DateTimeFormatter.nowInBogota();
       final tonight = DateTime(now.year, now.month, now.day, 20);
       // Si ya pasaron las 20h, lo proyectamos al día siguiente.
       reservedFor.value =

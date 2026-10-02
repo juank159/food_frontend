@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import '../config/formatters/currency_formatter.dart';
+import '../config/formatters/datetime_formatter.dart';
 import '../../features/categories/domain/entities/category.dart';
 import '../../features/products/domain/entities/product.dart';
 
@@ -76,7 +77,10 @@ class MenuPdfBuilder {
     final fontHelvB = pw.Font.helveticaBold();
     final fontItal  = pw.Font.timesItalic();
 
-    final today = DateFormat("d 'de' MMMM 'de' y", 'es_CO').format(DateTime.now());
+    // Fecha de Colombia real — antes usaba `DateTime.now()` del
+    // dispositivo directo, sin convertir.
+    final today = DateFormat("d 'de' MMMM 'de' y", 'es_CO')
+        .format(DateTimeFormatter.nowInBogota());
 
     // ── Portada ─────────────────────────────────────────────────────────────
     // Nombre del restaurante centrado, sin el "la" hardcodeado.
