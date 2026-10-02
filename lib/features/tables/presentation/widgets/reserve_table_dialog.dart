@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/table_status.dart';
 import '../../domain/enums/table_capacity.dart';
@@ -237,7 +236,15 @@ class _ReserveTableDialogState extends State<ReserveTableDialog> {
                   child: Text(
                     _reservedFor == null
                         ? 'Seleccionar fecha y hora'
-                        : '${df.format(_reservedFor!)} · ${DateTimeFormatter.time12(_reservedFor!)}',
+                        // OJO: `_reservedFor` es la fecha/hora que la
+                        // persona ACABA de elegir en el date+time
+                        // picker (ver más abajo), no un instante ya
+                        // guardado — no pasa por `DateTimeFormatter`
+                        // (eso convertiría a hora de Bogotá y mostraría
+                        // una hora distinta a la que se ve en el
+                        // picker nativo). Se reformatea directo.
+                        : '${df.format(_reservedFor!)} · '
+                            '${_format12hLocal(_reservedFor!.hour, _reservedFor!.minute)}',
                     style: TextStyle(
                       fontSize: 14,
                       color: _reservedFor == null
@@ -467,4 +474,14 @@ class _StepperButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// `7:30 PM` a partir de [hour] (0-23) + [minute] — reformateo simple de
+/// un valor elegido en el time picker nativo, sin zona horaria de por
+/// medio (ya está en la hora de pared que la persona quiso elegir).
+String _format12hLocal(int hour, int minute) {
+  final period = hour < 12 ? 'AM' : 'PM';
+  final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+  final mm = minute.toString().padLeft(2, '0');
+  return '$h12:$mm $period';
 }

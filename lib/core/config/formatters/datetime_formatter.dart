@@ -46,23 +46,38 @@ class DateTimeFormatter {
       DateFormat('dd MMM yyyy', 'es').format(_toBogota(dt));
 
   /// `2:27 PM` — solo hora (sin segundos, 12h con AM/PM), para listas
-  /// compactas donde ya se sabe/muestra la fecha por separado.
-  static String timeOnly(DateTime dt) =>
-      _time12(_toBogota(dt), seconds: false);
+  /// compactas donde ya se sabe/muestra la fecha por separado. Alias de
+  /// [time12] — mismo comportamiento, nombre distinto por legibilidad
+  /// según el contexto de cada caller.
+  static String timeOnly(DateTime dt) => time12(dt);
 
-  /// `2:27 PM` — igual que [timeOnly], pero a partir de un `DateTime`
-  /// YA resuelto a la zona que quiera el caller (típicamente
-  /// `.toLocal()`), sin forzar la conversión a Bogotá. Pensado como
-  /// reemplazo directo de `DateFormat('HH:mm')` (24h / "hora militar")
-  /// en toda la app — no todas las pantallas necesitan el rigor de
-  /// zona horaria explícita de [receiptDateTime] (eso es solo para
-  /// conciliar Bre-B contra el banco), pero TODAS necesitan mostrar la
-  /// hora en 12h con AM/PM: esta app la usa gente sin formación
-  /// técnica y "14:27" es ambiguo para ese público.
-  static String time12(DateTime dt) => _time12(dt, seconds: false);
+  /// `2:27 PM` — hora de Colombia en 12h con AM/PM, reemplazo directo de
+  /// `DateFormat('HH:mm')` (24h / "hora militar") en toda la app.
+  ///
+  /// **SIEMPRE convierte a Bogotá primero** (vía `.toUtc()` + offset
+  /// fijo), sin importar si [dt] llega en UTC crudo del backend o ya
+  /// pasó por `.toLocal()` en el caller — en cualquiera de los dos
+  /// casos, `.toUtc()` adentro de esta función deshace correctamente lo
+  /// que haga falta y vuelve a aplicar el offset de Bogotá. Antes NO
+  /// convertía nada (leía `.hour`/`.minute` directo de lo que llegara),
+  /// lo cual, mezclado con un `.toLocal()` previo del dispositivo,
+  /// terminaba mostrando la hora LOCAL del dispositivo en vez de la de
+  /// Colombia — bug real encontrado en ~20 lugares de la app (pagos,
+  /// órdenes, cuentas abiertas, turnos, caja, reportes) que confiaban
+  /// en que el dispositivo tuviera la zona horaria bien puesta.
+  ///
+  /// Si tenés un `DateTime` que NO es un instante guardado sino un
+  /// valor que la persona ACABA de elegir en un time picker (todavía no
+  /// se guardó en ningún lado), NO uses esto — reformateá sus propios
+  /// `hour`/`minute` a 12h directo, sin pasar por acá (convertir ese
+  /// valor a Bogotá mostraría una hora distinta a la que ve en el
+  /// picker nativo). Ver `reservation_form_page.dart`/`_format12h` para
+  /// el patrón correcto en ese caso.
+  static String time12(DateTime dt) => _time12(_toBogota(dt), seconds: false);
 
   /// `2:27:36 PM` — igual que [time12], pero con segundos.
-  static String time12s(DateTime dt) => _time12(dt, seconds: true);
+  static String time12s(DateTime dt) =>
+      _time12(_toBogota(dt), seconds: true);
 
   static String _time12(DateTime bogota, {required bool seconds}) {
     final h = bogota.hour;
