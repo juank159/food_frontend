@@ -693,7 +693,48 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
       context: context,
       builder: (_) => TabPaymentDialog(session: s),
     );
-    if (paid == true) controller.load();
+    if (paid != true) return;
+
+    await controller.load();
+    if (!mounted) return;
+
+    // Si el pago dejó la cuenta en $0, preguntamos de una vez si hay
+    // que cerrarla — en vez de un botón pasivo que alguien tiene que
+    // acordarse de tocar después. Bug real que esto evita: una cuenta
+    // pagada que nadie cierra a mano queda "abierta" y, horas después,
+    // un cliente sin ninguna relación que se sienta en la misma mesa
+    // termina con su pedido anexado a la cuenta vieja ya pagada.
+    final updated = controller.session.value;
+    if (updated != null && updated.canClose) {
+      await _promptCloseAfterPayment();
+    }
+  }
+
+  Future<void> _promptCloseAfterPayment() async {
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Cuenta pagada'),
+        content: const Text(
+          'La cuenta quedó en \$0. ¿La cerramos ahora, o la dejamos '
+          'abierta por si van a pedir algo más?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Dejar abierta'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Cerrar cuenta'),
+          ),
+        ],
+      ),
+    );
+    if (shouldClose == true && mounted) {
+      final ok = await controller.close();
+      if (ok && mounted) Navigator.of(context).pop();
+    }
   }
 
   Future<void> _confirmClose() async {
