@@ -5,13 +5,16 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/edit_customer_sheet.dart';
+import '../../../payments/domain/entities/payment.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/widgets.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
+import '../../../tab_sessions/domain/usecases/tab_session_usecases.dart';
 import '../../domain/entities/order.dart';
 import '../controllers/order_detail_controller.dart';
 import '../widgets/order_items_list.dart';
@@ -307,7 +310,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     final order = controller.currentOrder!;
     final paymentController = Get.find<PaymentController>();
-    showDialog(
+    final payment = await showDialog<Payment>(
       context: context,
       builder: (context) => ProcessPaymentDialog(
         orderId: order.id,
@@ -321,6 +324,50 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     // ya dispara `_notifyOrderChanged(orderId)` al success, que recarga
     // este detalle automáticamente — sin esto teníamos un GET extra
     // por cada cobro.
+
+    // Si esta orden pertenece a una cuenta abierta y ese pago la dejó
+    // en $0, preguntamos de una vez si hay que cerrarla — mismo
+    // criterio que "Cobrar cuenta completa" desde el detalle de la
+    // cuenta. Sin esto, pagar el ÚLTIMO ticket suelto de una mesa
+    // también podía dejar la cuenta abierta sin que nadie se acuerde
+    // de cerrarla a mano.
+    if (payment != null && order.belongsToTabSession && context.mounted) {
+      await _maybePromptCloseTabSession(context, order.tabSessionId!);
+    }
+  }
+
+  Future<void> _maybePromptCloseTabSession(
+    BuildContext context,
+    String tabSessionId,
+  ) async {
+    final result = await sl<TabSessionUseCases>().findOne(tabSessionId);
+    final session = result.fold((_) => null, (s) => s);
+    if (session == null || !session.canClose || !context.mounted) return;
+
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Cuenta pagada'),
+        content: const Text(
+          'Con este pago, la cuenta de esa mesa quedó en \$0. ¿La '
+          'cerramos ahora, o la dejamos abierta por si van a pedir '
+          'algo más?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Dejar abierta'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Cerrar cuenta'),
+          ),
+        ],
+      ),
+    );
+    if (shouldClose == true) {
+      await sl<TabSessionUseCases>().close(id: tabSessionId);
+    }
   }
 
   void _showEditCustomerSheet(BuildContext context) {
