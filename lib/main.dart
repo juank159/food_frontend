@@ -10,6 +10,7 @@ import 'core/routes/app_pages.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/sync_handlers.dart';
 import 'features/orders/presentation/controllers/pending_review_watcher.dart';
+import 'features/subscriptions/presentation/controllers/trial_expiry_reminder_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,12 @@ void main() async {
   // destruya al cambiar de ruta. El AuthController lo arranca
   // (`startForRole`) según el rol del user logueado.
   Get.put(PendingReviewWatcher(), permanent: true);
+
+  // Servicio singleton que recuerda cada 2h que el trial está por
+  // vencer (1 día o menos) — mismo patrón que el de arriba. Solo
+  // admin lo ve (`UiAccess.canSeeSubscription`); el AuthController lo
+  // arranca/detiene según el rol del user logueado.
+  Get.put(TrialExpiryReminderService(), permanent: true);
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

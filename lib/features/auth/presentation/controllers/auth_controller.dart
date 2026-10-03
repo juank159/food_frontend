@@ -5,6 +5,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
+import '../../../subscriptions/presentation/controllers/trial_expiry_reminder_service.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/get_current_user_usecase.dart';
@@ -73,17 +74,20 @@ class AuthController extends GetxController {
       (user) {
         _isAuthenticated.value = true;
         _currentUser.value = user;
-        _startPendingReviewWatcher(user);
+        _startBackgroundServices(user);
       },
     );
 
     _isLoading.value = false;
   }
 
-  /// Arranca el watcher global que polea pedidos por QR pendientes y
-  /// avisa al mesero con haptic + sonido + snackbar cuando llegan.
-  /// Solo se activa para roles que pueden aprobar.
-  void _startPendingReviewWatcher(User user) {
+  /// Arranca los servicios singleton que dependen del user logueado:
+  ///   - `PendingReviewWatcher`: polea pedidos por QR pendientes y
+  ///     avisa al mesero con haptic + sonido + snackbar. Solo roles
+  ///     que pueden aprobar.
+  ///   - `TrialExpiryReminderService`: recuerda cada 2h que el trial
+  ///     está por vencer (1 día o menos). Solo admin.
+  void _startBackgroundServices(User user) {
     try {
       Get.find<PendingReviewWatcher>().startForRole(user.roleCode);
     } catch (_) {
@@ -91,6 +95,9 @@ class AuthController extends GetxController {
       // si checkAuthStatus corre antes de Get.putAsync. Reintentamos
       // perezosamente.
     }
+    try {
+      Get.find<TrialExpiryReminderService>().startForUser(user);
+    } catch (_) {}
   }
 
   /// Login user against the given tenant subdomain.
@@ -123,7 +130,7 @@ class AuthController extends GetxController {
         _isLoading.value = false;
         _isAuthenticated.value = true;
         _currentUser.value = authResponse.user;
-        _startPendingReviewWatcher(authResponse.user);
+        _startBackgroundServices(authResponse.user);
         // Guardamos los datos del login (subdomain + email, SIN
         // contraseña) para precargar el formulario la próxima vez
         // que el usuario abra la app o cierre sesión. Fire-and-
@@ -241,10 +248,13 @@ class AuthController extends GetxController {
     _currentUser.value = null;
     // Desregistrar token FCM antes de limpiar el estado (fire-and-forget).
     PushNotificationService.unregisterToken(sl<Dio>()).ignore();
-    // Detener el watcher global cuando el usuario cierra sesión —
-    // sin esto seguiría poleando sin auth válida y generando 401.
+    // Detener los servicios globales cuando el usuario cierra sesión —
+    // sin esto seguirían poleando sin auth válida y generando 401.
     try {
       Get.find<PendingReviewWatcher>().stop();
+    } catch (_) {}
+    try {
+      Get.find<TrialExpiryReminderService>().stop();
     } catch (_) {}
   }
 }
