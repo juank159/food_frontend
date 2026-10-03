@@ -110,6 +110,54 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, AuthResponse>> signUp({
+    required String businessName,
+    required String businessType,
+    required String subdomain,
+    required String email,
+    required String password,
+    required String fullName,
+    String? phoneNumber,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        final result = await remoteDataSource.signUp(
+          businessName: businessName,
+          businessType: businessType,
+          subdomain: subdomain,
+          email: email,
+          password: password,
+          fullName: fullName,
+          phoneNumber: phoneNumber,
+        );
+
+        await localDataSource.cacheTokens(
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        );
+        await localDataSource.cacheUser(result.user);
+        await localDataSource.cacheTenantInfo(
+          tenantId: result.user.tenantId,
+        );
+
+        return Right(result.toEntity());
+      } on ConflictException catch (e) {
+        return Left(ConflictFailure(e.message));
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, User>> getCurrentUser() async {
     try {
       // Try to get user from cache first

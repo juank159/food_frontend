@@ -22,6 +22,19 @@ abstract class AuthRemoteDataSource {
     required String tenantSubdomain,
   });
 
+  /// `POST /auth/signup` — alta de un negocio NUEVO (tenant + dueño) en
+  /// un solo paso. Sin `tenantSubdomain`: todavía no existe ningún
+  /// tenant al que apuntar, es justo lo que este endpoint crea.
+  Future<AuthResponseModel> signUp({
+    required String businessName,
+    required String businessType,
+    required String subdomain,
+    required String email,
+    required String password,
+    required String fullName,
+    String? phoneNumber,
+  });
+
   Future<UserModel> getCurrentUser(String token);
 
   Future<AuthResponseModel> refreshToken(String refreshToken);
@@ -140,6 +153,59 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
         throw ConflictException('Email already exists');
+      } else if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Validation error',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<AuthResponseModel> signUp({
+    required String businessName,
+    required String businessType,
+    required String subdomain,
+    required String email,
+    required String password,
+    required String fullName,
+    String? phoneNumber,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.signup,
+        data: {
+          'business_name': businessName,
+          'business_type': businessType,
+          'subdomain': subdomain,
+          'email': email,
+          'password': password,
+          'full_name': fullName,
+          if (phoneNumber != null && phoneNumber.isNotEmpty)
+            'phone': phoneNumber,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return AuthResponseModel.fromJson(response.data);
+      } else {
+        throw ServerException('Signup failed', response.statusCode);
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        throw ConflictException('El subdominio o el email ya están en uso');
       } else if (e.response?.statusCode == 400) {
         throw ValidationException(
           ApiResponseUtils.errorMessage(e) ?? 'Validation error',

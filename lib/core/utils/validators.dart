@@ -108,6 +108,27 @@ class Validators {
     return null;
   }
 
+  /// Subdomain validator (igual regla que el backend: minúsculas,
+  /// números y guiones, 3-50 caracteres). Usado en "Crear mi
+  /// restaurante" — este subdominio identifica al negocio en cada
+  /// request (`x-tenant-subdomain`).
+  static String? subdomain(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'El subdominio es requerido';
+    }
+    final v = value.trim();
+    if (v.length < 3) {
+      return 'El subdominio debe tener al menos 3 caracteres';
+    }
+    if (v.length > 50) {
+      return 'El subdominio debe tener máximo 50 caracteres';
+    }
+    if (!RegExp(r'^[a-z0-9-]+$').hasMatch(v)) {
+      return 'Solo minúsculas, números y guiones (sin espacios)';
+    }
+    return null;
+  }
+
   /// Minimum length validator
   static String? minLength(String? value, int length, {String? fieldName}) {
     if (value == null || value.isEmpty) {

@@ -23,6 +23,19 @@ abstract class AuthRepository {
     required String tenantSubdomain,
   });
 
+  /// Crea un negocio NUEVO (tenant + dueño) en un solo paso e inicia
+  /// sesión. Distinto de [register]: no requiere `tenantSubdomain`
+  /// porque todavía no existe ningún tenant, es justo lo que crea.
+  Future<Either<Failure, AuthResponse>> signUp({
+    required String businessName,
+    required String businessType,
+    required String subdomain,
+    required String email,
+    required String password,
+    required String fullName,
+    String? phoneNumber,
+  });
+
   /// Get current user
   Future<Either<Failure, User>> getCurrentUser();
 

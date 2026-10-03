@@ -4,6 +4,9 @@ class ApiConstants {
   // Auth Endpoints
   static const String login = '/auth/login';
   static const String register = '/auth/register';
+  // Alta de un negocio NUEVO (tenant + dueño) en un solo paso — distinto
+  // de `register`, que suma un usuario a un tenant que YA existe.
+  static const String signup = '/auth/signup';
   static const String refreshToken = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';

@@ -7,27 +7,43 @@ import '../controllers/auth_controller.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
 
-/// Pantalla de registro. Mismo lenguaje visual que login: hero gradient
-/// + tarjeta de formulario con sombra. El form es más largo así que el
-/// hero se mantiene compacto para no robar espacio en mobile.
+/// Tipos de negocio soportados — mismos valores que el enum `BusinessType`
+/// del backend (`common/constants/enums.ts`). No existe un enum Dart
+/// equivalente porque este es el único lugar del frontend que lo usa.
+const _businessTypes = <({String value, String label})>[
+  (value: 'restaurant', label: 'Restaurante'),
+  (value: 'fast_food', label: 'Comida rápida'),
+  (value: 'ice_cream', label: 'Heladería'),
+  (value: 'pizzeria', label: 'Pizzería'),
+  (value: 'bakery', label: 'Panadería'),
+];
+
+/// Pantalla de alta de un negocio NUEVO ("Crear mi restaurante"):
+/// crea el tenant + el usuario dueño/admin en un solo paso
+/// (`POST /auth/signup`) y arranca sesión directo.
+///
+/// **Por qué esta pantalla reemplazó al registro "unirse a un tenant
+/// existente"**: esa otra pantalla (ahora retirada de acá) le pedía al
+/// usuario el subdominio de un negocio YA creado — pero no hay ninguna
+/// forma pública de crear ese negocio primero, así que cualquiera que
+/// tocara "Creá tu restaurante" desde el login recibía "Tenant not
+/// found" sin importar qué escribiera. Esta pantalla es la que
+/// realmente crea el negocio.
 class RegisterScreen extends GetView<AuthController> {
   const RegisterScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final formKey = GlobalKey<FormState>();
-    final tenantController = TextEditingController();
-    final firstNameController = TextEditingController();
-    final lastNameController = TextEditingController();
+    final businessNameController = TextEditingController();
+    final subdomainController = TextEditingController();
+    final fullNameController = TextEditingController();
     final emailController = TextEditingController();
     final phoneController = TextEditingController();
     final passwordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
+    final selectedBusinessType = ValueNotifier<String>(_businessTypes.first.value);
 
-    // Mismo patrón responsive que login_screen: limitar el ancho del
-    // form en pantallas grandes para que no se vea desproporcionado.
-    // Register necesita un poco más de ancho (más campos) — 500 px en
-    // vez de 440 del login.
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth >= 600;
     final maxFormWidth = isWide ? 500.0 : double.infinity;
@@ -67,19 +83,21 @@ class RegisterScreen extends GetView<AuthController> {
                         _buildHeroContent(),
                         const SizedBox(height: 20),
                         _buildFormCard(
-                          tenantController: tenantController,
-                          firstNameController: firstNameController,
-                          lastNameController: lastNameController,
+                          businessNameController: businessNameController,
+                          subdomainController: subdomainController,
+                          selectedBusinessType: selectedBusinessType,
+                          fullNameController: fullNameController,
                           emailController: emailController,
                           phoneController: phoneController,
                           passwordController: passwordController,
                           confirmPasswordController: confirmPasswordController,
-                          onSubmit: () => _handleRegister(
+                          onSubmit: () => _handleSignUp(
                             context,
                             formKey,
-                            tenantController,
-                            firstNameController,
-                            lastNameController,
+                            businessNameController,
+                            subdomainController,
+                            selectedBusinessType,
+                            fullNameController,
                             emailController,
                             phoneController,
                             passwordController,
@@ -140,14 +158,14 @@ class RegisterScreen extends GetView<AuthController> {
             ),
           ),
           child: const Icon(
-            Icons.restaurant_menu_rounded,
+            Icons.storefront_rounded,
             color: Colors.white,
             size: 30,
           ),
         ),
         const SizedBox(height: 14),
         const Text(
-          'Crear cuenta',
+          'Crear mi restaurante',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white,
@@ -158,7 +176,7 @@ class RegisterScreen extends GetView<AuthController> {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Completá tus datos para comenzar',
+          'Dale de alta a tu negocio y empezá tu prueba gratis de 30 días',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white70,
@@ -172,9 +190,10 @@ class RegisterScreen extends GetView<AuthController> {
   // ─────────────────────────── Form ───────────────────────────
 
   Widget _buildFormCard({
-    required TextEditingController tenantController,
-    required TextEditingController firstNameController,
-    required TextEditingController lastNameController,
+    required TextEditingController businessNameController,
+    required TextEditingController subdomainController,
+    required ValueNotifier<String> selectedBusinessType,
+    required TextEditingController fullNameController,
     required TextEditingController emailController,
     required TextEditingController phoneController,
     required TextEditingController passwordController,
@@ -198,49 +217,51 @@ class RegisterScreen extends GetView<AuthController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const _SectionLabel('Tu negocio'),
+          const SizedBox(height: 10),
           CustomTextField(
-            controller: tenantController,
-            label: 'Restaurante',
-            hint: 'Subdominio (ej. demo)',
+            controller: businessNameController,
+            label: 'Nombre del negocio',
+            hint: 'Ej. Pizzería Don Luigi',
             prefixIcon: Icons.storefront_outlined,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Ingresá el subdominio del restaurante';
-              }
-              return null;
-            },
+            validator: (value) =>
+                Validators.name(value, fieldName: 'El nombre del negocio'),
             textInputAction: TextInputAction.next,
-            keyboardType: TextInputType.text,
+            textCapitalization: TextCapitalization.words,
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: CustomTextField(
-                  controller: firstNameController,
-                  label: 'Nombre',
-                  hint: 'Tu nombre',
-                  prefixIcon: Icons.person_outline,
-                  validator: Validators.name,
-                  textInputAction: TextInputAction.next,
-                  keyboardType: TextInputType.name,
-                  textCapitalization: TextCapitalization.words,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: CustomTextField(
-                  controller: lastNameController,
-                  label: 'Apellido',
-                  hint: 'Tu apellido',
-                  prefixIcon: Icons.person_outline,
-                  validator: Validators.name,
-                  textInputAction: TextInputAction.next,
-                  keyboardType: TextInputType.name,
-                  textCapitalization: TextCapitalization.words,
-                ),
-              ),
-            ],
+          _BusinessTypeDropdown(selected: selectedBusinessType),
+          const SizedBox(height: 14),
+          CustomTextField(
+            controller: subdomainController,
+            label: 'Subdominio',
+            hint: 'ej. donluigi (sin espacios)',
+            prefixIcon: Icons.link,
+            validator: Validators.subdomain,
+            textInputAction: TextInputAction.next,
+            keyboardType: TextInputType.text,
+            onChanged: (value) {
+              final sanitized = value.toLowerCase();
+              if (sanitized != value) {
+                subdomainController.value = subdomainController.value.copyWith(
+                  text: sanitized,
+                  selection: TextSelection.collapsed(offset: sanitized.length),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 20),
+          const _SectionLabel('Tus datos (dueño/admin)'),
+          const SizedBox(height: 10),
+          CustomTextField(
+            controller: fullNameController,
+            label: 'Nombre completo',
+            hint: 'Tu nombre y apellido',
+            prefixIcon: Icons.person_outline,
+            validator: Validators.name,
+            textInputAction: TextInputAction.next,
+            keyboardType: TextInputType.name,
+            textCapitalization: TextCapitalization.words,
           ),
           const SizedBox(height: 14),
           CustomTextField(
@@ -306,24 +327,16 @@ class RegisterScreen extends GetView<AuthController> {
                       : 'Ocultar contraseña',
                   onPressed: controller.toggleRegisterConfirm,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Confirmá tu contraseña';
-                  }
-                  if (value != passwordController.text) {
-                    return 'Las contraseñas no coinciden';
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                    Validators.confirmPassword(value, passwordController.text),
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => onSubmit(),
               )),
           const SizedBox(height: 16),
-          // Términos
           const _TermsCopy(),
           const SizedBox(height: 16),
           Obx(() => CustomButton(
-                text: 'Crear cuenta',
+                text: 'Crear mi restaurante',
                 onPressed: controller.isLoading ? null : onSubmit,
                 isLoading: controller.isLoading,
               )),
@@ -364,27 +377,29 @@ class RegisterScreen extends GetView<AuthController> {
     );
   }
 
-  Future<void> _handleRegister(
+  Future<void> _handleSignUp(
     BuildContext context,
     GlobalKey<FormState> formKey,
-    TextEditingController tenantController,
-    TextEditingController firstNameController,
-    TextEditingController lastNameController,
+    TextEditingController businessNameController,
+    TextEditingController subdomainController,
+    ValueNotifier<String> selectedBusinessType,
+    TextEditingController fullNameController,
     TextEditingController emailController,
     TextEditingController phoneController,
     TextEditingController passwordController,
   ) async {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
-    final error = await controller.register(
-      firstName: firstNameController.text.trim(),
-      lastName: lastNameController.text.trim(),
+    final error = await controller.signUp(
+      businessName: businessNameController.text.trim(),
+      businessType: selectedBusinessType.value,
+      subdomain: subdomainController.text.trim().toLowerCase(),
+      fullName: fullNameController.text.trim(),
       email: emailController.text.trim(),
       phoneNumber: phoneController.text.trim().isEmpty
           ? null
           : phoneController.text.trim(),
       password: passwordController.text,
-      tenantSubdomain: tenantController.text.trim().toLowerCase(),
     );
 
     if (error == null) return; // éxito → ya navegamos a /home
@@ -399,6 +414,71 @@ class RegisterScreen extends GetView<AuthController> {
   }
 }
 
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        color: AppColors.textSecondary,
+        letterSpacing: 0.2,
+      ),
+    );
+  }
+}
+
+/// Selector de tipo de negocio — mismo look que `CustomTextField`
+/// (borde + label flotante) para que no desentone en el form.
+class _BusinessTypeDropdown extends StatelessWidget {
+  final ValueNotifier<String> selected;
+  const _BusinessTypeDropdown({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: selected,
+      builder: (context, value, _) {
+        return DropdownButtonFormField<String>(
+          initialValue: value,
+          decoration: InputDecoration(
+            labelText: 'Tipo de negocio',
+            prefixIcon: const Icon(Icons.category_outlined,
+                color: AppColors.primary, size: 22),
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+          items: [
+            for (final type in _businessTypes)
+              DropdownMenuItem(value: type.value, child: Text(type.label)),
+          ],
+          onChanged: (value) {
+            if (value != null) selected.value = value;
+          },
+        );
+      },
+    );
+  }
+}
+
 class _TermsCopy extends StatelessWidget {
   const _TermsCopy();
 
@@ -406,7 +486,7 @@ class _TermsCopy extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Text.rich(
       TextSpan(
-        text: 'Al registrarte aceptás nuestros ',
+        text: 'Al crear tu restaurante aceptás nuestros ',
         style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,

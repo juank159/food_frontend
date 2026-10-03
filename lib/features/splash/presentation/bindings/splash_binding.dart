@@ -11,6 +11,7 @@ class SplashBinding extends Bindings {
       AuthController(
         loginUseCase: di.sl(),
         registerUseCase: di.sl(),
+        signUpBusinessUseCase: di.sl(),
         logoutUseCase: di.sl(),
         getCurrentUserUseCase: di.sl(),
         updateProfileUseCase: di.sl(),

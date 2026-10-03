@@ -12,6 +12,7 @@ import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/sign_up_business_usecase.dart';
 import '../../domain/usecases/update_profile_usecase.dart';
 
 /// Auth Controller using GetX
@@ -19,6 +20,7 @@ import '../../domain/usecases/update_profile_usecase.dart';
 class AuthController extends GetxController {
   final LoginUseCase loginUseCase;
   final RegisterUseCase registerUseCase;
+  final SignUpBusinessUseCase signUpBusinessUseCase;
   final LogoutUseCase logoutUseCase;
   final GetCurrentUserUseCase getCurrentUserUseCase;
   final UpdateProfileUseCase updateProfileUseCase;
@@ -26,6 +28,7 @@ class AuthController extends GetxController {
   AuthController({
     required this.loginUseCase,
     required this.registerUseCase,
+    required this.signUpBusinessUseCase,
     required this.logoutUseCase,
     required this.getCurrentUserUseCase,
     required this.updateProfileUseCase,
@@ -186,6 +189,47 @@ class AuthController extends GetxController {
         _isLoading.value = false;
         _isAuthenticated.value = true;
         _currentUser.value = authResponse.user;
+        _startBackgroundServices(authResponse.user);
+        NavigationService.toHome(clearStack: true);
+        return null;
+      },
+    );
+  }
+
+  /// Alta de un negocio NUEVO (tenant + dueño) en un solo paso —
+  /// pantalla "Crear mi restaurante". Distinto de [register]: no hace
+  /// falta `tenantSubdomain` porque todavía no existe ningún tenant.
+  Future<String?> signUp({
+    required String businessName,
+    required String businessType,
+    required String subdomain,
+    required String email,
+    required String password,
+    required String fullName,
+    String? phoneNumber,
+  }) async {
+    _isLoading.value = true;
+
+    final result = await signUpBusinessUseCase(
+      businessName: businessName,
+      businessType: businessType,
+      subdomain: subdomain,
+      email: email,
+      password: password,
+      fullName: fullName,
+      phoneNumber: phoneNumber,
+    );
+
+    return result.fold<String?>(
+      (failure) {
+        _isLoading.value = false;
+        return failure.message;
+      },
+      (authResponse) {
+        _isLoading.value = false;
+        _isAuthenticated.value = true;
+        _currentUser.value = authResponse.user;
+        _startBackgroundServices(authResponse.user);
         NavigationService.toHome(clearStack: true);
         return null;
       },
