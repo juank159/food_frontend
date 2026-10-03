@@ -72,6 +72,22 @@ class Subscription extends Equatable {
     return (plan?.isFree ?? false) && isActive;
   }
 
+  /// Un plan PAGO (Basic/Professional) que dejó de estar al día: el
+  /// último cobro falló (`past_due`, en período de gracia) o la
+  /// suscripción está cancelada/expirada. Mismo bloqueo operativo que
+  /// `trialExpiredOnFreePlan`, pero para cuentas que sí pagaban.
+  bool get paidPlanLapsed {
+    if (isTrial) return false;
+    final isPaidPlan = plan != null && !plan!.isFree;
+    if (!isPaidPlan) return false;
+    return status.toLowerCase() != 'active';
+  }
+
+  /// Cualquier razón por la que el backend está bloqueando crear
+  /// pedidos/cobrar/gastos/nómina en esta cuenta ahora mismo. Espeja
+  /// exactamente la regla de `TenantInterceptor.assertCanCreate`.
+  bool get operationsBlocked => trialExpiredOnFreePlan || paidPlanLapsed;
+
   /// Get status display text
   String get statusDisplay {
     if (isTrial && isTrialActive) {
@@ -79,6 +95,9 @@ class Subscription extends Equatable {
     }
     if (trialExpiredOnFreePlan) {
       return 'Prueba vencida';
+    }
+    if (status.toLowerCase() == 'past_due' && paidPlanLapsed) {
+      return 'Pago vencido';
     }
     switch (status.toLowerCase()) {
       case 'active':
@@ -97,7 +116,7 @@ class Subscription extends Equatable {
   /// Get status color
   String get statusColor {
     if (isTrial && isTrialActive) return 'warning';
-    if (trialExpiredOnFreePlan) return 'error';
+    if (operationsBlocked) return 'error';
     switch (status.toLowerCase()) {
       case 'active':
         return 'success';

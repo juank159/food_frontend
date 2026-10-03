@@ -60,6 +60,20 @@ class SubscriptionUsage extends Equatable {
         subscriptionStatus.toLowerCase() == 'active';
   }
 
+  /// Un plan PAGO (Basic/Professional) que dejó de estar al día: el
+  /// último cobro falló (`past_due`) o la suscripción está
+  /// cancelada/expirada. Mismo bloqueo operativo que
+  /// `trialExpiredOnFreePlan`, pero para cuentas que sí pagaban.
+  bool get paidPlanLapsed {
+    if (isTrial) return false;
+    if (planCode.toLowerCase() == 'free') return false;
+    return subscriptionStatus.toLowerCase() != 'active';
+  }
+
+  /// Cualquier razón por la que el backend está bloqueando crear
+  /// pedidos/cobrar/gastos/nómina en esta cuenta ahora mismo.
+  bool get operationsBlocked => trialExpiredOnFreePlan || paidPlanLapsed;
+
   /// Check if limit is reached
   bool isLimitReached(String limitName, int currentUsage) {
     final limit = getLimit(limitName);
