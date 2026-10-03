@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/pdf_web_download.dart';
 import '../../../thermal_print/data/thermal_print_service.dart';
 
 /// Argumentos que recibe `QrPreviewPage` via `Get.toNamed(arguments: ...)`.
@@ -149,10 +150,16 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
   /// del PDF — acá queremos compartir ÚNICAMENTE el archivo. En
   /// Android/iOS (nativo o PWA con soporte de Web Share API para
   /// archivos) esto abre el picker real (WhatsApp, etc.) sin ese link.
-  /// Si el navegador NO soporta compartir archivos (desktop web),
-  /// `share_plus` tira excepción (fallbacks propios desactivados abajo
-  /// porque su fallback de `data:` URI falla en silencio con PDFs
-  /// grandes) y caemos a `Printing.sharePdf` (descarga por Blob).
+  /// Si el navegador NO soporta compartir archivos (o se venció la
+  /// activación del gesto), `share_plus` tira excepción (fallbacks
+  /// propios desactivados arriba porque su fallback de `data:` URI falla
+  /// en silencio con PDFs grandes) y descargamos directo. OJO: NO usar
+  /// `Printing.sharePdf` acá — en Chrome Android (sobre todo PWA
+  /// instalada) abre su propio visor de PDF integrado, que trae SU
+  /// PROPIO botón "Compartir" y ese sí agrega el link `blob:` junto al
+  /// documento — el bug que justamente queremos evitar, y no podemos
+  /// controlarlo una vez que Chrome decide abrir ese visor.
+  /// `downloadBytesAsFile` fuerza una descarga cruda (sin visor).
   Future<void> _sharePdf() async {
     if (_pdfBytes == null) return;
     final filename = 'qr-${_args.codes.first}-x$_perPage.pdf';
@@ -176,7 +183,7 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
         return;
       }
       try {
-        await Printing.sharePdf(bytes: _pdfBytes!, filename: filename);
+        downloadBytesAsFile(_pdfBytes!, filename);
       } catch (e2) {
         AppSnackbar.show('No se pudo compartir', e2.toString());
       }

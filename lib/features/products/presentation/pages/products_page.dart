@@ -3,13 +3,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/menu_pdf_builder.dart';
+import '../../../../core/utils/pdf_web_download.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
@@ -304,10 +304,15 @@ class _PdfDownloadButtonState extends State<_PdfDownloadButton> {
         );
       } catch (_) {
         if (!kIsWeb) rethrow;
-        // Desktop web sin soporte de compartir archivos: descargamos
-        // directo con `Printing.sharePdf` (Blob, sin límite de tamaño;
-        // en web nunca tuvo el bug del link — eso es puente nativo).
-        await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
+        // Navegador sin soporte de compartir archivos (o activación de
+        // gesto vencida): descargamos directo. OJO: NO usar
+        // `Printing.sharePdf` acá — en Chrome Android (sobre todo PWA
+        // instalada) abre su propio visor de PDF integrado, que trae SU
+        // PROPIO botón "Compartir" y ese sí agrega el link `blob:` junto
+        // al documento — exactamente el bug que queremos evitar, y no
+        // podemos controlarlo una vez que Chrome decide abrir ese visor.
+        // `downloadBytesAsFile` fuerza una descarga cruda (sin visor).
+        downloadBytesAsFile(bytes, 'carta.pdf');
       }
     } catch (e) {
       if (mounted) {
