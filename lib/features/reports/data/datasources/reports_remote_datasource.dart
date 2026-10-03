@@ -25,8 +25,8 @@ import '../../domain/entities/product_sales_report.dart';
 ///   * Customers → `GET /customers/statistics` + `GET /customers`
 abstract class ReportsRemoteDataSource {
   /// Llama a `GET /orders/statistics?date_from=&date_to=` y devuelve el
-  /// modelo crudo. Las fechas se serializan en ISO-8601 (sólo la parte
-  /// de fecha, sin hora) para coincidir con la convención del backend.
+  /// modelo crudo. Las fechas van como instante UTC completo
+  /// (`.toUtc().toIso8601String()`), igual que el resto de la app.
   Future<SalesReportModel> getSalesReport({
     DateTime? dateFrom,
     DateTime? dateTo,
@@ -64,12 +64,22 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
     DateTime? dateTo,
   }) async {
     try {
+      // Bug real corregido: mandar solo "YYYY-MM-DD" (sin hora) hacía que
+      // el backend (`new Date("2026-10-04")`, sin offset) lo interpretara
+      // como medianoche UTC — 5 horas ANTES de medianoche Bogotá. El
+      // `dateTo` de "hoy" (que ya viene correcto, ej. ...T04:59:59.999Z)
+      // se truncaba a la fecha del día siguiente en UTC, y el backend lo
+      // re-interpretaba como las 7pm de HOY en Bogotá — toda orden
+      // completada después de esa hora (la franja de cena) quedaba fuera
+      // del reporte de Ventas. Por eso el Dashboard mostraba una cifra de
+      // "Ventas hoy" distinta a Reportes → Ventas para el mismo día: el
+      // Dashboard ya mandaba el instante completo, este datasource no.
       final queryParams = <String, dynamic>{};
       if (dateFrom != null) {
-        queryParams['date_from'] = _formatDate(dateFrom);
+        queryParams['date_from'] = dateFrom.toUtc().toIso8601String();
       }
       if (dateTo != null) {
-        queryParams['date_to'] = _formatDate(dateTo);
+        queryParams['date_to'] = dateTo.toUtc().toIso8601String();
       }
 
       final response = await dio.get(
@@ -288,15 +298,6 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
       return raw;
     }
     return const {};
-  }
-
-  /// Formatea como `YYYY-MM-DD` — el backend acepta sólo fecha sin hora
-  /// para los filtros del rango.
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
   }
 
   void _handleDioException(DioException e) {
