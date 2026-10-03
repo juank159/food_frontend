@@ -172,6 +172,17 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Banner de foto del producto — mismo criterio que `ProductCard`: la
+/// foto NUNCA se recorta. Antes forzaba un marco panorámico 16:9 con
+/// `BoxFit.cover`, que para una foto cuadrada o vertical (lo más común
+/// en fotos de productos sacadas con el celular) le cortaba una parte
+/// real de la foto para rellenar ese marco ancho — se veía peor acá que
+/// en la tarjeta de la lista, que ya usa `BoxFit.contain`.
+///
+/// Ahora: alto fijo, `BoxFit.contain` — la foto completa siempre
+/// visible, centrada, con el fondo neutro de la app rellenando el
+/// espacio sobrante si la foto no es panorámica. Elegante sin inventar
+/// contenido que la foto no tiene.
 class _ImageBanner extends StatelessWidget {
   final String url;
   const _ImageBanner({required this.url});
@@ -182,11 +193,13 @@ class _ImageBanner extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
+        child: Container(
+          height: 220,
+          width: double.infinity,
+          color: AppColors.background,
           child: CachedNetworkImage(
             imageUrl: url,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
             placeholder: (_, __) => Container(color: AppColors.background),
             errorWidget: (_, __, ___) => Container(
               color: AppColors.background,
