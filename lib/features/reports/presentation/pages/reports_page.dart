@@ -30,14 +30,6 @@ class ReportsPage extends StatelessWidget {
     return 2;
   }
 
-  /// Aspect ratio del card según columnas — más anchos cuanto más
-  /// columnas. Evita el problema actual de cards gigantes en wide.
-  double _aspectRatio(int columns) {
-    if (columns == 4) return 1.05;
-    if (columns == 3) return 1.0;
-    return 0.95;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -286,14 +278,26 @@ class ReportsPage extends StatelessWidget {
         onTap: () => Get.toNamed(AppRoutes.productSalesReport),
       ),
     ];
-    return GridView.count(
-      crossAxisCount: columns,
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: _aspectRatio(columns),
-      children: tiles,
+    // `Wrap` en vez de `GridView.count` con aspectRatio fijo: antes todas
+    // las celdas compartían una altura uniforme calculada para "llenar"
+    // el ancho de la columna, así que con un ícono + 2 líneas cortas de
+    // texto la tarjeta quedaba con la mitad de abajo vacía — más notorio
+    // cuantas más columnas (pantallas anchas). Acá cada tarjeta mide
+    // exactamente lo que su propio contenido necesita; el ancho sigue
+    // fijo por columna para que la grilla quede prolija.
+    const spacing = 14.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final tile in tiles) SizedBox(width: tileWidth, child: tile),
+          ],
+        );
+      },
     );
   }
 
@@ -473,6 +477,7 @@ class _ReportTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
@@ -484,7 +489,11 @@ class _ReportTile extends StatelessWidget {
                   ),
                   child: Icon(icon, color: accent, size: 20),
                 ),
-                const Spacer(),
+                // `SizedBox` fijo en vez de `Spacer()` — sin una altura
+                // de celda forzada desde afuera (ver `_buildReportsGrid`),
+                // `Spacer()` necesita un alto acotado para repartir el
+                // espacio sobrante, que ya no existe a propósito.
+                const SizedBox(height: 14),
                 Text(
                   title,
                   style: const TextStyle(
