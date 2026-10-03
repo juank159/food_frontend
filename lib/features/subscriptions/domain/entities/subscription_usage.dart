@@ -51,6 +51,15 @@ class SubscriptionUsage extends Equatable {
     return getLimit(limitName) == -1;
   }
 
+  /// El trial de 30 días ya terminó y la cuenta se quedó en el plan Free
+  /// sin elegir un plan pago — el backend bloquea crear pedidos, cobrar,
+  /// gastos y nómina a partir de acá (`TenantInterceptor.assertCanCreate`).
+  bool get trialExpiredOnFreePlan {
+    if (isTrial) return false; // todavía en trial, vigente o no
+    return planCode.toLowerCase() == 'free' &&
+        subscriptionStatus.toLowerCase() == 'active';
+  }
+
   /// Check if limit is reached
   bool isLimitReached(String limitName, int currentUsage) {
     final limit = getLimit(limitName);

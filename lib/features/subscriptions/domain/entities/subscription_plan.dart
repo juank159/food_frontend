@@ -69,8 +69,18 @@ class SubscriptionPlan extends Equatable {
   }
 
   /// Get full price description
+  ///
+  /// El plan Free NO es "para siempre" — es el plan al que cae la cuenta
+  /// cuando termina el trial de 30 días sin que se haya elegido un plan
+  /// pago, y a partir de ahí el backend bloquea crear pedidos, cobrar,
+  /// gastos y nómina (`TenantInterceptor.assertCanCreate`). Decirle al
+  /// usuario "gratis para siempre" acá era literalmente falso.
   String get priceDescription {
-    if (price == 0) return 'Gratis para siempre';
+    if (price == 0) {
+      return hasTrialPeriod
+          ? 'Gratis los primeros $trialDays días'
+          : 'Gratis';
+    }
     return '$formattedPrice $formattedBillingCycle';
   }
 

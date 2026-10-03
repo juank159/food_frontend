@@ -62,10 +62,23 @@ class Subscription extends Equatable {
     return currentPeriodEnd.difference(DateTime.now()).inDays;
   }
 
+  /// El trial de 30 días ya terminó y la cuenta se quedó en el plan
+  /// Free sin elegir un plan pago — a partir de acá el backend bloquea
+  /// crear pedidos, cobrar, gastos y nómina. Sin este chequeo, el status
+  /// de la subscription queda en `active` (igual que un plan pago) y la
+  /// pantalla mostraba "Activa" como si todo siguiera funcionando igual.
+  bool get trialExpiredOnFreePlan {
+    if (isTrial) return false; // todavía en trial, vigente o no
+    return (plan?.isFree ?? false) && isActive;
+  }
+
   /// Get status display text
   String get statusDisplay {
     if (isTrial && isTrialActive) {
       return 'Periodo de prueba';
+    }
+    if (trialExpiredOnFreePlan) {
+      return 'Prueba vencida';
     }
     switch (status.toLowerCase()) {
       case 'active':
@@ -84,6 +97,7 @@ class Subscription extends Equatable {
   /// Get status color
   String get statusColor {
     if (isTrial && isTrialActive) return 'warning';
+    if (trialExpiredOnFreePlan) return 'error';
     switch (status.toLowerCase()) {
       case 'active':
         return 'success';
