@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:printing/printing.dart';
@@ -142,6 +143,10 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
 
   /// Compartir / guardar el PDF (fallback robusto si imprimir directo falla).
   ///
+  /// En web no existe un "share sheet" nativo: `share_plus` cae a un
+  /// fallback de descarga por `data:` URI que puede fallar en silencio
+  /// en algunos navegadores — por eso en web usamos `Printing.sharePdf`
+  /// (descarga por Blob, sin ese límite). En apps nativas usamos
   /// `share_plus` en vez de `Printing.sharePdf`: ese último siempre
   /// agrega un segundo ítem junto al archivo (aunque no le mandemos
   /// `body`/`subject`), que algunas apps muestran como un link aparte
@@ -149,17 +154,22 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
   Future<void> _sharePdf() async {
     if (_pdfBytes == null) return;
     try {
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              _pdfBytes!,
-              name: 'qr-${_args.codes.first}-x$_perPage.pdf',
-              mimeType: 'application/pdf',
-            ),
-          ],
-        ),
-      );
+      final filename = 'qr-${_args.codes.first}-x$_perPage.pdf';
+      if (kIsWeb) {
+        await Printing.sharePdf(bytes: _pdfBytes!, filename: filename);
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [
+              XFile.fromData(
+                _pdfBytes!,
+                name: filename,
+                mimeType: 'application/pdf',
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       AppSnackbar.show('No se pudo compartir', e.toString());
     }

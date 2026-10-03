@@ -1,9 +1,11 @@
 // lib/features/home/presentation/screens/home_screen.dart
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:dio/dio.dart' as dio_pkg;
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
@@ -618,16 +620,29 @@ class _CartaPdfTileState extends State<_CartaPdfTile> {
         logoUrl: logoUrl?.isNotEmpty == true ? logoUrl : null,
       );
 
-      // `Printing.sharePdf` comparte SIEMPRE un segundo ítem junto al
-      // archivo (lo pide así por dentro en iOS/Android aunque no le
-      // mandemos `body`/`subject`) — algunas apps (Mensajes, WhatsApp)
-      // lo muestran como si fuera un link aparte del PDF. `share_plus`
-      // con `files` solo, sin `text`, comparte ÚNICAMENTE el archivo.
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile.fromData(bytes, name: 'carta.pdf', mimeType: 'application/pdf')],
-        ),
-      );
+      if (kIsWeb) {
+        // En navegador no existe un "share sheet" nativo. `share_plus`
+        // intenta `navigator.share()` y, si el browser no soporta
+        // compartir archivos (lo normal en desktop), cae a un fallback
+        // que arma un `data:` URI gigante en base64 — con una carta que
+        // lleva varias imágenes eso pesa varios MB y en varios
+        // navegadores (Safari sobre todo) la descarga falla en
+        // silencio, sin error. `Printing.sharePdf` en web usa Blob en
+        // vez de data URI (sin ese límite) y no tiene el bug del
+        // "link" — ese es exclusivo del puente nativo iOS/Android.
+        await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
+      } else {
+        // `Printing.sharePdf` comparte SIEMPRE un segundo ítem junto al
+        // archivo (lo pide así por dentro en iOS/Android aunque no le
+        // mandemos `body`/`subject`) — algunas apps (Mensajes, WhatsApp)
+        // lo muestran como si fuera un link aparte del PDF. `share_plus`
+        // con `files` solo, sin `text`, comparte ÚNICAMENTE el archivo.
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile.fromData(bytes, name: 'carta.pdf', mimeType: 'application/pdf')],
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         AppSnackbar.show(
