@@ -620,28 +620,33 @@ class _CartaPdfTileState extends State<_CartaPdfTile> {
         logoUrl: logoUrl?.isNotEmpty == true ? logoUrl : null,
       );
 
-      if (kIsWeb) {
-        // En navegador no existe un "share sheet" nativo. `share_plus`
-        // intenta `navigator.share()` y, si el browser no soporta
-        // compartir archivos (lo normal en desktop), cae a un fallback
-        // que arma un `data:` URI gigante en base64 — con una carta que
-        // lleva varias imágenes eso pesa varios MB y en varios
-        // navegadores (Safari sobre todo) la descarga falla en
-        // silencio, sin error. `Printing.sharePdf` en web usa Blob en
-        // vez de data URI (sin ese límite) y no tiene el bug del
-        // "link" — ese es exclusivo del puente nativo iOS/Android.
-        await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
-      } else {
-        // `Printing.sharePdf` comparte SIEMPRE un segundo ítem junto al
-        // archivo (lo pide así por dentro en iOS/Android aunque no le
-        // mandemos `body`/`subject`) — algunas apps (Mensajes, WhatsApp)
-        // lo muestran como si fuera un link aparte del PDF. `share_plus`
-        // con `files` solo, sin `text`, comparte ÚNICAMENTE el archivo.
+      // `Printing.sharePdf` comparte SIEMPRE un segundo ítem junto al
+      // archivo (lo pide así por dentro en iOS/Android aunque no le
+      // mandemos `body`/`subject`) — algunas apps (Mensajes, WhatsApp)
+      // lo muestran como si fuera un link aparte del PDF. `share_plus`
+      // con `files` solo, sin `text`, comparte ÚNICAMENTE el archivo —
+      // en Android/iOS (nativo o PWA con soporte de Web Share API para
+      // archivos) abre el picker real (WhatsApp, etc.) sin ese link.
+      //
+      // `downloadFallbackEnabled`/`mailToFallbackEnabled` en false para
+      // que, si el navegador NO soporta compartir archivos (desktop),
+      // share_plus tire excepción en vez de caer solo a su fallback de
+      // `data:` URI — ese fallback es frágil con PDFs grandes (falla en
+      // silencio en varios navegadores). Lo manejamos nosotros abajo.
+      try {
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile.fromData(bytes, name: 'carta.pdf', mimeType: 'application/pdf')],
+            downloadFallbackEnabled: false,
+            mailToFallbackEnabled: false,
           ),
         );
+      } catch (_) {
+        if (!kIsWeb) rethrow;
+        // Desktop web sin soporte de compartir archivos: descargamos
+        // directo con `Printing.sharePdf` (Blob, sin límite de tamaño;
+        // en web nunca tuvo el bug del link — eso es puente nativo).
+        await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
       }
     } catch (e) {
       if (mounted) {

@@ -143,35 +143,43 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
 
   /// Compartir / guardar el PDF (fallback robusto si imprimir directo falla).
   ///
-  /// En web no existe un "share sheet" nativo: `share_plus` cae a un
-  /// fallback de descarga por `data:` URI que puede fallar en silencio
-  /// en algunos navegadores — por eso en web usamos `Printing.sharePdf`
-  /// (descarga por Blob, sin ese límite). En apps nativas usamos
   /// `share_plus` en vez de `Printing.sharePdf`: ese último siempre
   /// agrega un segundo ítem junto al archivo (aunque no le mandemos
   /// `body`/`subject`), que algunas apps muestran como un link aparte
-  /// del PDF — acá queremos compartir ÚNICAMENTE el archivo.
+  /// del PDF — acá queremos compartir ÚNICAMENTE el archivo. En
+  /// Android/iOS (nativo o PWA con soporte de Web Share API para
+  /// archivos) esto abre el picker real (WhatsApp, etc.) sin ese link.
+  /// Si el navegador NO soporta compartir archivos (desktop web),
+  /// `share_plus` tira excepción (fallbacks propios desactivados abajo
+  /// porque su fallback de `data:` URI falla en silencio con PDFs
+  /// grandes) y caemos a `Printing.sharePdf` (descarga por Blob).
   Future<void> _sharePdf() async {
     if (_pdfBytes == null) return;
+    final filename = 'qr-${_args.codes.first}-x$_perPage.pdf';
     try {
-      final filename = 'qr-${_args.codes.first}-x$_perPage.pdf';
-      if (kIsWeb) {
-        await Printing.sharePdf(bytes: _pdfBytes!, filename: filename);
-      } else {
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [
-              XFile.fromData(
-                _pdfBytes!,
-                name: filename,
-                mimeType: 'application/pdf',
-              ),
-            ],
-          ),
-        );
-      }
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              _pdfBytes!,
+              name: filename,
+              mimeType: 'application/pdf',
+            ),
+          ],
+          downloadFallbackEnabled: false,
+          mailToFallbackEnabled: false,
+        ),
+      );
     } catch (e) {
-      AppSnackbar.show('No se pudo compartir', e.toString());
+      if (!kIsWeb) {
+        AppSnackbar.show('No se pudo compartir', e.toString());
+        return;
+      }
+      try {
+        await Printing.sharePdf(bytes: _pdfBytes!, filename: filename);
+      } catch (e2) {
+        AppSnackbar.show('No se pudo compartir', e2.toString());
+      }
     }
   }
 
