@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:dio/dio.dart' as dio_pkg;
-import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
@@ -618,7 +618,16 @@ class _CartaPdfTileState extends State<_CartaPdfTile> {
         logoUrl: logoUrl?.isNotEmpty == true ? logoUrl : null,
       );
 
-      await Printing.sharePdf(bytes: bytes, filename: 'carta.pdf');
+      // `Printing.sharePdf` comparte SIEMPRE un segundo ítem junto al
+      // archivo (lo pide así por dentro en iOS/Android aunque no le
+      // mandemos `body`/`subject`) — algunas apps (Mensajes, WhatsApp)
+      // lo muestran como si fuera un link aparte del PDF. `share_plus`
+      // con `files` solo, sin `text`, comparte ÚNICAMENTE el archivo.
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, name: 'carta.pdf', mimeType: 'application/pdf')],
+        ),
+      );
     } catch (e) {
       if (mounted) {
         AppSnackbar.show(

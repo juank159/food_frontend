@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
@@ -140,12 +141,24 @@ class _QrPreviewPageState extends State<QrPreviewPage> {
   }
 
   /// Compartir / guardar el PDF (fallback robusto si imprimir directo falla).
+  ///
+  /// `share_plus` en vez de `Printing.sharePdf`: ese último siempre
+  /// agrega un segundo ítem junto al archivo (aunque no le mandemos
+  /// `body`/`subject`), que algunas apps muestran como un link aparte
+  /// del PDF — acá queremos compartir ÚNICAMENTE el archivo.
   Future<void> _sharePdf() async {
     if (_pdfBytes == null) return;
     try {
-      await Printing.sharePdf(
-        bytes: _pdfBytes!,
-        filename: 'qr-${_args.codes.first}-x$_perPage.pdf',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              _pdfBytes!,
+              name: 'qr-${_args.codes.first}-x$_perPage.pdf',
+              mimeType: 'application/pdf',
+            ),
+          ],
+        ),
       );
     } catch (e) {
       AppSnackbar.show('No se pudo compartir', e.toString());
