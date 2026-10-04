@@ -23,10 +23,11 @@ abstract class AuthRepository {
     required String tenantSubdomain,
   });
 
-  /// Crea un negocio NUEVO (tenant + dueño) en un solo paso e inicia
-  /// sesión. Distinto de [register]: no requiere `tenantSubdomain`
-  /// porque todavía no existe ningún tenant, es justo lo que crea.
-  Future<Either<Failure, AuthResponse>> signUp({
+  /// Crea un negocio NUEVO (tenant + dueño) en un solo paso. Distinto
+  /// de [register]: no requiere `tenantSubdomain` porque todavía no
+  /// existe ningún tenant, es justo lo que crea. NO inicia sesión —
+  /// manda un código de 6 dígitos; confirmarlo con [confirmSignup].
+  Future<Either<Failure, void>> signUp({
     required String businessName,
     required String businessType,
     required String subdomain,
@@ -34,6 +35,32 @@ abstract class AuthRepository {
     required String password,
     required String fullName,
     String? phoneNumber,
+  });
+
+  /// Confirma el código de 6 dígitos de [signUp] y arranca sesión.
+  Future<Either<Failure, AuthResponse>> confirmSignup({
+    required String email,
+    required String code,
+  });
+
+  /// Pide un código de recuperación de contraseña por email. Siempre
+  /// "éxito" del lado del cliente — el backend nunca revela si el
+  /// email existe o no (anti-enumeración).
+  Future<Either<Failure, void>> forgotPassword({required String email});
+
+  /// Confirma el código de 6 dígitos de [forgotPassword] y cambia la
+  /// contraseña.
+  Future<Either<Failure, void>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  });
+
+  /// Confirma un email con un código de 6 dígitos SIN arrancar sesión
+  /// (a diferencia de [confirmSignup]).
+  Future<Either<Failure, void>> verifyEmail({
+    required String email,
+    required String code,
   });
 
   /// Get current user

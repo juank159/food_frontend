@@ -24,8 +24,10 @@ abstract class AuthRemoteDataSource {
 
   /// `POST /auth/signup` — alta de un negocio NUEVO (tenant + dueño) en
   /// un solo paso. Sin `tenantSubdomain`: todavía no existe ningún
-  /// tenant al que apuntar, es justo lo que este endpoint crea.
-  Future<AuthResponseModel> signUp({
+  /// tenant al que apuntar, es justo lo que este endpoint crea. NO
+  /// arranca sesión — manda un código de 6 dígitos; hay que confirmarlo
+  /// con [confirmSignup] para recién ahí obtener el JWT.
+  Future<void> signUp({
     required String businessName,
     required String businessType,
     required String subdomain,
@@ -34,6 +36,29 @@ abstract class AuthRemoteDataSource {
     required String fullName,
     String? phoneNumber,
   });
+
+  /// `POST /auth/signup/confirm` — valida el código de 6 dígitos de
+  /// [signUp] y arranca sesión.
+  Future<AuthResponseModel> confirmSignup({
+    required String email,
+    required String code,
+  });
+
+  /// `POST /auth/forgot-password` — siempre "éxito" del lado del
+  /// cliente (el backend nunca revela si el email existe o no).
+  Future<void> forgotPassword({required String email});
+
+  /// `POST /auth/reset-password` — confirma el código de 6 dígitos de
+  /// [forgotPassword] y cambia la contraseña.
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  });
+
+  /// `POST /auth/verify-email` — confirma un email con un código de 6
+  /// dígitos SIN arrancar sesión (a diferencia de [confirmSignup]).
+  Future<void> verifyEmail({required String email, required String code});
 
   Future<UserModel> getCurrentUser(String token);
 
@@ -174,7 +199,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<AuthResponseModel> signUp({
+  Future<void> signUp({
     required String businessName,
     required String businessType,
     required String subdomain,
@@ -198,9 +223,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         },
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return AuthResponseModel.fromJson(response.data);
-      } else {
+      if (response.statusCode != 200 && response.statusCode != 201) {
         throw ServerException('Signup failed', response.statusCode);
       }
     } on DioException catch (e) {
@@ -209,6 +232,131 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       } else if (e.response?.statusCode == 400) {
         throw ValidationException(
           ApiResponseUtils.errorMessage(e) ?? 'Validation error',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<AuthResponseModel> confirmSignup({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.signupConfirm,
+        data: {'email': email, 'code': code},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return AuthResponseModel.fromJson(response.data);
+      } else {
+        throw ServerException('Confirmation failed', response.statusCode);
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Código inválido o expirado',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> forgotPassword({required String email}) async {
+    try {
+      await dio.post(ApiConstants.forgotPassword, data: {'email': email});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Validation error',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      await dio.post(
+        ApiConstants.resetPassword,
+        data: {'email': email, 'code': code, 'newPassword': newPassword},
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Código inválido o expirado',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      await dio.post(
+        ApiConstants.verifyEmail,
+        data: {'email': email, 'code': code},
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Código inválido o expirado',
         );
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {

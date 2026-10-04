@@ -7,6 +7,11 @@ class ApiConstants {
   // Alta de un negocio NUEVO (tenant + dueño) en un solo paso — distinto
   // de `register`, que suma un usuario a un tenant que YA existe.
   static const String signup = '/auth/signup';
+  // Confirma el código de 6 dígitos de `signup` y recién ahí arranca sesión.
+  static const String signupConfirm = '/auth/signup/confirm';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
+  static const String verifyEmail = '/auth/verify-email';
   static const String refreshToken = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';

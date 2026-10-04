@@ -1,19 +1,19 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failures.dart';
-import '../entities/auth_response.dart';
 import '../repositories/auth_repository.dart';
 
 /// Sign Up Business Use Case
 ///
 /// Alta de un negocio NUEVO (tenant + dueño) en un solo paso — usado
 /// por la pantalla "Crear mi restaurante". Distinto de [RegisterUseCase],
-/// que suma un usuario a un tenant que YA existe.
+/// que suma un usuario a un tenant que YA existe. NO arranca sesión —
+/// manda un código de 6 dígitos; confirmarlo con [ConfirmSignupUseCase].
 class SignUpBusinessUseCase {
   final AuthRepository repository;
 
   SignUpBusinessUseCase(this.repository);
 
-  Future<Either<Failure, AuthResponse>> call({
+  Future<Either<Failure, void>> call({
     required String businessName,
     required String businessType,
     required String subdomain,

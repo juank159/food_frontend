@@ -2,16 +2,20 @@
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../../../subscriptions/presentation/controllers/trial_expiry_reminder_service.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
+import '../../domain/usecases/confirm_signup_usecase.dart';
+import '../../domain/usecases/forgot_password_usecase.dart';
 import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/reset_password_usecase.dart';
 import '../../domain/usecases/sign_up_business_usecase.dart';
 import '../../domain/usecases/update_profile_usecase.dart';
 
@@ -21,6 +25,9 @@ class AuthController extends GetxController {
   final LoginUseCase loginUseCase;
   final RegisterUseCase registerUseCase;
   final SignUpBusinessUseCase signUpBusinessUseCase;
+  final ConfirmSignupUseCase confirmSignupUseCase;
+  final ForgotPasswordUseCase forgotPasswordUseCase;
+  final ResetPasswordUseCase resetPasswordUseCase;
   final LogoutUseCase logoutUseCase;
   final GetCurrentUserUseCase getCurrentUserUseCase;
   final UpdateProfileUseCase updateProfileUseCase;
@@ -29,6 +36,9 @@ class AuthController extends GetxController {
     required this.loginUseCase,
     required this.registerUseCase,
     required this.signUpBusinessUseCase,
+    required this.confirmSignupUseCase,
+    required this.forgotPasswordUseCase,
+    required this.resetPasswordUseCase,
     required this.logoutUseCase,
     required this.getCurrentUserUseCase,
     required this.updateProfileUseCase,
@@ -199,6 +209,9 @@ class AuthController extends GetxController {
   /// Alta de un negocio NUEVO (tenant + dueño) en un solo paso —
   /// pantalla "Crear mi restaurante". Distinto de [register]: no hace
   /// falta `tenantSubdomain` porque todavía no existe ningún tenant.
+  /// Crea el negocio + dueño. NO loguea — el backend manda un código de
+  /// 6 dígitos que hay que confirmar en `/verify-email` (pantalla
+  /// compartida con la confirmación de signup) antes de poder entrar.
   Future<String?> signUp({
     required String businessName,
     required String businessType,
@@ -225,6 +238,32 @@ class AuthController extends GetxController {
         _isLoading.value = false;
         return failure.message;
       },
+      (_) {
+        _isLoading.value = false;
+        NavigationService.toNamed(
+          AppRoutes.verifyEmail,
+          arguments: {'email': email},
+        );
+        return null;
+      },
+    );
+  }
+
+  /// Confirma el código de 6 dígitos de [signUp] y recién ahí arranca
+  /// sesión de verdad.
+  Future<String?> confirmSignup({
+    required String email,
+    required String code,
+  }) async {
+    _isLoading.value = true;
+
+    final result = await confirmSignupUseCase(email: email, code: code);
+
+    return result.fold<String?>(
+      (failure) {
+        _isLoading.value = false;
+        return failure.message;
+      },
       (authResponse) {
         _isLoading.value = false;
         _isAuthenticated.value = true;
@@ -234,6 +273,32 @@ class AuthController extends GetxController {
         return null;
       },
     );
+  }
+
+  /// Pide un código de recuperación de contraseña. Siempre "éxito" del
+  /// lado del cliente — el backend nunca revela si el email existe.
+  Future<String?> forgotPassword({required String email}) async {
+    _isLoading.value = true;
+    final result = await forgotPasswordUseCase(email: email);
+    _isLoading.value = false;
+    return result.fold<String?>((failure) => failure.message, (_) => null);
+  }
+
+  /// Confirma el código de 6 dígitos de [forgotPassword] y cambia la
+  /// contraseña.
+  Future<String?> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    _isLoading.value = true;
+    final result = await resetPasswordUseCase(
+      email: email,
+      code: code,
+      newPassword: newPassword,
+    );
+    _isLoading.value = false;
+    return result.fold<String?>((failure) => failure.message, (_) => null);
   }
 
   /// Logout user

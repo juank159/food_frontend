@@ -110,7 +110,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Either<Failure, AuthResponse>> signUp({
+  Future<Either<Failure, void>> signUp({
     required String businessName,
     required String businessType,
     required String subdomain,
@@ -121,7 +121,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }) async {
     if (await networkInfo.isConnected) {
       try {
-        final result = await remoteDataSource.signUp(
+        await remoteDataSource.signUp(
           businessName: businessName,
           businessType: businessType,
           subdomain: subdomain,
@@ -130,6 +130,32 @@ class AuthRepositoryImpl implements AuthRepository {
           fullName: fullName,
           phoneNumber: phoneNumber,
         );
+        return const Right(null);
+      } on ConflictException catch (e) {
+        return Left(ConflictFailure(e.message));
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AuthResponse>> confirmSignup({
+    required String email,
+    required String code,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        final result =
+            await remoteDataSource.confirmSignup(email: email, code: code);
 
         await localDataSource.cacheTokens(
           accessToken: result.accessToken,
@@ -141,8 +167,77 @@ class AuthRepositoryImpl implements AuthRepository {
         );
 
         return Right(result.toEntity());
-      } on ConflictException catch (e) {
-        return Left(ConflictFailure(e.message));
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> forgotPassword({required String email}) async {
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.forgotPassword(email: email);
+        return const Right(null);
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.resetPassword(
+          email: email,
+          code: code,
+          newPassword: newPassword,
+        );
+        return const Right(null);
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.verifyEmail(email: email, code: code);
+        return const Right(null);
       } on ValidationException catch (e) {
         return Left(ValidationFailure(e.message));
       } on NetworkException catch (e) {

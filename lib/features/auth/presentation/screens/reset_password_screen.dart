@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../controllers/auth_controller.dart';
 
-/// Reset de contraseña con token. El token llega por
-/// `Get.parameters['token']` desde el deep link del email.
+/// Confirma el código de 6 dígitos de `ForgotPasswordScreen`
+/// (`POST /auth/reset-password`) y cambia la contraseña.
 ///
-/// Mismo lenguaje visual que el resto del flujo de auth: hero gradient
-/// + form card. Backend todavía no expone endpoint dedicado, así que
-/// el "Cambiar" simula con `Future.delayed(2s)` y muestra success.
+/// El email llega por `Get.arguments['email']` (lo manda
+/// `ForgotPasswordScreen` al navegar acá).
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
 
@@ -19,27 +21,40 @@ class ResetPasswordScreen extends StatefulWidget {
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  static const int _codeLength = 6;
+
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _authController = Get.find<AuthController>();
+  late final List<TextEditingController> _codeControllers;
+  late final List<FocusNode> _codeFocusNodes;
 
   bool _isLoading = false;
   bool _success = false;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
-
-  late final String? _token;
+  late final String _email;
 
   @override
   void initState() {
     super.initState();
-    _token = Get.parameters['token'];
+    _codeControllers = List.generate(_codeLength, (_) => TextEditingController());
+    _codeFocusNodes = List.generate(_codeLength, (_) => FocusNode());
+    final argsMap = Get.arguments;
+    _email = argsMap is Map ? (argsMap['email'] as String? ?? '') : '';
   }
 
   @override
   void dispose() {
     _passwordController.dispose();
     _confirmController.dispose();
+    for (final c in _codeControllers) {
+      c.dispose();
+    }
+    for (final f in _codeFocusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -81,9 +96,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         const SizedBox(height: 16),
                         _buildHero(),
                         const SizedBox(height: 24),
-                        _success
-                            ? _buildSuccessCard()
-                            : _buildFormCard(),
+                        _success ? _buildSuccessCard() : _buildFormCard(),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -152,10 +165,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Elegí una contraseña nueva para tu cuenta',
+        Text(
+          _email.isEmpty
+              ? 'Ingresá el código que te mandamos por email'
+              : 'Ingresá el código que mandamos a $_email',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white70,
             fontSize: 13,
           ),
@@ -184,6 +199,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Text(
+              'Código de verificación',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(_codeLength, (i) => _buildCodeInput(i)),
+            ),
+            const SizedBox(height: 20),
             const Text(
               'Mínimo 8 caracteres con mayús, minús, número y especial.',
               style: TextStyle(
@@ -236,52 +265,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                 ),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Confirmá tu contraseña';
-                }
-                if (value != _passwordController.text) {
-                  return 'Las contraseñas no coinciden';
-                }
-                return null;
-              },
+              validator: (value) =>
+                  Validators.confirmPassword(value, _passwordController.text),
             ),
-            if (_token != null && _token.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.vpn_key_outlined,
-                      color: AppColors.textSecondary,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Token: $_token',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'monospace',
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _isLoading ? null : _handleSubmit,
@@ -314,6 +300,47 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCodeInput(int index) {
+    return SizedBox(
+      width: 44,
+      height: 56,
+      child: TextField(
+        controller: _codeControllers[index],
+        focusNode: _codeFocusNodes[index],
+        textAlign: TextAlign.center,
+        keyboardType: TextInputType.number,
+        maxLength: 1,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textPrimary,
+        ),
+        decoration: InputDecoration(
+          counterText: '',
+          contentPadding: EdgeInsets.zero,
+          filled: true,
+          fillColor: AppColors.background,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+        onChanged: (value) {
+          if (value.isNotEmpty && index < _codeLength - 1) {
+            _codeFocusNodes[index + 1].requestFocus();
+          } else if (value.isEmpty && index > 0) {
+            _codeFocusNodes[index - 1].requestFocus();
+          }
+        },
       ),
     );
   }
@@ -398,12 +425,45 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final code = _codeControllers.map((c) => c.text).join();
+    if (code.length < _codeLength) {
+      AppSnackbar.show(
+        'Código incompleto',
+        'Ingresá los 6 dígitos del código.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.warning.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+
+    final error = await _authController.resetPassword(
+      email: _email,
+      code: code,
+      newPassword: _passwordController.text,
+    );
+
     if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _success = true;
-    });
+    setState(() => _isLoading = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'No se pudo cambiar la contraseña',
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
+    setState(() => _success = true);
   }
 }

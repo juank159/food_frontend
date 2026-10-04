@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/routes/app_routes.dart';
+import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../controllers/auth_controller.dart';
 
-/// Recuperación de contraseña.
+/// Recuperación de contraseña — pide el email, el backend manda un
+/// código de 6 dígitos (`POST /auth/forgot-password`, siempre "éxito"
+/// del lado del cliente para no filtrar si el email existe) y navega a
+/// `ResetPasswordScreen` para confirmarlo.
 ///
 /// Mismo lenguaje visual que `LoginScreen`/`RegisterScreen`: hero
 /// gradient en la parte superior + tarjeta de formulario flotante.
-/// El backend todavía no expone endpoint dedicado, así que simulamos
-/// el envío con `Future.delayed(2s)` y mostramos un success state
-/// inline (no navega — el usuario vuelve manualmente al login).
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -20,8 +24,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _authController = Get.find<AuthController>();
   bool _isLoading = false;
-  bool _emailSent = false;
 
   @override
   void dispose() {
@@ -67,9 +71,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         const SizedBox(height: 16),
                         _buildHero(),
                         const SizedBox(height: 24),
-                        _emailSent
-                            ? _buildSuccessCard()
-                            : _buildFormCard(),
+                        _buildFormCard(),
                         const SizedBox(height: 16),
                         _buildLoginFooter(),
                         const SizedBox(height: 24),
@@ -141,7 +143,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Te enviamos un email con instrucciones',
+          'Te mandamos un código de verificación por email',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white70,
@@ -173,7 +175,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Ingresá el email asociado a tu cuenta y te mandamos un enlace para crear una contraseña nueva.',
+              'Ingresá el email asociado a tu cuenta y te mandamos un código de 6 dígitos para crear una contraseña nueva.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
@@ -227,86 +229,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  Widget _buildSuccessCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.mark_email_read_outlined,
-              color: AppColors.success,
-              size: 36,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Correo enviado',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Revisá tu bandeja de entrada — te mandamos las instrucciones a ${_emailController.text.trim()}.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 20),
-          OutlinedButton.icon(
-            onPressed: () {
-              setState(() {
-                _emailSent = false;
-              });
-            },
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text(
-              'Reenviar correo',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLoginFooter() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -341,12 +263,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    // Simulación: el backend todavía no tiene endpoint /auth/forgot-password.
-    await Future.delayed(const Duration(seconds: 2));
+
+    final email = _emailController.text.trim();
+    final error = await _authController.forgotPassword(email: email);
+
     if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _emailSent = true;
-    });
+    setState(() => _isLoading = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'Error',
+        error,
+        context: context,
+        backgroundColor: Colors.red.shade400,
+      );
+      return;
+    }
+
+    // Siempre "éxito" (anti-enumeración del backend) — vamos directo a
+    // confirmar el código, sin un paso intermedio de "revisá tu email".
+    Get.toNamed(AppRoutes.resetPassword, arguments: {'email': email});
   }
 }
