@@ -4,11 +4,12 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/widgets/password_strength_checklist.dart';
 
-/// Cambio de contraseña del usuario actual. Backend todavía no expone
-/// endpoint dedicado — el botón "Cambiar" muestra Snackbar de
-/// "próximamente". La validación visual ya respeta los requisitos
-/// que pide register (mayús, minús, número, especial, 8+).
+/// Cambio de contraseña del usuario autenticado —
+/// `AuthController.changePassword` → `POST /auth/change-password`
+/// (verifica la actual contra el backend antes de aplicar la nueva).
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -21,10 +22,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authController = Get.find<AuthController>();
 
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -137,6 +140,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             return null;
                           },
                         ),
+                        const SizedBox(height: 10),
+                        PasswordStrengthChecklist(
+                          passwordController: _newPasswordController,
+                          confirmController: _confirmPasswordController,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -145,7 +153,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               ),
             ),
             AppFormSubmitBar(
-              isSaving: false,
+              isSaving: _isSaving,
               onCancel: () => Navigator.of(context).pop(),
               onSave: _handleChange,
               saveLabel: 'Cambiar contraseña',
@@ -175,16 +183,41 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  void _handleChange() {
+  Future<void> _handleChange() async {
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    final error = await _authController.changePassword(
+      currentPassword: _currentPasswordController.text,
+      newPassword: _newPasswordController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'No se pudo cambiar la contraseña',
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
     AppSnackbar.show(
-      'Próximamente disponible',
-      'El cambio de contraseña llega en una próxima versión.',
+      'Contraseña actualizada',
+      'Tu contraseña se cambió correctamente.',
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.info.withValues(alpha: 0.1),
+      backgroundColor: AppColors.success.withValues(alpha: 0.1),
       colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
     );
+    Navigator.of(context).pop();
   }
 }

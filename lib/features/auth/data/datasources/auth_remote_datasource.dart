@@ -44,6 +44,11 @@ abstract class AuthRemoteDataSource {
     required String code,
   });
 
+  /// `POST /auth/signup/resend-code` — pide un código nuevo cuando el
+  /// de [signUp] ya venció (10 min). Siempre "éxito" del lado del
+  /// cliente (anti-enumeración).
+  Future<void> resendSignupCode({required String email});
+
   /// `POST /auth/forgot-password` — siempre "éxito" del lado del
   /// cliente (el backend nunca revela si el email existe o no).
   Future<void> forgotPassword({required String email});
@@ -59,6 +64,13 @@ abstract class AuthRemoteDataSource {
   /// `POST /auth/verify-email` — confirma un email con un código de 6
   /// dígitos SIN arrancar sesión (a diferencia de [confirmSignup]).
   Future<void> verifyEmail({required String email, required String code});
+
+  /// `POST /auth/change-password` (autenticado) — cambia la contraseña
+  /// del usuario logueado, verificando la actual.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 
   Future<UserModel> getCurrentUser(String token);
 
@@ -287,6 +299,31 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
+  Future<void> resendSignupCode({required String email}) async {
+    try {
+      await dio.post(ApiConstants.signupResendCode, data: {'email': email});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Validation error',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
   Future<void> forgotPassword({required String email}) async {
     try {
       await dio.post(ApiConstants.forgotPassword, data: {'email': email});
@@ -357,6 +394,47 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       if (e.response?.statusCode == 400) {
         throw ValidationException(
           ApiResponseUtils.errorMessage(e) ?? 'Código inválido o expirado',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw NetworkException('Connection timeout');
+      } else if (e.type == DioExceptionType.unknown) {
+        throw NetworkException('No internet connection');
+      } else {
+        throw ServerException(
+          ApiResponseUtils.errorMessage(e) ?? 'Server error',
+          e.response?.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ServerException('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      // Sin headers manuales: el interceptor global de dio ya agrega
+      // Authorization a esta ruta (no está en la lista de exclusión de
+      // /auth/login|register|refresh).
+      await dio.post(
+        ApiConstants.changePassword,
+        data: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw UnauthorizedException(
+          ApiResponseUtils.errorMessage(e) ?? 'La contraseña actual no es correcta',
+        );
+      } else if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          ApiResponseUtils.errorMessage(e) ?? 'Validation error',
         );
       } else if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {

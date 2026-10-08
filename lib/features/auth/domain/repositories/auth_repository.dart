@@ -43,6 +43,10 @@ abstract class AuthRepository {
     required String code,
   });
 
+  /// Pide un código nuevo cuando el de [signUp] ya venció (10 min).
+  /// Siempre "éxito" del lado del cliente (anti-enumeración).
+  Future<Either<Failure, void>> resendSignupCode({required String email});
+
   /// Pide un código de recuperación de contraseña por email. Siempre
   /// "éxito" del lado del cliente — el backend nunca revela si el
   /// email existe o no (anti-enumeración).
@@ -61,6 +65,13 @@ abstract class AuthRepository {
   Future<Either<Failure, void>> verifyEmail({
     required String email,
     required String code,
+  });
+
+  /// Cambia la contraseña del usuario autenticado, verificando la
+  /// actual contra el backend.
+  Future<Either<Failure, void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
   });
 
   /// Get current user

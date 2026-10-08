@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../controllers/auth_controller.dart';
+import '../widgets/code_expiry_timer.dart';
 
 /// Último paso de "Crear mi restaurante": confirma el código de 6
 /// dígitos que mandó `POST /auth/signup` y, si es correcto, arranca
@@ -23,9 +24,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   static const int _otpLength = 6;
 
   final _authController = Get.find<AuthController>();
+  final _timerKey = GlobalKey<CodeExpiryTimerState>();
   late final List<TextEditingController> _otpControllers;
   late final List<FocusNode> _focusNodes;
   bool _isLoading = false;
+  bool _isResending = false;
   late final String _email;
 
   @override
@@ -184,14 +187,23 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          Center(
+            child: CodeExpiryTimer(
+              key: _timerKey,
+              onExpired: () => setState(() {}),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(_otpLength, (i) => _buildOtpInput(i)),
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: _isLoading ? null : _handleVerify,
+            onPressed: _isLoading || (_timerKey.currentState?.isExpired ?? false)
+                ? null
+                : _handleVerify,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -216,6 +228,26 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton.icon(
+              onPressed: _isResending ? null : _handleResend,
+              icon: _isResending
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh, size: 16),
+              label: Text(
+                _isResending ? 'Reenviando…' : 'Reenviar código',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
@@ -297,6 +329,45 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       error,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.error.withValues(alpha: 0.1),
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+    );
+  }
+
+  Future<void> _handleResend() async {
+    setState(() => _isResending = true);
+
+    final error = await _authController.resendSignupCode(email: _email);
+
+    if (!mounted) return;
+    setState(() => _isResending = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'No se pudo reenviar',
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
+    for (final c in _otpControllers) {
+      c.clear();
+    }
+    _focusNodes.first.requestFocus();
+    _timerKey.currentState?.restart();
+    setState(() {}); // refleja que ya no está expirado (reactiva "Verificar")
+
+    AppSnackbar.show(
+      'Código reenviado',
+      'Revisá tu bandeja de entrada.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.info.withValues(alpha: 0.1),
       colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,

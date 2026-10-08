@@ -182,6 +182,28 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, void>> resendSignupCode({
+    required String email,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.resendSignupCode(email: email);
+        return const Right(null);
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, void>> forgotPassword({required String email}) async {
     if (await networkInfo.isConnected) {
       try {
@@ -238,6 +260,34 @@ class AuthRepositoryImpl implements AuthRepository {
       try {
         await remoteDataSource.verifyEmail(email: email, code: code);
         return const Right(null);
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      } catch (e) {
+        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+      }
+    } else {
+      return const Left(NetworkFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.changePassword(
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+        );
+        return const Right(null);
+      } on UnauthorizedException catch (e) {
+        return Left(UnauthorizedFailure(e.message));
       } on ValidationException catch (e) {
         return Left(ValidationFailure(e.message));
       } on NetworkException catch (e) {

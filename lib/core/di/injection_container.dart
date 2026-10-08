@@ -16,6 +16,8 @@ import '../../features/auth/domain/usecases/register_usecase.dart';
 import '../../features/auth/domain/usecases/sign_up_business_usecase.dart';
 import '../../features/auth/domain/usecases/confirm_signup_usecase.dart';
 import '../../features/auth/domain/usecases/forgot_password_usecase.dart';
+import '../../features/auth/domain/usecases/resend_signup_code_usecase.dart';
+import '../../features/auth/domain/usecases/change_password_usecase.dart';
 import '../../features/auth/domain/usecases/reset_password_usecase.dart';
 import '../../features/auth/domain/usecases/update_profile_usecase.dart';
 import '../../features/categories/data/datasources/category_remote_datasource.dart';
@@ -179,6 +181,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => SignUpBusinessUseCase(sl()));
   sl.registerLazySingleton(() => ConfirmSignupUseCase(sl()));
   sl.registerLazySingleton(() => ForgotPasswordUseCase(sl()));
+  sl.registerLazySingleton(() => ResendSignupCodeUseCase(sl()));
+  sl.registerLazySingleton(() => ChangePasswordUseCase(sl()));
   sl.registerLazySingleton(() => ResetPasswordUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl()));

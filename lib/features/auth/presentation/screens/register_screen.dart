@@ -6,6 +6,7 @@ import '../../../../core/utils/validators.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
+import '../widgets/password_strength_checklist.dart';
 
 /// Tipos de negocio soportados — mismos valores que el enum `BusinessType`
 /// del backend (`common/constants/enums.ts`). No existe un enum Dart
@@ -332,6 +333,11 @@ class RegisterScreen extends GetView<AuthController> {
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => onSubmit(),
               )),
+          const SizedBox(height: 10),
+          PasswordStrengthChecklist(
+            passwordController: passwordController,
+            confirmController: confirmPasswordController,
+          ),
           const SizedBox(height: 16),
           const _TermsCopy(),
           const SizedBox(height: 16),

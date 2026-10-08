@@ -7,6 +7,8 @@ import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../controllers/auth_controller.dart';
+import '../widgets/code_expiry_timer.dart';
+import '../widgets/password_strength_checklist.dart';
 
 /// Confirma el código de 6 dígitos de `ForgotPasswordScreen`
 /// (`POST /auth/reset-password`) y cambia la contraseña.
@@ -27,10 +29,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _authController = Get.find<AuthController>();
+  final _timerKey = GlobalKey<CodeExpiryTimerState>();
   late final List<TextEditingController> _codeControllers;
   late final List<FocusNode> _codeFocusNodes;
 
   bool _isLoading = false;
+  bool _isResending = false;
   bool _success = false;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
@@ -199,29 +203,49 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Código de verificación',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Código de verificación',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                CodeExpiryTimer(
+                  key: _timerKey,
+                  onExpired: () => setState(() {}),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(_codeLength, (i) => _buildCodeInput(i)),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Mínimo 8 caracteres con mayús, minús, número y especial.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                height: 1.4,
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                onPressed: _isResending ? null : _handleResend,
+                icon: _isResending
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh, size: 16),
+                label: Text(
+                  _isResending ? 'Reenviando…' : 'Reenviar código',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _passwordController,
               obscureText: _obscureNew,
@@ -268,9 +292,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               validator: (value) =>
                   Validators.confirmPassword(value, _passwordController.text),
             ),
+            const SizedBox(height: 12),
+            PasswordStrengthChecklist(
+              passwordController: _passwordController,
+              confirmController: _confirmController,
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _isLoading ? null : _handleSubmit,
+              onPressed:
+                  _isLoading || (_timerKey.currentState?.isExpired ?? false)
+                      ? null
+                      : _handleSubmit,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -465,5 +497,48 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
 
     setState(() => _success = true);
+  }
+
+  /// Reenvía el código pidiendo "olvidé mi contraseña" de nuevo con el
+  /// mismo email — ese mismo endpoint YA es el mecanismo de reenvío de
+  /// este flujo, no hace falta uno dedicado (a diferencia de signup,
+  /// que no tiene una pantalla natural para re-disparar el envío).
+  Future<void> _handleResend() async {
+    setState(() => _isResending = true);
+
+    final error = await _authController.forgotPassword(email: _email);
+
+    if (!mounted) return;
+    setState(() => _isResending = false);
+
+    if (error != null) {
+      AppSnackbar.show(
+        'No se pudo reenviar',
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      return;
+    }
+
+    for (final c in _codeControllers) {
+      c.clear();
+    }
+    _codeFocusNodes.first.requestFocus();
+    _timerKey.currentState?.restart();
+    setState(() {}); // refleja que ya no está expirado (reactiva "Cambiar")
+
+    AppSnackbar.show(
+      'Código reenviado',
+      'Revisá tu bandeja de entrada.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.info.withValues(alpha: 0.1),
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+    );
   }
 }

@@ -13,11 +13,13 @@ class SplashBinding extends Bindings {
         registerUseCase: di.sl(),
         signUpBusinessUseCase: di.sl(),
         confirmSignupUseCase: di.sl(),
+        resendSignupCodeUseCase: di.sl(),
         forgotPasswordUseCase: di.sl(),
         resetPasswordUseCase: di.sl(),
         logoutUseCase: di.sl(),
         getCurrentUserUseCase: di.sl(),
         updateProfileUseCase: di.sl(),
+        changePasswordUseCase: di.sl(),
       ),
       permanent: true,
     );

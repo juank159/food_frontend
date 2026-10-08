@@ -9,9 +9,11 @@ class ApiConstants {
   static const String signup = '/auth/signup';
   // Confirma el código de 6 dígitos de `signup` y recién ahí arranca sesión.
   static const String signupConfirm = '/auth/signup/confirm';
+  static const String signupResendCode = '/auth/signup/resend-code';
   static const String forgotPassword = '/auth/forgot-password';
   static const String resetPassword = '/auth/reset-password';
   static const String verifyEmail = '/auth/verify-email';
+  static const String changePassword = '/auth/change-password';
   static const String refreshToken = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';

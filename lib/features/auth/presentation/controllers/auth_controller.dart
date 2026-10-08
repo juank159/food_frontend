@@ -9,12 +9,14 @@ import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../../../subscriptions/presentation/controllers/trial_expiry_reminder_service.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
+import '../../domain/usecases/change_password_usecase.dart';
 import '../../domain/usecases/confirm_signup_usecase.dart';
 import '../../domain/usecases/forgot_password_usecase.dart';
 import '../../domain/usecases/get_current_user_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/resend_signup_code_usecase.dart';
 import '../../domain/usecases/reset_password_usecase.dart';
 import '../../domain/usecases/sign_up_business_usecase.dart';
 import '../../domain/usecases/update_profile_usecase.dart';
@@ -26,22 +28,26 @@ class AuthController extends GetxController {
   final RegisterUseCase registerUseCase;
   final SignUpBusinessUseCase signUpBusinessUseCase;
   final ConfirmSignupUseCase confirmSignupUseCase;
+  final ResendSignupCodeUseCase resendSignupCodeUseCase;
   final ForgotPasswordUseCase forgotPasswordUseCase;
   final ResetPasswordUseCase resetPasswordUseCase;
   final LogoutUseCase logoutUseCase;
   final GetCurrentUserUseCase getCurrentUserUseCase;
   final UpdateProfileUseCase updateProfileUseCase;
+  final ChangePasswordUseCase changePasswordUseCase;
 
   AuthController({
     required this.loginUseCase,
     required this.registerUseCase,
     required this.signUpBusinessUseCase,
     required this.confirmSignupUseCase,
+    required this.resendSignupCodeUseCase,
     required this.forgotPasswordUseCase,
     required this.resetPasswordUseCase,
     required this.logoutUseCase,
     required this.getCurrentUserUseCase,
     required this.updateProfileUseCase,
+    required this.changePasswordUseCase,
   });
 
   // Observable state
@@ -275,6 +281,13 @@ class AuthController extends GetxController {
     );
   }
 
+  /// Pide un código nuevo cuando el de [signUp] ya venció (10 min).
+  /// Siempre "éxito" del lado del cliente (anti-enumeración).
+  Future<String?> resendSignupCode({required String email}) async {
+    final result = await resendSignupCodeUseCase(email: email);
+    return result.fold<String?>((failure) => failure.message, (_) => null);
+  }
+
   /// Pide un código de recuperación de contraseña. Siempre "éxito" del
   /// lado del cliente — el backend nunca revela si el email existe.
   Future<String?> forgotPassword({required String email}) async {
@@ -295,6 +308,21 @@ class AuthController extends GetxController {
     final result = await resetPasswordUseCase(
       email: email,
       code: code,
+      newPassword: newPassword,
+    );
+    _isLoading.value = false;
+    return result.fold<String?>((failure) => failure.message, (_) => null);
+  }
+
+  /// Cambia la contraseña del usuario autenticado — Ajustes → Cambiar
+  /// contraseña. Verifica la actual contra el backend.
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _isLoading.value = true;
+    final result = await changePasswordUseCase(
+      currentPassword: currentPassword,
       newPassword: newPassword,
     );
     _isLoading.value = false;
