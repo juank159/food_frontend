@@ -562,7 +562,11 @@ class OrderDetailController extends GetxController {
         productName: i.productName,
         unitPrice: i.unitPrice,
         quantity: newQty,
-        subtotal: i.unitPrice * newQty,
+        // Optimista: el backend recalcula el valor real (ver
+        // OrdersService.updateItemQuantity) — acá solo evitamos que el
+        // preview local muestre el total sin los extras mientras
+        // llega la respuesta real.
+        subtotal: i.unitPrice * newQty + i.modifiersTotal * newQty,
         specialInstructions: i.specialInstructions,
         customizations: i.customizations,
         modifiers: i.modifiers,
