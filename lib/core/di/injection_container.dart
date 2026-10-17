@@ -120,6 +120,7 @@ import '../../features/roles/domain/repositories/role_repository.dart';
 import '../../features/roles/domain/usecases/role_usecases.dart';
 import '../../features/shifts/data/datasources/shift_remote_datasource.dart';
 import '../../features/shifts/data/repositories/shift_repository_impl.dart';
+import '../../features/shifts/data/datasources/shift_local_datasource.dart';
 import '../../features/shifts/domain/repositories/shift_repository.dart';
 import '../../features/shifts/domain/usecases/shift_usecases.dart';
 import '../../features/subscriptions/data/datasources/subscription_remote_datasource.dart';
@@ -484,11 +485,15 @@ Future<void> init() async {
   sl.registerLazySingleton<ShiftRepository>(
     () => ShiftRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
   sl.registerLazySingleton<ShiftRemoteDataSource>(
     () => ShiftRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<ShiftLocalDataSource>(
+    () => ShiftLocalDataSourceImpl(cache: sl(), queue: sl()),
   );
 
   // ========================================

@@ -85,5 +85,32 @@ class SyncHandlers {
         }
       },
     );
+
+    // Handlers para fichaje (clock-in/clock-out) encolado offline —
+    // ver ShiftRepositoryImpl para el porqué es seguro encolar esto
+    // (no genera un ID que algo más vaya a referenciar antes de
+    // sincronizar, a diferencia de crear un producto/una cuenta).
+    syncService.registerHandler(
+      QueueOperationType.clockIn,
+      (entry) async {
+        try {
+          await dio.post('/shifts/clock-in', data: entry.payload);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      },
+    );
+    syncService.registerHandler(
+      QueueOperationType.clockOut,
+      (entry) async {
+        try {
+          await dio.post('/shifts/clock-out', data: entry.payload);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      },
+    );
   }
 }

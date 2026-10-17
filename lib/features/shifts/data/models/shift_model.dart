@@ -46,6 +46,17 @@ class ShiftModel {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'user_id': userId,
+        'clock_in': clockIn,
+        'clock_out': clockOut,
+        'duration_minutes': durationMinutes,
+        'notes': notes,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
+
   Shift toEntity() => Shift(
         id: id,
         userId: userId,

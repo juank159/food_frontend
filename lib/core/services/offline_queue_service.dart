@@ -10,6 +10,8 @@ enum QueueOperationType {
   openTabSession,
   closeTabSession,
   addOrderToTab,
+  clockIn,
+  clockOut,
 }
 
 /// Una entrada en la cola de operaciones pendientes.
