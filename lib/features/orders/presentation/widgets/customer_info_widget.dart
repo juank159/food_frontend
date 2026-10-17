@@ -53,6 +53,7 @@ class CustomerInfoWidget extends StatefulWidget {
   final String? initialDeliveryNotes;
   final double? initialDeliveryFee;
   final ValueChanged<CustomerInfoResult> onSave;
+  final VoidCallback onCancel;
 
   const CustomerInfoWidget({
     super.key,
@@ -65,6 +66,7 @@ class CustomerInfoWidget extends StatefulWidget {
     this.initialDeliveryNotes,
     this.initialDeliveryFee,
     required this.onSave,
+    required this.onCancel,
   });
 
   bool get _isDelivery => orderType == OrderType.delivery;
@@ -205,7 +207,7 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
         IconButton(
           icon: const Icon(Icons.close, size: 20),
           color: AppColors.textSecondary,
-          onPressed: () => Navigator.pop(context),
+          onPressed: widget.onCancel,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
         ),
@@ -411,7 +413,7 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
       children: [
         Expanded(
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: widget.onCancel,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(

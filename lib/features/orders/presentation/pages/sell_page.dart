@@ -12,6 +12,7 @@ import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/process_payment_dialog.dart';
+import '../../../products/presentation/controllers/products_controller.dart';
 import '../controllers/order_form_controller.dart';
 import '../models/sell_mode.dart';
 import '../widgets/cart_widget.dart';
@@ -54,6 +55,18 @@ class _SellPageState extends State<SellPage> {
   void initState() {
     super.initState();
     controller = Get.find<OrderFormController>();
+    // Bug real reportado: `ProductsController` (el catálogo del grid de
+    // venta) es compartido con la pantalla admin de Productos — su
+    // `searchQuery`/categoría/filtro de disponibles NO se limpiaban al
+    // salir de Vender, así que si buscabas algo y volvías más tarde (o
+    // ibas y volvías de otra pantalla), el grid seguía filtrado por lo
+    // que buscaste la vez anterior aunque el cuadro de texto se viera
+    // vacío (el TextField no está atado a un controller que refleje
+    // `searchQuery`, así que visualmente "mentía"). Arrancar siempre
+    // en limpio al entrar a vender es lo esperado.
+    if (Get.isRegistered<ProductsController>()) {
+      Get.find<ProductsController>().clearFilters();
+    }
     // Diferimos al próximo frame para evitar `setState during build`
     // si los args incluyen un mode que dispara cambios reactivos.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -383,11 +396,41 @@ class _ModePill extends StatelessWidget {
 
 /// Cuando el modo es `delivery` mostramos un mini-formulario inline
 /// con teléfono + dirección. Para los otros modos no aparece (el
-/// catálogo ocupa toda la pantalla). Tener los inputs siempre visibles
-/// pero compactos ahorra una navegación.
-class _DynamicInputs extends StatelessWidget {
+/// catálogo ocupa toda la pantalla).
+///
+/// **Bug real corregido:** antes el formulario completo (nombre,
+/// teléfono, email, dirección, barrio, notas, costo de envío) se
+/// quedaba SIEMPRE expandido — incluso después de guardar — empujando
+/// el catálogo de productos hacia abajo hasta dejarlo con tan poco
+/// alto que parecía "sin scroll para ver los productos". Ahora, una
+/// vez que hay datos mínimos guardados (nombre + dirección), se
+/// colapsa a una fila compacta con resumen + botón "Editar", dejando
+/// casi toda la pantalla para el catálogo (que ya tenía su propio
+/// scroll interno — el problema real era el espacio, no el scroll).
+class _DynamicInputs extends StatefulWidget {
   final SellMode mode;
   const _DynamicInputs({required this.mode});
+
+  @override
+  State<_DynamicInputs> createState() => _DynamicInputsState();
+}
+
+class _DynamicInputsState extends State<_DynamicInputs> {
+  late bool _expanded;
+
+  bool _hasMinimumData(OrderFormController c) {
+    return (c.customerName.value?.trim().isNotEmpty ?? false) &&
+        (c.deliveryStreet.value?.trim().isNotEmpty ?? false);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Si ya hay datos mínimos guardados (ej. se reabrió una cuenta que
+    // ya tenía dirección) arrancamos colapsados de una — no hace falta
+    // mostrar el form completo si no hay nada que completar todavía.
+    _expanded = !_hasMinimumData(Get.find<OrderFormController>());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -395,13 +438,18 @@ class _DynamicInputs extends StatelessWidget {
     // Solo delivery requiere datos inline (teléfono + dirección). En
     // los otros modos el catálogo ocupa toda la pantalla — más espacio
     // para los productos.
-    if (mode.orderType != OrderType.delivery) {
+    if (widget.mode.orderType != OrderType.delivery) {
       return const SizedBox.shrink();
     }
+
+    if (!_expanded && _hasMinimumData(controller)) {
+      return _buildSummary(controller);
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: CustomerInfoWidget(
-        orderType: mode.orderType,
+        orderType: widget.mode.orderType,
         initialName: controller.customerName.value,
         initialPhone: controller.customerPhone.value,
         initialEmail: controller.customerEmail.value,
@@ -409,6 +457,14 @@ class _DynamicInputs extends StatelessWidget {
         initialDeliveryCity: controller.deliveryCity.value,
         initialDeliveryNotes: controller.deliveryNotes.value,
         initialDeliveryFee: controller.deliveryFee.value,
+        onCancel: () {
+          // Si ya había datos guardados, cancelar vuelve al resumen
+          // compacto (no se pierde nada). Si es la primera vez (sin
+          // datos todavía), no hay a qué volver — se queda expandido.
+          if (_hasMinimumData(controller)) {
+            setState(() => _expanded = false);
+          }
+        },
         onSave: (info) {
           controller.setCustomerInfo(
             name: info.name,
@@ -423,7 +479,68 @@ class _DynamicInputs extends StatelessWidget {
           if (info.deliveryFee != null) {
             controller.setDeliveryFee(info.deliveryFee!);
           }
+          setState(() => _expanded = false);
         },
+      ),
+    );
+  }
+
+  Widget _buildSummary(OrderFormController controller) {
+    final name = controller.customerName.value ?? '';
+    final phone = controller.customerPhone.value ?? '';
+    final street = controller.deliveryStreet.value ?? '';
+    final city = controller.deliveryCity.value;
+    final addressLine =
+        (city != null && city.trim().isNotEmpty) ? '$street, $city' : street;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Material(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _expanded = true),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.delivery_dining, color: AppColors.warning, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isNotEmpty ? name : 'Domicilio',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        [if (phone.isNotEmpty) phone, addressLine]
+                            .where((s) => s.isNotEmpty)
+                            .join(' · '),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _expanded = true),
+                  child: const Text('Editar'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
