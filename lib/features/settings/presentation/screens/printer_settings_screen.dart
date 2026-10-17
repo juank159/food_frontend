@@ -1,10 +1,6 @@
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -206,68 +202,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       case 'remove':
         _confirmRemove(p);
         break;
-      case 'web-bridge-test':
-        _testWebBridgePrint(p);
-        break;
     }
-  }
-
-  // ===========================================================================
-  // TEMPORAL — prueba de puente "WiFi Browser Print POS" (wbprint://) para
-  // imprimir desde la PWA (Flutter Web) sin pasar por la app nativa.
-  //
-  // Mecanismo documentado por el propio desarrollador en la ficha de Google
-  // Play (texto literal, verificado contra el HTML crudo de la ficha, no un
-  // resumen de buscador): la app escucha un deep-link `wbprint://` con un
-  // JSON (Base64) `{printerIp, title, content}` y lo manda por TCP al puerto
-  // 9100 de esa IP. NO documentado en la ficha de iOS — este botón es
-  // justamente para confirmar en el dispositivo real si el build de iOS
-  // registra el mismo esquema antes de construir nada permanente.
-  //
-  // Sacar este bloque (import 'dart:convert', 'package:url_launcher',
-  // el case 'web-bridge-test' de arriba, el PopupMenuItem de abajo, y este
-  // método) una vez terminada la validación.
-  Future<void> _testWebBridgePrint(PrinterConfigModel p) async {
-    if (p.host == null || p.host!.isEmpty) {
-      AppSnackbar.show('Falta IP', 'Esta impresora no tiene IP configurada.');
-      return;
-    }
-    final payload = {
-      'printerIp': p.host,
-      'title': 'Prueba PWA',
-      'content': [
-        'Si ves esto impreso,',
-        'el puente wbprint funciona',
-        'desde el navegador.',
-      ],
-    };
-    // Round 3. Round 1 (Base64 estándar + percent-encoding vía Uri.parse):
-    // la app SÍ abrió pero dijo "Link non valido" — el percent-encoding
-    // (%2B/%2F/%3D) le llegaba corrupto, porque esta app no lo decodifica.
-    // Round 2 (Base64 estándar crudo, sin percent-encoding): no pasó NADA,
-    // ni en PWA ni en el navegador — el `/` y `+` sueltos después de
-    // `wbprint://` hacen que el navegador ni considere la URL válida para
-    // intentar abrir una app (ni siquiera llega a iOS).
-    // Round 3: Base64 **URL-safe** (alfabeto `-`/`_` en vez de `+`/`/`) sin
-    // percent-encoding — válido como URL para el navegador Y literal para
-    // la app, sin que nadie tenga que des-escapar nada.
-    final encoded = base64Url.encode(utf8.encode(jsonEncode(payload)));
-    final rawLink = 'wbprint://$encoded';
-    // OJO: en web, el launch llama a `window.open(url, ...)` directo, sin
-    // chequear si el esquema tiene un handler real — casi siempre "funciona"
-    // aunque no exista ninguna app que atienda `wbprint://`. Por eso NO
-    // mostramos "funcionó"/"no funcionó" acá: la única señal real es si
-    // sale el ticket de la impresora (o si el navegador pregunta "¿Abrir en
-    // WiFi Browser Print POS?"). Se abre en pestaña nueva (no `_self`) para
-    // no perder esta pantalla si el esquema no tiene handler.
-    await launchUrlString(rawLink);
-    AppSnackbar.show(
-      'Intento enviado',
-      'Si el navegador te preguntó "¿Abrir en WiFi Browser Print POS?", '
-          'aceptá. Si no pasó nada, revisá la impresora — eso es lo que '
-          'realmente confirma si funcionó.',
-      snackPosition: SnackPosition.TOP,
-    );
   }
 
   Future<void> _confirmRemove(PrinterConfigModel p) async {
@@ -701,19 +636,6 @@ class _PrinterRow extends StatelessWidget {
                         dense: true,
                         leading: Icon(Icons.star_outline),
                         title: Text('Marcar como default'),
-                      ),
-                    ),
-                  // TEMPORAL — ver _testWebBridgePrint. Solo visible en la
-                  // PWA (kIsWeb) y solo para impresoras de red (necesita IP).
-                  if (kIsWeb &&
-                      printer.connectionType == PrinterConnectionType.network)
-                    const PopupMenuItem(
-                      value: 'web-bridge-test',
-                      child: ListTile(
-                        dense: true,
-                        leading: Icon(Icons.science_outlined),
-                        title: Text('Probar impresión web (wbprint)'),
-                        subtitle: Text('Prueba temporal — ver comentario en código'),
                       ),
                     ),
                   PopupMenuItem(
