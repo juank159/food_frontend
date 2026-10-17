@@ -452,7 +452,6 @@ class _DynamicInputsState extends State<_DynamicInputs> {
         orderType: widget.mode.orderType,
         initialName: controller.customerName.value,
         initialPhone: controller.customerPhone.value,
-        initialEmail: controller.customerEmail.value,
         initialDeliveryStreet: controller.deliveryStreet.value,
         initialDeliveryCity: controller.deliveryCity.value,
         initialDeliveryNotes: controller.deliveryNotes.value,
@@ -469,7 +468,6 @@ class _DynamicInputsState extends State<_DynamicInputs> {
           controller.setCustomerInfo(
             name: info.name,
             phone: info.phone,
-            email: info.email,
           );
           controller.setDeliveryAddress(
             street: info.deliveryStreet,

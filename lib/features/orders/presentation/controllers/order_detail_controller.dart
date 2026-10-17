@@ -844,7 +844,6 @@ class OrderDetailController extends GetxController {
         customerId: base.customerId,
         customerName: trimmedName,
         customerPhone: base.customerPhone,
-        customerEmail: base.customerEmail,
         deliveryAddress: base.deliveryAddress,
         assignedTo: base.assignedTo,
         assignedToName: base.assignedToName,

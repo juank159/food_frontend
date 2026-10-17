@@ -43,8 +43,6 @@ class OrderModel {
   final String? customerName;
   @JsonKey(name: 'customer_phone')
   final String? customerPhone;
-  @JsonKey(name: 'customer_email')
-  final String? customerEmail;
   @JsonKey(name: 'delivery_address')
   final Map<String, dynamic>? deliveryAddress;
   @JsonKey(name: 'assigned_to')
@@ -110,7 +108,6 @@ class OrderModel {
     this.customerId,
     this.customerName,
     this.customerPhone,
-    this.customerEmail,
     this.deliveryAddress,
     this.assignedTo,
     this.assignedToName,
@@ -154,7 +151,6 @@ class OrderModel {
       customerId: customerId,
       customerName: customerName,
       customerPhone: customerPhone,
-      customerEmail: customerEmail,
       deliveryAddress: deliveryAddress,
       assignedTo: assignedTo,
       assignedToName: assignedToName,
@@ -205,7 +201,6 @@ class OrderModel {
       customerId: order.customerId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
-      customerEmail: order.customerEmail,
       deliveryAddress: order.deliveryAddress,
       assignedTo: order.assignedTo,
       assignedToName: order.assignedToName,
@@ -295,7 +290,6 @@ class OrderModel {
           customer?['full_name'] as String?,
       customerPhone: (json['customer_phone'] as String?) ??
           customer?['phone'] as String?,
-      customerEmail: json['customer_email'] as String?,
       deliveryAddress: json['delivery_address'] as Map<String, dynamic>?,
       assignedTo: json['assigned_to'] as String?,
       assignedToName: (json['assigned_to_name'] as String?) ??

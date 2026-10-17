@@ -218,7 +218,6 @@ class OrderRepositoryImpl implements OrderRepository {
     String? customerId,
     String? customerName,
     String? customerPhone,
-    String? customerEmail,
     Map<String, dynamic>? deliveryAddress,
     String? assignedTo,
     required List<Map<String, dynamic>> items,
@@ -249,7 +248,6 @@ class OrderRepositoryImpl implements OrderRepository {
     if (customerId != null) orderData['customer_id'] = customerId;
     if (customerName != null) orderData['customer_name'] = customerName;
     if (customerPhone != null) orderData['customer_phone'] = customerPhone;
-    if (customerEmail != null) orderData['customer_email'] = customerEmail;
     if (deliveryAddress != null) orderData['delivery_address'] = deliveryAddress;
     if (assignedTo != null) orderData['assigned_to'] = assignedTo;
     if (specialInstructions != null) {

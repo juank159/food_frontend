@@ -53,7 +53,6 @@ abstract class OrderRepository {
     String? customerId,
     String? customerName,
     String? customerPhone,
-    String? customerEmail,
     Map<String, dynamic>? deliveryAddress,
     String? assignedTo,
     required List<Map<String, dynamic>> items,

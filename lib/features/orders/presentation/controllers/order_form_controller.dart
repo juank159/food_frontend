@@ -150,7 +150,6 @@ class OrderFormController extends GetxController {
   final Rx<String?> customerId = Rx<String?>(null);
   final Rx<String?> customerName = Rx<String?>(null);
   final Rx<String?> customerPhone = Rx<String?>(null);
-  final Rx<String?> customerEmail = Rx<String?>(null);
   final Rx<String?> specialInstructions = Rx<String?>(null);
 
   /// Cuenta abierta (TabSession) a la que se debe adjuntar este ticket.
@@ -698,7 +697,6 @@ class OrderFormController extends GetxController {
       customerId.value = null;
       customerName.value = null;
       customerPhone.value = null;
-      customerEmail.value = null;
     }
     // Limpiar bloque de delivery cuando el tipo cambia a algo que no
     // es delivery — evita que dirección + fee de un pedido viejo se
@@ -763,15 +761,12 @@ class OrderFormController extends GetxController {
     String? id,
     String? name,
     String? phone,
-    String? email,
   }) {
     customerId.value = (id != null && id.trim().isEmpty) ? null : id;
     customerName.value =
         (name != null && name.trim().isEmpty) ? null : name?.trim();
     customerPhone.value =
         (phone != null && phone.trim().isEmpty) ? null : phone?.trim();
-    customerEmail.value =
-        (email != null && email.trim().isEmpty) ? null : email?.trim();
   }
 
   /// Apply discount amount
@@ -934,7 +929,6 @@ class OrderFormController extends GetxController {
         customerId: customerId.value,
         customerName: effectiveCustomerName,
         customerPhone: customerPhone.value,
-        customerEmail: customerEmail.value,
         deliveryAddress: _composedDeliveryAddress,
         items: items,
         specialInstructions: specialInstructions.value,
@@ -1078,7 +1072,6 @@ class OrderFormController extends GetxController {
     customerId.value = null;
     customerName.value = null;
     customerPhone.value = null;
-    customerEmail.value = null;
     specialInstructions.value = null;
     deliveryStreet.value = null;
     deliveryCity.value = null;

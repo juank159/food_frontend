@@ -13,7 +13,6 @@ import '../../../../core/widgets/app_form_section.dart';
 class CustomerInfoResult {
   final String? name;
   final String? phone;
-  final String? email;
   final String? deliveryStreet;
   final String? deliveryCity;
   final String? deliveryNotes;
@@ -22,7 +21,6 @@ class CustomerInfoResult {
   const CustomerInfoResult({
     this.name,
     this.phone,
-    this.email,
     this.deliveryStreet,
     this.deliveryCity,
     this.deliveryNotes,
@@ -47,7 +45,6 @@ class CustomerInfoWidget extends StatefulWidget {
   final OrderType orderType;
   final String? initialName;
   final String? initialPhone;
-  final String? initialEmail;
   final String? initialDeliveryStreet;
   final String? initialDeliveryCity;
   final String? initialDeliveryNotes;
@@ -60,7 +57,6 @@ class CustomerInfoWidget extends StatefulWidget {
     required this.orderType,
     this.initialName,
     this.initialPhone,
-    this.initialEmail,
     this.initialDeliveryStreet,
     this.initialDeliveryCity,
     this.initialDeliveryNotes,
@@ -80,7 +76,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
 
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
-  late final TextEditingController _emailController;
 
   late final TextEditingController _streetController;
   late final TextEditingController _cityController;
@@ -92,7 +87,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName);
     _phoneController = TextEditingController(text: widget.initialPhone);
-    _emailController = TextEditingController(text: widget.initialEmail);
 
     _streetController =
         TextEditingController(text: widget.initialDeliveryStreet);
@@ -109,7 +103,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _emailController.dispose();
     _streetController.dispose();
     _cityController.dispose();
     _notesController.dispose();
@@ -300,25 +293,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
           return null;
         },
       ),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _emailController,
-        keyboardType: TextInputType.emailAddress,
-        decoration: appInputDecoration(
-          label: 'Email',
-          hint: 'cliente@correo.com',
-          prefixIcon: Icons.email_outlined,
-        ),
-        validator: (value) {
-          if (value != null && value.isNotEmpty) {
-            final regex = RegExp(
-              r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-            );
-            if (!regex.hasMatch(value)) return 'Email no válido';
-          }
-          return null;
-        },
-      ),
     ];
   }
 
@@ -436,9 +410,9 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            icon: const Icon(Icons.check, size: 18),
+            icon: const Icon(Icons.arrow_forward, size: 18),
             label: const Text(
-              'Guardar',
+              'Continuar',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
@@ -468,7 +442,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
 
     final name = _nameController.text.trim();
     final phone = _normalizePhone(_phoneController.text);
-    final email = _emailController.text.trim();
 
     final isDelivery = widget._isDelivery;
     final street = isDelivery ? _streetController.text.trim() : '';
@@ -484,7 +457,6 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
       CustomerInfoResult(
         name: nullIfEmpty(name),
         phone: nullIfEmpty(phone),
-        email: nullIfEmpty(email),
         deliveryStreet: nullIfEmpty(street),
         deliveryCity: nullIfEmpty(city),
         deliveryNotes: nullIfEmpty(notes),

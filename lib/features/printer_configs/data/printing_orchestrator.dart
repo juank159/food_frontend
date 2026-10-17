@@ -828,7 +828,36 @@ class PrintingOrchestrator {
 
     final tenant = await _getTenantInfo();
     final logoBytes = await _getLogoBytes(tenant.logoUrl);
-    final label = session.displayLabel();
+
+    // Bug real corregido: esto hardcodeaba `orderType: 'dine_in'` y
+    // `customerPhone: null` sin mirar las órdenes reales de la cuenta
+    // — una cuenta de domicilio sin mesa (auto-abierta por
+    // `ensureSessionForOrder` en el backend) terminaba imprimiendo
+    // "Cuenta · Sin mesa" / "Atención: EN EL SALÓN", mientras que
+    // imprimir la MISMA información desde el detalle de una orden
+    // puntual (que sí lee `order.orderType`/`customerPhone`/
+    // `deliveryAddress` reales) mostraba domicilio correctamente — dos
+    // resultados distintos para el mismo pedido según qué botón se
+    // tocara. Derivamos acá el mismo contexto (destino/cliente/
+    // dirección) que usa `_buildTicketData` para UN order, a partir de
+    // la primera orden activa que no sea dine-in — así ambos caminos
+    // de impresión quedan consistentes.
+    final deliveryOrTakeaway = orders.firstWhere(
+      (o) => o.orderType == 'delivery' || o.orderType == 'takeaway',
+      orElse: () => orders.first,
+    );
+    final effectiveOrderType = deliveryOrTakeaway.orderType;
+    final effectiveTableLabel =
+        session.tableName != null ? 'Mesa ${session.tableName}' : null;
+    // Encabezado "Cuenta · X": mesa si hay, sino el nombre real del
+    // cliente (ya persistido en la orden — ver fix de backend en
+    // `ensureSessionForOrder`/`orders.service.ts`), sino lo que
+    // `displayLabel()` resuelva como último recurso.
+    final effectiveCustomerName = deliveryOrTakeaway.customerName?.trim();
+    final label = effectiveTableLabel ??
+        (effectiveCustomerName != null && effectiveCustomerName.isNotEmpty
+            ? effectiveCustomerName
+            : session.displayLabel());
 
     // Unir ítems de todos los tickets activos
     final allItems = orders
@@ -843,11 +872,14 @@ class PrintingOrchestrator {
       logoBytes: logoBytes,
       orderNumber: 'Cuenta · $label',
       createdAt: session.openedAt,
-      tableLabel: session.tableName != null ? 'Mesa ${session.tableName}' : null,
-      orderType: 'dine_in',
+      tableLabel: effectiveTableLabel,
+      orderType: effectiveOrderType,
       orderSource: 'pos',
-      customerName: session.customerName,
-      customerPhone: null,
+      customerName: deliveryOrTakeaway.customerName ?? session.customerName,
+      customerPhone: deliveryOrTakeaway.customerPhone,
+      deliveryAddress: effectiveOrderType == 'delivery'
+          ? _formatDeliveryAddress(deliveryOrTakeaway.deliveryAddress)
+          : null,
       // Totales del backend: ya excluyen canceladas (recomputeRollups)
       items: allItems,
       subtotal: session.subtotal,

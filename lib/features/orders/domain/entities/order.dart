@@ -29,7 +29,6 @@ class Order extends Equatable {
   final String? customerId;
   final String? customerName;
   final String? customerPhone;
-  final String? customerEmail;
   final Map<String, dynamic>? deliveryAddress;
   final String? assignedTo;
   final String? assignedToName;
@@ -73,7 +72,6 @@ class Order extends Equatable {
     this.customerId,
     this.customerName,
     this.customerPhone,
-    this.customerEmail,
     this.deliveryAddress,
     this.assignedTo,
     this.assignedToName,
@@ -260,7 +258,6 @@ class Order extends Equatable {
         customerId,
         customerName,
         customerPhone,
-        customerEmail,
         deliveryAddress,
         assignedTo,
         assignedToName,
@@ -302,7 +299,6 @@ class Order extends Equatable {
     String? customerId,
     String? customerName,
     String? customerPhone,
-    String? customerEmail,
     Map<String, dynamic>? deliveryAddress,
     String? assignedTo,
     String? assignedToName,
@@ -342,7 +338,6 @@ class Order extends Equatable {
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
-      customerEmail: customerEmail ?? this.customerEmail,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
       assignedTo: assignedTo ?? this.assignedTo,
       assignedToName: assignedToName ?? this.assignedToName,
