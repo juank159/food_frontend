@@ -55,21 +55,28 @@ class _SellPageState extends State<SellPage> {
   void initState() {
     super.initState();
     controller = Get.find<OrderFormController>();
-    // Bug real reportado: `ProductsController` (el catálogo del grid de
-    // venta) es compartido con la pantalla admin de Productos — su
-    // `searchQuery`/categoría/filtro de disponibles NO se limpiaban al
-    // salir de Vender, así que si buscabas algo y volvías más tarde (o
-    // ibas y volvías de otra pantalla), el grid seguía filtrado por lo
-    // que buscaste la vez anterior aunque el cuadro de texto se viera
-    // vacío (el TextField no está atado a un controller que refleje
-    // `searchQuery`, así que visualmente "mentía"). Arrancar siempre
-    // en limpio al entrar a vender es lo esperado.
-    if (Get.isRegistered<ProductsController>()) {
-      Get.find<ProductsController>().clearFilters();
-    }
-    // Diferimos al próximo frame para evitar `setState during build`
-    // si los args incluyen un mode que dispara cambios reactivos.
+    // Diferimos al próximo frame para evitar `setState during build` —
+    // tanto `_applyInitialMode` (si los args traen un mode) como
+    // `clearFilters` (ver abajo) mutan valores Rx; hacerlo durante
+    // `initState` notifica de inmediato a cualquier `Obx` que ya esté
+    // construyéndose en el mismo frame (ej. el propio
+    // `ProductSelectorWidget`), y Flutter lo rechaza con "setState()
+    // or markNeedsBuild() called during build" — bug real, crasheaba
+    // la pantalla de Vender apenas se abría.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Bug real reportado: `ProductsController` (el catálogo del grid
+      // de venta) es compartido con la pantalla admin de Productos —
+      // su `searchQuery`/categoría/filtro de disponibles NO se
+      // limpiaban al salir de Vender, así que si buscabas algo y
+      // volvías más tarde (o ibas y volvías de otra pantalla), el grid
+      // seguía filtrado por lo que buscaste la vez anterior aunque el
+      // cuadro de texto se viera vacío (el TextField no está atado a
+      // un controller que refleje `searchQuery`, así que visualmente
+      // "mentía"). Arrancar siempre en limpio al entrar a vender es lo
+      // esperado.
+      if (Get.isRegistered<ProductsController>()) {
+        Get.find<ProductsController>().clearFilters();
+      }
       _applyInitialMode();
     });
   }
