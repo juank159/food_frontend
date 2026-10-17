@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
+import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../tab_sessions/domain/entities/tab_session.dart';
 import '../../../tab_sessions/domain/usecases/tab_session_usecases.dart';
+import '../controllers/order_form_controller.dart';
 import '../models/sell_mode.dart';
+import 'customer_info_widget.dart';
 import 'table_selector_widget.dart';
 
 /// Bottom sheet que aparece al tocar el pill superior de `SellPage`.
@@ -151,7 +155,7 @@ class _SellModeSheetState extends State<SellModeSheet> {
                 color: AppColors.info,
                 title: 'Domicilio',
                 subtitle: 'Reparto a domicilio',
-                mode: const SellMode.delivery(),
+                onTap: _openDeliveryForm,
               ),
             ],
 
@@ -508,5 +512,54 @@ class _SellModeSheetState extends State<SellModeSheet> {
         duration: const Duration(seconds: 2),
       );
     }
+  }
+
+  /// Bug real reportado: el form de domicilio (nombre, teléfono,
+  /// dirección) vivía INCRUSTADO en la pantalla de Vender, siempre
+  /// expandido, empujando el catálogo de productos — nada que ver con
+  /// cómo se eligen los demás destinos (acá mismo, en un diálogo, y
+  /// listo). Ahora sigue el mismo patrón que `_openTablePicker`: se
+  /// completa en un diálogo propio, y recién al confirmar se aplica
+  /// el modo — la pantalla de Vender queda igual que para mostrador o
+  /// mesa (solo el catálogo, sin nada extra).
+  Future<void> _openDeliveryForm() async {
+    final controller = Get.find<OrderFormController>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: CustomerInfoWidget(
+            orderType: OrderType.delivery,
+            initialName: controller.customerName.value,
+            initialPhone: controller.customerPhone.value,
+            initialDeliveryStreet: controller.deliveryStreet.value,
+            initialDeliveryCity: controller.deliveryCity.value,
+            initialDeliveryNotes: controller.deliveryNotes.value,
+            initialDeliveryFee: controller.deliveryFee.value,
+            onCancel: () => Navigator.of(dialogCtx).pop(false),
+            onSave: (info) {
+              controller.setCustomerInfo(name: info.name, phone: info.phone);
+              controller.setDeliveryAddress(
+                street: info.deliveryStreet,
+                city: info.deliveryCity,
+                notes: info.deliveryNotes,
+              );
+              if (info.deliveryFee != null) {
+                controller.setDeliveryFee(info.deliveryFee!);
+              }
+              Navigator.of(dialogCtx).pop(true);
+            },
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (confirmed == true) {
+      Navigator.of(context).pop<SellMode>(const SellMode.delivery());
+    }
+    // Si canceló, se queda en este sheet para elegir otra cosa — sin
+    // snackbar acá (a diferencia de la mesa, cancelar el form de
+    // domicilio es una acción obvia, no hace falta explicarla).
   }
 }

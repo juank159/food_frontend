@@ -229,8 +229,13 @@ class _DeliveryMode extends SellMode {
   @override
   Color get pillColor => AppColors.info;
 
+  // Bug real reportado: domicilio forzaba cobro inmediato (mismo botón
+  // "Cobrar" + dialog de pago que Mostrador/Para llevar), pero en
+  // domicilio el cliente suele pagar CUANDO le entregan, no al crear
+  // el pedido. Se envía el ticket y se cobra después — igual que mesa
+  // o cuenta abierta (`autoPayAfterSubmit: false`), no como mostrador.
   @override
-  bool get autoPayAfterSubmit => true;
+  bool get autoPayAfterSubmit => false;
 
   @override
   OrderType get orderType => OrderType.delivery;
