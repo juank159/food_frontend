@@ -16,6 +16,11 @@ abstract class EmployeeRepository {
     String? search,
   });
 
+  /// Lista cacheada SIN tocar la red ni importar su edad — para pintar
+  /// la pantalla al instante ("local-first"). `null` si nunca se
+  /// cacheó nada.
+  Future<List<Employee>?> getCachedEmployeesPeek();
+
   /// Sólo empleados activos — atajo del endpoint `/users/active`.
   Future<Either<Failure, List<Employee>>> getActiveEmployees();
 

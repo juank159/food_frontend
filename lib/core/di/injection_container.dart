@@ -49,6 +49,7 @@ import '../../features/employees/domain/usecases/delete_employee_usecase.dart';
 import '../../features/employees/domain/usecases/get_active_employees_usecase.dart';
 import '../../features/employees/domain/usecases/get_employee_by_id_usecase.dart';
 import '../../features/employees/domain/usecases/get_employees_usecase.dart';
+import '../../features/employees/domain/usecases/get_cached_employees_peek_usecase.dart';
 import '../../features/employees/domain/usecases/suspend_employee_usecase.dart';
 import '../../features/employees/domain/usecases/update_employee_usecase.dart';
 import '../../features/orders/data/datasources/order_remote_datasource.dart';
@@ -318,6 +319,7 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetEmployeesUseCase(sl()));
+  sl.registerLazySingleton(() => GetCachedEmployeesPeekUseCase(sl()));
   sl.registerLazySingleton(() => GetActiveEmployeesUseCase(sl()));
   sl.registerLazySingleton(() => GetEmployeeByIdUseCase(sl()));
   sl.registerLazySingleton(() => CreateEmployeeUseCase(sl()));

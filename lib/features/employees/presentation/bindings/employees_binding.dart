@@ -3,6 +3,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../domain/usecases/activate_employee_usecase.dart';
 import '../../domain/usecases/delete_employee_usecase.dart';
 import '../../domain/usecases/get_active_employees_usecase.dart';
+import '../../domain/usecases/get_cached_employees_peek_usecase.dart';
 import '../../domain/usecases/get_employees_usecase.dart';
 import '../../domain/usecases/suspend_employee_usecase.dart';
 import '../controllers/employees_controller.dart';
@@ -18,6 +19,7 @@ class EmployeesBinding extends Bindings {
         suspendEmployeeUseCase: sl<SuspendEmployeeUseCase>(),
         activateEmployeeUseCase: sl<ActivateEmployeeUseCase>(),
         deleteEmployeeUseCase: sl<DeleteEmployeeUseCase>(),
+        getCachedEmployeesPeekUseCase: sl<GetCachedEmployeesPeekUseCase>(),
       ),
     );
   }

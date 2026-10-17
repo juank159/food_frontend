@@ -10,6 +10,10 @@ abstract class EmployeeLocalDataSource {
 
   /// True si la caché existe y tiene menos de 4 horas.
   bool get hasFreshCache;
+
+  /// Caché SIN importar su edad — para pintado "local-first" (ver
+  /// `ProductLocalDataSource.peekCachedProducts`, mismo patrón).
+  Future<List<EmployeeModel>?> peekCachedEmployees();
 }
 
 class EmployeeLocalDataSourceImpl implements EmployeeLocalDataSource {
@@ -35,4 +39,11 @@ class EmployeeLocalDataSourceImpl implements EmployeeLocalDataSource {
   @override
   bool get hasFreshCache =>
       !cache.isStale(CacheKeys.employees, maxAge: CacheKeys.operationalTtl);
+
+  @override
+  Future<List<EmployeeModel>?> peekCachedEmployees() async {
+    final raw = cache.getList(CacheKeys.employees);
+    if (raw == null) return null;
+    return raw.map((e) => EmployeeModel.fromJson(e)).toList();
+  }
 }

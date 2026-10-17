@@ -69,6 +69,13 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
   }
 
   @override
+  Future<List<Employee>?> getCachedEmployeesPeek() async {
+    final cached = await localDataSource.peekCachedEmployees();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
+  }
+
+  @override
   Future<Either<Failure, List<Employee>>> getActiveEmployees() async {
     if (await networkInfo.isConnected) {
       try {

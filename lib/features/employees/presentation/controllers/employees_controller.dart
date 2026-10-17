@@ -6,6 +6,7 @@ import '../../domain/entities/employee_role.dart';
 import '../../domain/usecases/activate_employee_usecase.dart';
 import '../../domain/usecases/delete_employee_usecase.dart';
 import '../../domain/usecases/get_active_employees_usecase.dart';
+import '../../domain/usecases/get_cached_employees_peek_usecase.dart';
 import '../../domain/usecases/get_employees_usecase.dart';
 import '../../domain/usecases/suspend_employee_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -21,6 +22,7 @@ class EmployeesController extends GetxController {
   final SuspendEmployeeUseCase suspendEmployeeUseCase;
   final ActivateEmployeeUseCase activateEmployeeUseCase;
   final DeleteEmployeeUseCase deleteEmployeeUseCase;
+  final GetCachedEmployeesPeekUseCase getCachedEmployeesPeekUseCase;
 
   EmployeesController({
     required this.getEmployeesUseCase,
@@ -28,6 +30,7 @@ class EmployeesController extends GetxController {
     required this.suspendEmployeeUseCase,
     required this.activateEmployeeUseCase,
     required this.deleteEmployeeUseCase,
+    required this.getCachedEmployeesPeekUseCase,
   });
 
   // Estado observable
@@ -48,10 +51,11 @@ class EmployeesController extends GetxController {
   }
 
   /// Carga la lista aplicando los filtros actuales del controlador.
+  ///
+  /// Local-first (mismo patrón que products/categories): si no hay
+  /// filtros (ni estado, rol ni búsqueda), pinta YA la lista cacheada
+  /// antes de esperar la red.
   Future<void> loadEmployees() async {
-    isLoading.value = true;
-    errorMessage.value = '';
-
     EmployeeStatus? statusValue;
     switch (statusFilter.value) {
       case EmployeeStatusFilter.active:
@@ -64,23 +68,38 @@ class EmployeesController extends GetxController {
         statusValue = null;
         break;
     }
+    final effectiveSearch =
+        searchQuery.value.isEmpty ? null : searchQuery.value;
+    final noFilters =
+        statusValue == null && roleFilter.value == null && effectiveSearch == null;
+
+    var paintedFromCache = false;
+    if (noFilters) {
+      final cached = await getCachedEmployeesPeekUseCase();
+      if (cached != null && cached.isNotEmpty) {
+        employees.value = cached;
+        paintedFromCache = true;
+      }
+    }
+
+    isLoading.value = !paintedFromCache;
+    errorMessage.value = '';
 
     final result = await getEmployeesUseCase(
       status: statusValue,
       roleId: roleFilter.value,
-      search: searchQuery.value.isEmpty ? null : searchQuery.value,
+      search: effectiveSearch,
     );
 
     result.fold(
       (failure) {
-        errorMessage.value = failure.message;
-        isLoading.value = false;
+        if (!paintedFromCache) errorMessage.value = failure.message;
       },
       (list) {
         employees.value = list;
-        isLoading.value = false;
       },
     );
+    isLoading.value = false;
   }
 
   /// Mismo refresh que `loadEmployees`, expuesto con un nombre que
