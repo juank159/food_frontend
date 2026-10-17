@@ -19,4 +19,13 @@ class FlavorModel extends Flavor {
       isAvailable: (json['is_available'] as bool?) ?? true,
     );
   }
+
+  /// Round-trip con `fromJson` — para cachear local-first.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'category_id': categoryId,
+        'sort_order': sortOrder,
+        'is_available': isAvailable,
+      };
 }

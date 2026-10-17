@@ -1,12 +1,21 @@
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
+import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../data/datasources/flavor_remote_datasource.dart';
+import '../../data/models/flavor_model.dart';
 import '../../domain/entities/flavor.dart';
 
 /// Maneja el CRUD de cremas/sabores de una categoría.
 class FlavorsController extends GetxController {
   final FlavorRemoteDataSource dataSource;
   FlavorsController(this.dataSource);
+
+  final LocalCacheService _cache = GetIt.I<LocalCacheService>();
+
+  /// Misma clave que usa `product_selector_widget.dart` al vender —
+  /// cachear acá también alimenta ese local-first.
+  String _cacheKey(String categoryId) => 'flavors_$categoryId';
 
   final Rx<String?> categoryId = Rx<String?>(null);
   final RxList<Flavor> flavors = <Flavor>[].obs;
@@ -19,14 +28,27 @@ class FlavorsController extends GetxController {
     await load();
   }
 
+  /// Local-first: pinta las cremas cacheadas al instante antes de
+  /// esperar la red (mismo patrón que el resto de la app).
   Future<void> load() async {
-    if (categoryId.value == null) return;
-    isLoading.value = true;
+    final catId = categoryId.value;
+    if (catId == null) return;
+
+    final cachedRaw = _cache.getList(_cacheKey(catId));
+    final cached = cachedRaw?.map(FlavorModel.fromJson).toList();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache) flavors.value = cached;
+
+    isLoading.value = !paintedFromCache;
     try {
-      flavors.value =
-          await dataSource.getFlavors(categoryId: categoryId.value);
+      final list = await dataSource.getFlavors(categoryId: catId);
+      flavors.value = list;
+      await _cache.saveList(
+        _cacheKey(catId),
+        list.map((f) => f.toJson()).toList(),
+      );
     } catch (e) {
-      _err('No se pudieron cargar las cremas');
+      if (!paintedFromCache) _err('No se pudieron cargar las cremas');
     } finally {
       isLoading.value = false;
     }

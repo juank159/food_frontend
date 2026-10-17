@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/responsive_config.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/widgets/app_filter_chip.dart';
 import '../../../../core/widgets/barcode_scanner_page.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../flavors/data/datasources/flavor_remote_datasource.dart';
+import '../../../flavors/data/models/flavor_model.dart';
 import '../../../flavors/domain/entities/flavor.dart';
 import '../../../categories/presentation/bindings/categories_binding.dart';
 import '../../../categories/presentation/controllers/categories_controller.dart';
@@ -1035,8 +1037,24 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     _loadFlavors();
   }
 
+  /// Local-first: si hay sabores cacheados para esta categoría, los
+  /// pinta YA (sin el loading bloqueante) antes de esperar la red —
+  /// SIN esto, un corte de señal justo al abrir un producto con
+  /// sabores (ej. heladería) dejaba el selector vacío y no se podía
+  /// vender nada de esa categoría hasta que volviera la conexión.
   Future<void> _loadFlavors() async {
-    setState(() => _flavorsLoading = true);
+    final cacheKey = 'flavors_${widget.product.categoryId}';
+    final cache = sl<LocalCacheService>();
+    final cachedRaw = cache.getList(cacheKey);
+    final cached = cachedRaw?.map(FlavorModel.fromJson).toList();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache && mounted) {
+      setState(() {
+        _flavors = cached.where((f) => f.isAvailable).toList();
+      });
+    }
+
+    setState(() => _flavorsLoading = !paintedFromCache);
     try {
       final list = await sl<FlavorRemoteDataSource>()
           .getFlavors(categoryId: widget.product.categoryId);
@@ -1045,6 +1063,7 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
         _flavors = list.where((f) => f.isAvailable).toList();
         _flavorsLoading = false;
       });
+      await cache.saveList(cacheKey, list.map((f) => f.toJson()).toList());
     } catch (_) {
       if (!mounted) return;
       setState(() => _flavorsLoading = false);
