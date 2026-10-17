@@ -11,9 +11,12 @@ import '../datasources/customer_remote_datasource.dart';
 
 /// Customer Repository Implementation
 ///
-/// Estrategia cache-first:
-///   - getCustomers(): sirve desde caché local si está fresca (<4 h); si no,
-///     va al backend y actualiza la caché.
+/// Estrategia:
+///   - getCustomers(): red primero (si hay conexión) y actualiza la caché;
+///     sin conexión cae a la caché sin importar su edad. El pintado
+///     "local-first" (instantáneo, sin esperar la red) vive en
+///     `getCachedCustomersPeek()` + `CustomersController`, igual que
+///     products/categories/employees.
 ///   - getCustomerById() / getCustomerByPhone(): si hay caché fresca y no hay
 ///     conexión, busca en la caché local en lugar de fallar con NetworkFailure.
 ///   - Operaciones de escritura: siempre requieren conexión.
@@ -69,33 +72,40 @@ class CustomerRepositoryImpl implements CustomerRepository {
     bool? isActive,
     String? search,
   }) async {
-    // Cache-first: si la caché está fresca, devuelve sin tocar la red.
     // Nota: la caché no distingue parámetros de filtro; filtros activos
     // como isActive/search siempre van al backend para exactitud.
     final bool hasFilters = isActive != null || (search != null && search.isNotEmpty);
-    if (!hasFilters && localDataSource.hasFreshCache) {
-      final cached = await localDataSource.getCachedCustomers();
-      if (cached != null) {
-        return Right(cached.map((m) => m.toEntity()).toList());
-      }
+
+    if (await networkInfo.isConnected) {
+      return _run(() async {
+        final models = await remoteDataSource.getCustomers(
+          isActive: isActive,
+          search: search,
+        );
+        // Actualiza caché solo cuando no hay filtros activos para no
+        // almacenar listas parciales.
+        if (!hasFilters) {
+          final rawList = models.map((m) => _modelToRawMap(m)).toList();
+          await localDataSource.cacheCustomers(rawList);
+        }
+        return models.map((m) => m.toEntity()).toList();
+      });
     }
 
-    // Sin caché fresca o con filtros: va al backend.
-    return _guard(() async {
-      final models = await remoteDataSource.getCustomers(
-        isActive: isActive,
-        search: search,
-      );
-      // Actualiza caché solo cuando no hay filtros activos para no
-      // almacenar listas parciales.
-      if (!hasFilters) {
-        final rawList = models
-            .map((m) => _modelToRawMap(m))
-            .toList();
-        await localDataSource.cacheCustomers(rawList);
-      }
-      return models.map((m) => m.toEntity()).toList();
-    });
+    // Sin conexión: cae a la caché si no hay filtros (sin importar
+    // qué tan fresca esté — algo es mejor que nada).
+    if (!hasFilters) {
+      final cached = await localDataSource.getCachedCustomers();
+      if (cached != null) return Right(cached.map((m) => m.toEntity()).toList());
+    }
+    return const Left(NetworkFailure());
+  }
+
+  @override
+  Future<List<Customer>?> getCachedCustomersPeek() async {
+    final cached = await localDataSource.peekCachedCustomers();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/customer_statistics.dart';
 import '../../domain/usecases/delete_customer_usecase.dart';
+import '../../domain/usecases/get_cached_customers_peek_usecase.dart';
 import '../../domain/usecases/get_customer_statistics_usecase.dart';
 import '../../domain/usecases/get_customers_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -16,11 +17,13 @@ class CustomersController extends GetxController {
   final GetCustomersUseCase getCustomersUseCase;
   final GetCustomerStatisticsUseCase getStatisticsUseCase;
   final DeleteCustomerUseCase deleteCustomerUseCase;
+  final GetCachedCustomersPeekUseCase getCachedCustomersPeekUseCase;
 
   CustomersController({
     required this.getCustomersUseCase,
     required this.getStatisticsUseCase,
     required this.deleteCustomerUseCase,
+    required this.getCachedCustomersPeekUseCase,
   });
 
   // Estado observable.
@@ -57,25 +60,43 @@ class CustomersController extends GetxController {
   }
 
   /// Carga el listado aplicando los filtros activos.
+  ///
+  /// Local-first (mismo patrón que products/categories/employees): si
+  /// no hay búsqueda de texto, pinta YA la lista cacheada (filtrada en
+  /// memoria por `isActive` si aplica) antes de esperar la red.
   Future<void> loadCustomers() async {
-    isLoading.value = true;
+    final effectiveIsActive = showOnlyActive.value ? true : null;
+    final effectiveSearch =
+        searchQuery.value.isEmpty ? null : searchQuery.value;
+
+    var paintedFromCache = false;
+    if (effectiveSearch == null) {
+      final cached = await getCachedCustomersPeekUseCase();
+      if (cached != null && cached.isNotEmpty) {
+        customers.value = effectiveIsActive == null
+            ? cached
+            : cached.where((c) => c.isActive == effectiveIsActive).toList();
+        paintedFromCache = true;
+      }
+    }
+
+    isLoading.value = !paintedFromCache;
     errorMessage.value = '';
 
     final result = await getCustomersUseCase(
-      isActive: showOnlyActive.value ? true : null,
-      search: searchQuery.value.isEmpty ? null : searchQuery.value,
+      isActive: effectiveIsActive,
+      search: effectiveSearch,
     );
 
     result.fold(
       (failure) {
-        errorMessage.value = failure.message;
-        isLoading.value = false;
+        if (!paintedFromCache) errorMessage.value = failure.message;
       },
       (list) {
         customers.value = list;
-        isLoading.value = false;
       },
     );
+    isLoading.value = false;
   }
 
   /// Carga las KPIs del header. Falla en silencio (chips muestran 0)

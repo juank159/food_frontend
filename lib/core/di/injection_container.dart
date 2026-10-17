@@ -39,6 +39,7 @@ import '../../features/customers/domain/usecases/delete_customer_usecase.dart';
 import '../../features/customers/domain/usecases/get_customer_by_id_usecase.dart';
 import '../../features/customers/domain/usecases/get_customer_statistics_usecase.dart';
 import '../../features/customers/domain/usecases/get_customers_usecase.dart';
+import '../../features/customers/domain/usecases/get_cached_customers_peek_usecase.dart';
 import '../../features/customers/domain/usecases/update_customer_usecase.dart';
 import '../../features/employees/data/datasources/employee_remote_datasource.dart';
 import '../../features/employees/data/repositories/employee_repository_impl.dart';
@@ -293,6 +294,7 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetCustomersUseCase(sl()));
+  sl.registerLazySingleton(() => GetCachedCustomersPeekUseCase(sl()));
   sl.registerLazySingleton(() => GetCustomerByIdUseCase(sl()));
   sl.registerLazySingleton(() => CreateCustomerUseCase(sl()));
   sl.registerLazySingleton(() => UpdateCustomerUseCase(sl()));

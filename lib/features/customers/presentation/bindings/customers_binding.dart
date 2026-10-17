@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/usecases/delete_customer_usecase.dart';
+import '../../domain/usecases/get_cached_customers_peek_usecase.dart';
 import '../../domain/usecases/get_customer_statistics_usecase.dart';
 import '../../domain/usecases/get_customers_usecase.dart';
 import '../controllers/customers_controller.dart';
@@ -17,6 +18,7 @@ class CustomersBinding extends Bindings {
         getCustomersUseCase: sl<GetCustomersUseCase>(),
         getStatisticsUseCase: sl<GetCustomerStatisticsUseCase>(),
         deleteCustomerUseCase: sl<DeleteCustomerUseCase>(),
+        getCachedCustomersPeekUseCase: sl<GetCachedCustomersPeekUseCase>(),
       ),
     );
   }

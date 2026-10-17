@@ -12,6 +12,11 @@ abstract class CustomerRepository {
     String? search,
   });
 
+  /// Lista cacheada SIN tocar la red ni importar su edad — para pintar
+  /// la pantalla al instante ("local-first"). `null` si nunca se
+  /// cacheó nada.
+  Future<List<Customer>?> getCachedCustomersPeek();
+
   Future<Either<Failure, Customer>> getCustomerById(String id);
 
   Future<Either<Failure, Customer?>> getCustomerByPhone(String phone);
