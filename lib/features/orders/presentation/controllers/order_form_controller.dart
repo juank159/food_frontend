@@ -904,9 +904,32 @@ class OrderFormController extends GetxController {
         tableElementId: selectedTableElementId.value,
         // Venta de mostrador: etiquetamos el destino como "Mostrador" para
         // que la comanda/recibo/card NO digan "Para llevar" (no se eligió
-        // para llevar). El resto de modos dejan que el backend derive la
-        // etiqueta (mesa / nombre de cuenta libre) o caiga al tipo.
-        tableLabel: isQuickSale.value ? 'Mostrador' : null,
+        // para llevar).
+        //
+        // Mesa seleccionada: el editor de planos guarda SOLO el número
+        // como label ("1", "2"…, ver floor_plan_editor_controller.dart,
+        // "Solo el número de la mesa") — el backend nunca le agrega el
+        // prefijo "Mesa " (table_label llega tal cual se lo manda acá;
+        // table_name es ese número crudo resuelto desde el plano). Si
+        // dejamos table_label en null para una mesa real, la comanda, el
+        // recibo y las cards de la app terminan mostrando el número
+        // pelado ("1") en vez de "Mesa 1" — bug real reportado. Lo
+        // armamos acá mismo, igual que ya hace `PrintingOrchestrator`
+        // para las cuentas abiertas ('Mesa ${session.tableName}').
+        //
+        // OJO: solo cuando el TICKET en sí es dine-in. Un ticket "para
+        // llevar"/"domicilio" agregado dentro de una cuenta que está
+        // en una mesa (SellMode.tabSession(...).withOrderType(delivery))
+        // conserva tableElementId/tableName de la mesa de la cuenta —
+        // si acá pusiéramos "Mesa X" igual, ese ticket puntual mostraría
+        // la mesa en vez de "Domicilio"/"Para llevar" en pantalla.
+        tableLabel: isQuickSale.value
+            ? 'Mostrador'
+            : (orderType.value == OrderType.dineIn &&
+                    selectedTableElementId.value != null &&
+                    (selectedTableName.value?.trim().isNotEmpty ?? false)
+                ? 'Mesa ${selectedTableName.value}'
+                : null),
         tabSessionId: activeTabSessionId.value,
         customerId: customerId.value,
         customerName: effectiveCustomerName,

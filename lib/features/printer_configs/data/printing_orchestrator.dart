@@ -671,9 +671,23 @@ class PrintingOrchestrator {
       // que quiere verlo en la comanda/recibo.
       ticketNumber: order.ticketNumber,
       createdAt: DateTime.tryParse(order.createdAt) ?? DateTime.now(),
-      tableLabel: order.tableLabel ?? order.tableName,
+      // Para dine-in, cualquier fallback vale (snapshot o nombre crudo
+      // de la mesa). Para takeaway/delivery NO hay que caer a
+      // `tableName` solo porque el ticket quedó atado a un
+      // `table_element_id` (pasa cuando el ticket es "para
+      // llevar"/"domicilio" dentro de una cuenta que SÍ está en una
+      // mesa, ej. SellMode.tabSession(...).withOrderType(delivery)) —
+      // si eso pasara, el destino mostraría "Mesa 5" en vez de
+      // "DOMICILIO" aunque el ticket puntual no sea en mesa. Bug real
+      // reportado por el usuario.
+      tableLabel: order.orderType == 'dine_in'
+          ? (order.tableLabel ?? order.tableName)
+          : order.tableLabel,
       orderType: order.orderType,
       orderSource: order.orderSource,
+      deliveryAddress: order.orderType == 'delivery'
+          ? _formatDeliveryAddress(order.deliveryAddress)
+          : null,
       customerName: customerName,
       customerPhone: order.customerPhone,
       items: order.items.map(_toTicketItem).toList(),
@@ -701,6 +715,26 @@ class PrintingOrchestrator {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Junta `street` / `city` / `notes` de `order.delivery_address`
+  /// (armado por `OrderFormController._composedDeliveryAddress`) en una
+  /// sola línea legible para el recibo. `null` si no hay nada cargado
+  /// — pasa en pedidos de delivery viejos o cuando el mesero no la
+  /// pidió al crear la orden.
+  static String? _formatDeliveryAddress(Map<String, dynamic>? address) {
+    if (address == null) return null;
+    final parts = <String>[];
+    final street = (address['street'] as String?)?.trim();
+    final city = (address['city'] as String?)?.trim();
+    final notes = (address['notes'] as String?)?.trim();
+    if (street != null && street.isNotEmpty) parts.add(street);
+    if (city != null && city.isNotEmpty) parts.add(city);
+    var text = parts.join(', ');
+    if (notes != null && notes.isNotEmpty) {
+      text = text.isEmpty ? notes : '$text — $notes';
+    }
+    return text.isEmpty ? null : text;
   }
 
   static TicketItem _toTicketItem(OrderItemModel item) {

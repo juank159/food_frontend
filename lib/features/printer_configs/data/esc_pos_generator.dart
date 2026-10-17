@@ -33,6 +33,13 @@ class TicketData {
   final String orderType; // dine_in / takeaway / delivery
   final String orderSource; // pos / qr_self_order
 
+  /// Dirección de entrega ya formateada en una sola línea legible
+  /// ("Calle 123 #45, Bogotá — timbre roto"), solo para `orderType ==
+  /// 'delivery'`. `null` si no aplica o el cliente no la cargó. Se
+  /// imprime en el RECIBO del cliente (no en la comanda de cocina —
+  /// la cocina solo necesita saber que es domicilio, no a dónde).
+  final String? deliveryAddress;
+
   // ── Cliente ──
   final String? customerName;
   final String? customerPhone;
@@ -63,6 +70,7 @@ class TicketData {
     required this.tableLabel,
     required this.orderType,
     required this.orderSource,
+    this.deliveryAddress,
     required this.customerName,
     required this.customerPhone,
     required this.items,
@@ -756,6 +764,20 @@ class EscPosGenerator {
       }
     }
     bytes.addAll(gen.text('Atención: $recDest'));
+
+    // ─── Dirección de entrega (solo domicilio) — el cliente necesita
+    // ver que quedó bien la dirección que dio, y quien reparte usa el
+    // recibo como guía si no tiene otra referencia. ───
+    if (data.orderType == 'delivery' &&
+        data.deliveryAddress != null &&
+        data.deliveryAddress!.trim().isNotEmpty) {
+      bytes.addAll(
+        gen.text(
+          'Dirección: ${_sanitize(data.deliveryAddress!.trim())}',
+          styles: const PosStyles(bold: true),
+        ),
+      );
+    }
 
     bytes.addAll(gen.hr());
 
