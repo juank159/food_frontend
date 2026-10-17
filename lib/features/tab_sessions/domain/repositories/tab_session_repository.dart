@@ -17,6 +17,11 @@ abstract class TabSessionRepository {
   /// Lista de cuentas abiertas (sin tickets cargados por performance).
   Future<Either<Failure, List<TabSession>>> findOpen();
 
+  /// Caché SIN tocar la red ni importar su edad — para pintar la
+  /// pantalla al instante ("local-first"). `null` si nunca se cacheó
+  /// nada.
+  Future<List<TabSession>?> getCachedOpenTabsPeek();
+
   /// Detalle completo con tickets y pagos.
   Future<Either<Failure, TabSession>> findOne(String id);
 

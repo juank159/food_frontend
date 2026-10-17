@@ -106,6 +106,7 @@ import '../../features/payments/domain/usecases/process_order_payment_usecase.da
 import '../../features/payments/domain/usecases/refund_payment_usecase.dart';
 import '../../features/payments/domain/usecases/process_tab_payment_usecase.dart';
 import '../../features/tab_sessions/data/datasources/tab_session_remote_datasource.dart';
+import '../../features/tab_sessions/data/datasources/tab_session_local_datasource.dart';
 import '../../features/tab_sessions/data/repositories/tab_session_repository_impl.dart';
 import '../../features/tab_sessions/domain/repositories/tab_session_repository.dart';
 import '../../features/tab_sessions/domain/usecases/tab_session_usecases.dart';
@@ -447,11 +448,15 @@ Future<void> init() async {
   sl.registerLazySingleton<TabSessionRepository>(
     () => TabSessionRepositoryImpl(
       remoteDataSource: sl(),
+      localDataSource: sl(),
       networkInfo: sl(),
     ),
   );
   sl.registerLazySingleton<TabSessionRemoteDataSource>(
     () => TabSessionRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<TabSessionLocalDataSource>(
+    () => TabSessionLocalDataSourceImpl(cache: sl()),
   );
 
   // ========================================

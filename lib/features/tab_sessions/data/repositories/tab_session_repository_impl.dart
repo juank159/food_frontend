@@ -5,14 +5,17 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../domain/entities/tab_session.dart';
 import '../../domain/repositories/tab_session_repository.dart';
+import '../datasources/tab_session_local_datasource.dart';
 import '../datasources/tab_session_remote_datasource.dart';
 
 class TabSessionRepositoryImpl implements TabSessionRepository {
   final TabSessionRemoteDataSource remoteDataSource;
+  final TabSessionLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
 
   TabSessionRepositoryImpl({
     required this.remoteDataSource,
+    required this.localDataSource,
     required this.networkInfo,
   });
 
@@ -56,11 +59,38 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
   }
 
   @override
-  Future<Either<Failure, List<TabSession>>> findOpen() {
-    return _run(() async {
-      final list = await remoteDataSource.findOpen();
-      return list.map((m) => m.toEntity()).toList();
-    });
+  Future<Either<Failure, List<TabSession>>> findOpen() async {
+    if (await networkInfo.isConnected) {
+      try {
+        final list = await remoteDataSource.findOpen();
+        await localDataSource.cacheOpenTabs(
+          list.map((m) => m.toJson()).toList(),
+        );
+        return Right(list.map((m) => m.toEntity()).toList());
+      } on UnauthorizedException {
+        return const Left(UnauthorizedFailure());
+      } on NotFoundException catch (e) {
+        return Left(NotFoundFailure(e.message));
+      } on ValidationException catch (e) {
+        return Left(ValidationFailure(e.message));
+      } on NetworkException catch (e) {
+        return Left(NetworkFailure(e.message));
+      } on ServerException catch (e) {
+        return Left(ServerFailure(e.message));
+      }
+    }
+    // Sin conexión: cae a la caché sin importar su edad — algo es
+    // mejor que nada para ver qué cuentas están abiertas.
+    final cached = await localDataSource.getCachedOpenTabs();
+    if (cached != null) return Right(cached.map((m) => m.toEntity()).toList());
+    return const Left(NetworkFailure());
+  }
+
+  @override
+  Future<List<TabSession>?> getCachedOpenTabsPeek() async {
+    final cached = await localDataSource.peekCachedOpenTabs();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
   }
 
   @override

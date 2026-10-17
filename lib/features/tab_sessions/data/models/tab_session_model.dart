@@ -130,6 +130,37 @@ class TabSessionModel {
     );
   }
 
+  /// Round-trip con `fromJson` en formato plano (sin objetos anidados)
+  /// — alcanza para re-hidratar desde la caché local, que siempre
+  /// guarda lo que YA pasó por `fromJson` una vez.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'table_id': tableId,
+        'table_element_id': tableElementId,
+        'table_name': tableName,
+        'customer_id': customerId,
+        'customer_name': customerName,
+        'opened_by': openedBy,
+        'opened_by_name': openedByName,
+        'opened_at': openedAt,
+        'closed_by': closedBy,
+        'closed_by_name': closedByName,
+        'closed_at': closedAt,
+        'status': status,
+        'party_size': partySize,
+        'notes': notes,
+        'total_orders': totalOrders,
+        'subtotal': subtotal,
+        'tax_amount': taxAmount,
+        'discount_amount': discountAmount,
+        'tip_amount': tipAmount,
+        'delivery_fee': deliveryFee,
+        'total_amount': totalAmount,
+        'paid_amount': paidAmount,
+        'balance': balance,
+        'orders': orders,
+      };
+
   TabSession toEntity() {
     return TabSession(
       id: id,

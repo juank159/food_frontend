@@ -120,12 +120,24 @@ class OpenTabsController extends GetxController {
     load();
   }
 
+  /// Local-first (mismo patrón que products/categories/.../orders): si
+  /// hay cuentas cacheadas, las pinta YA antes de esperar la red. Las
+  /// cuentas abiertas son datos vivos (saldo, items) — el pedido de
+  /// red real sigue atrás SIEMPRE y reemplaza la lista en cuanto
+  /// responde.
   Future<void> load() async {
-    isLoading.value = true;
+    final cached = await useCases.getCachedOpenTabsPeek();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache) {
+      sessions.assignAll(cached);
+    }
+
+    isLoading.value = !paintedFromCache;
     errorMessage.value = '';
     final result = await useCases.findOpen();
     result.fold(
       (failure) {
+        if (paintedFromCache) return; // ya hay algo en pantalla, no molestar
         errorMessage.value = failure.message;
         AppSnackbar.show('Error', failure.message);
       },

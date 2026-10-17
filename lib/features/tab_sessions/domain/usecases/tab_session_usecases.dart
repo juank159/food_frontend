@@ -26,6 +26,11 @@ class TabSessionUseCases {
 
   Future<Either<Failure, List<TabSession>>> findOpen() => repository.findOpen();
 
+  /// Caché al instante, sin tocar la red — ver `getCachedOpenTabsPeek`
+  /// en el repositorio (mismo patrón que products/categories/etc.).
+  Future<List<TabSession>?> getCachedOpenTabsPeek() =>
+      repository.getCachedOpenTabsPeek();
+
   Future<Either<Failure, TabSession>> findOne(String id) =>
       repository.findOne(id);
 
