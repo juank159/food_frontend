@@ -472,6 +472,7 @@ Future<void> init() async {
     () => RoleRepositoryImpl(
       remoteDataSource: sl(),
       networkInfo: sl(),
+      localCache: sl(),
     ),
   );
   sl.registerLazySingleton<RoleRemoteDataSource>(

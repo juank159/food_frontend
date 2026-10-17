@@ -35,6 +35,18 @@ class RoleModel {
     );
   }
 
+  /// Round-trip con `fromJson` — para cachear local-first.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'code': code,
+        'description': description,
+        'permissions': permissionsRaw,
+        'is_active': isActive,
+        'is_system': isSystem,
+        'sort_order': sortOrder,
+      };
+
   Role toEntity() {
     final perms = <String, List<String>>{};
     permissionsRaw.forEach((k, v) {

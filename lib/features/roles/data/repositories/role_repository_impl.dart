@@ -3,17 +3,21 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
+import '../../../../core/services/local_cache_service.dart';
 import '../../domain/entities/role.dart';
 import '../../domain/repositories/role_repository.dart';
 import '../datasources/role_remote_datasource.dart';
+import '../models/role_model.dart';
 
 class RoleRepositoryImpl implements RoleRepository {
   final RoleRemoteDataSource remoteDataSource;
   final NetworkInfo networkInfo;
+  final LocalCacheService localCache;
 
   RoleRepositoryImpl({
     required this.remoteDataSource,
     required this.networkInfo,
+    required this.localCache,
   });
 
   Future<Either<Failure, T>> _wrap<T>(Future<T> Function() action) async {
@@ -38,12 +42,30 @@ class RoleRepositoryImpl implements RoleRepository {
     return ServerFailure(e.message);
   }
 
+  /// Los roles cambian rarísima vez (solo cuando un admin edita
+  /// permisos) — local-first: si no hay red, cae a la caché sin
+  /// importar su edad, en vez de bloquear pantallas que necesitan
+  /// saber los roles (ej. asignar un rol a un empleado).
   @override
-  Future<Either<Failure, List<Role>>> findAll() {
-    return _wrap(() async {
-      final list = await remoteDataSource.findAll();
-      return list.map((m) => m.toEntity()).toList();
-    });
+  Future<Either<Failure, List<Role>>> findAll() async {
+    if (await networkInfo.isConnected) {
+      try {
+        final list = await remoteDataSource.findAll();
+        await localCache.saveList(
+          CacheKeys.roles,
+          list.map((m) => m.toJson()).toList(),
+        );
+        return Right(list.map((m) => m.toEntity()).toList());
+      } on AppException catch (e) {
+        return Left(_fromException(e));
+      } catch (e) {
+        return Left(ServerFailure(e.toString()));
+      }
+    }
+
+    final raw = localCache.getList(CacheKeys.roles);
+    if (raw == null) return Left(NetworkFailure('Sin conexión a internet'));
+    return Right(raw.map((j) => RoleModel.fromJson(j).toEntity()).toList());
   }
 
   @override
