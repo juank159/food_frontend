@@ -1,6 +1,9 @@
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
+import '../../../../core/config/constants/api_constants.dart';
+import '../../../../core/network/network_info.dart';
 import '../../../../core/services/local_cache_service.dart';
+import '../../../../core/services/offline_queue_service.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../data/datasources/flavor_remote_datasource.dart';
 import '../../data/models/flavor_model.dart';
@@ -12,10 +15,20 @@ class FlavorsController extends GetxController {
   FlavorsController(this.dataSource);
 
   final LocalCacheService _cache = GetIt.I<LocalCacheService>();
+  final NetworkInfo _networkInfo = GetIt.I<NetworkInfo>();
+  final OfflineQueueService _offlineQueue = GetIt.I<OfflineQueueService>();
 
   /// Misma clave que usa `product_selector_widget.dart` al vender —
   /// cachear acá también alimenta ese local-first.
   String _cacheKey(String categoryId) => 'flavors_$categoryId';
+
+  Map<String, dynamic> _toJson(Flavor f) => {
+        'id': f.id,
+        'name': f.name,
+        'category_id': f.categoryId,
+        'sort_order': f.sortOrder,
+        'is_available': f.isAvailable,
+      };
 
   final Rx<String?> categoryId = Rx<String?>(null);
   final RxList<Flavor> flavors = <Flavor>[].obs;
@@ -56,15 +69,50 @@ class FlavorsController extends GetxController {
 
   Future<void> add(String name) async {
     final n = name.trim();
-    if (n.isEmpty || categoryId.value == null) return;
+    final catId = categoryId.value;
+    if (n.isEmpty || catId == null) return;
     isSaving.value = true;
     try {
+      // Crear una crema/sabor es una entidad hoja (como un gasto) —
+      // segura de encolar offline. Si `category_id` es local (la
+      // categoría también se creó offline en esta sesión), se resuelve
+      // sola al sincronizar — ver `QueueOperationType.createEntity`.
+      if (!await _networkInfo.isConnected) {
+        final localId = 'local_flavor_${DateTime.now().microsecondsSinceEpoch}';
+        final optimistic = FlavorModel(
+          id: localId,
+          name: n,
+          categoryId: catId,
+          sortOrder: flavors.length,
+        );
+        flavors.add(optimistic);
+        await _cache.saveList(_cacheKey(catId), flavors.map(_toJson).toList());
+        await enqueueCreateEntity(
+          _offlineQueue,
+          method: 'POST',
+          path: ApiConstants.flavors,
+          body: {
+            'name': n,
+            'category_id': catId,
+            'sort_order': optimistic.sortOrder,
+          },
+          localId: localId,
+        );
+        AppSnackbar.show(
+          'Guardado sin conexión',
+          'Se va a enviar al servidor cuando vuelva la señal.',
+          snackPosition: SnackPosition.TOP,
+        );
+        return;
+      }
+
       final created = await dataSource.createFlavor({
         'name': n,
-        'category_id': categoryId.value,
+        'category_id': catId,
         'sort_order': flavors.length,
       });
       flavors.add(created);
+      await _cache.saveList(_cacheKey(catId), flavors.map(_toJson).toList());
     } catch (e) {
       _err('No se pudo agregar la crema');
     } finally {

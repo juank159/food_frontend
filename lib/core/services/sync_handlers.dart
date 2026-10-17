@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../utils/api_response_utils.dart';
 import 'app_sync_service.dart';
 import 'offline_queue_service.dart';
 
@@ -49,6 +50,7 @@ class SyncHandlers {
     final syncService = Get.find<AppSyncService>();
     final sl = GetIt.instance;
     final dio = sl<Dio>();
+    final queue = sl<OfflineQueueService>();
 
     // Handler para crear órdenes encoladas offline
     syncService.registerHandler(
@@ -156,6 +158,42 @@ class SyncHandlers {
           // siempre no tiene sentido — se descarta como "ya resuelto".
           if (e.response?.statusCode == 404) return true;
           return false;
+        } catch (e) {
+          return false;
+        }
+      },
+    );
+
+    // Handler para CREAR una entidad nueva (producto, categoría, grupo
+    // de modifiers, modifier, crema/sabor) encolada offline — ver
+    // `QueueOperationType.createEntity`. A diferencia de los otros
+    // handlers de creación (createOrder, createExpense), este
+    // necesita capturar el id REAL que devuelve el servidor y
+    // guardarlo en `recordIdMapping` para que cualquier otra entrada
+    // en la cola que haya referenciado el id local (ej. un extra
+    // creado offline para un producto también creado offline) se
+    // reescriba sola antes de sincronizar.
+    syncService.registerHandler(
+      QueueOperationType.createEntity,
+      (entry) async {
+        try {
+          final method = entry.payload['method'] as String?;
+          final path = entry.payload['path'] as String?;
+          final body = entry.payload['body'];
+          final localId = entry.payload['local_id'] as String?;
+          if (method == null || path == null) return true; // corrupta
+          final response = await dio.request(
+            path,
+            data: body,
+            options: Options(method: method),
+          );
+          if (localId != null) {
+            final realId = ApiResponseUtils.object(response)['id']?.toString();
+            if (realId != null) {
+              await queue.recordIdMapping(localId, realId);
+            }
+          }
+          return true;
         } catch (e) {
           return false;
         }

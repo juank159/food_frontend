@@ -64,6 +64,58 @@ class Product extends Equatable {
     this.variants = const [],
   });
 
+  Product copyWith({
+    String? name,
+    String? description,
+    double? basePrice,
+    double? cost,
+    bool? requiresPreparation,
+    int? preparationTime,
+    String? imageUrl,
+    String? sku,
+    String? barcode,
+    bool? isAvailable,
+    List<String>? tags,
+    List<String>? allergens,
+    Map<String, dynamic>? nutritionalInfo,
+    bool? trackInventory,
+    int? currentStock,
+    int? minStockAlert,
+    int? totalSold,
+    double? totalRevenue,
+    String? categoryId,
+    DateTime? updatedAt,
+    List<ModifierGroup>? modifierGroups,
+    List<ProductVariant>? variants,
+  }) {
+    return Product(
+      id: id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      basePrice: basePrice ?? this.basePrice,
+      cost: cost ?? this.cost,
+      requiresPreparation: requiresPreparation ?? this.requiresPreparation,
+      preparationTime: preparationTime ?? this.preparationTime,
+      imageUrl: imageUrl ?? this.imageUrl,
+      sku: sku ?? this.sku,
+      barcode: barcode ?? this.barcode,
+      isAvailable: isAvailable ?? this.isAvailable,
+      tags: tags ?? this.tags,
+      allergens: allergens ?? this.allergens,
+      nutritionalInfo: nutritionalInfo ?? this.nutritionalInfo,
+      trackInventory: trackInventory ?? this.trackInventory,
+      currentStock: currentStock ?? this.currentStock,
+      minStockAlert: minStockAlert ?? this.minStockAlert,
+      totalSold: totalSold ?? this.totalSold,
+      totalRevenue: totalRevenue ?? this.totalRevenue,
+      categoryId: categoryId ?? this.categoryId,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      modifierGroups: modifierGroups ?? this.modifierGroups,
+      variants: variants ?? this.variants,
+    );
+  }
+
   /// Margen porcentual: `(basePrice - cost) / basePrice × 100`.
   /// `null` cuando falta cost o basePrice ≤ 0 (no se puede calcular).
   double? get profitMargin {

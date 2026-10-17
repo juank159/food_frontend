@@ -68,8 +68,13 @@ class AppSyncService extends GetxController implements SyncService {
         continue;
       }
 
+      // Resuelve cualquier id local (de una entidad creada offline)
+      // que esta entrada referencie, usando los mapeos ya confirmados
+      // — ver `QueueOperationType.createEntity` y `remapEntry`.
+      final remapped = _queue.remapEntry(entry);
+
       try {
-        final ok = await handler(entry);
+        final ok = await handler(remapped);
         if (ok) {
           await _queue.remove(entry.id);
           synced++;

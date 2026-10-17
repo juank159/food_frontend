@@ -1,11 +1,14 @@
 import 'package:dartz/dartz.dart';
+import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
+import '../../../../core/services/offline_queue_service.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/repositories/category_repository.dart';
 import '../datasources/category_local_datasource.dart';
 import '../datasources/category_remote_datasource.dart';
+import '../models/category_model.dart';
 
 /// Category Repository Implementation
 /// Implementación concreta del repositorio de categorías con soporte offline-first.
@@ -13,11 +16,13 @@ class CategoryRepositoryImpl implements CategoryRepository {
   final CategoryRemoteDataSource remoteDataSource;
   final CategoryLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
+  final OfflineQueueService offlineQueue;
 
   CategoryRepositoryImpl({
     required this.remoteDataSource,
     required this.localDataSource,
     required this.networkInfo,
+    required this.offlineQueue,
   });
 
   @override
@@ -239,6 +244,53 @@ class CategoryRepositoryImpl implements CategoryRepository {
     List<String>? quickNotes,
     String? flavorLabel,
   }) async {
+    // Crear una categoría nueva es segura de encolar offline: es una
+    // entidad "hoja" normalmente (nada depende de su id en ese mismo
+    // instante) y, si el usuario crea un producto offline y lo asigna
+    // a ESTA categoría en la misma sesión, el id local se resuelve
+    // solo al sincronizar — ver `QueueOperationType.createEntity`.
+    if (!await networkInfo.isConnected) {
+      final localId = 'local_cat_${DateTime.now().microsecondsSinceEpoch}';
+      final now = DateTime.now();
+      final optimistic = Category(
+        id: localId,
+        name: name,
+        description: description,
+        imageUrl: imageUrl,
+        color: color,
+        icon: icon,
+        isActive: isActive,
+        displayOrder: displayOrder,
+        parentId: parentId,
+        printsKitchen: printsKitchen,
+        quickNotes: quickNotes ?? const [],
+        flavorLabel: flavorLabel,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final body = <String, dynamic>{
+        'name': name,
+        'description': description,
+        'is_active': isActive,
+        'sort_order': displayOrder,
+        'prints_kitchen': printsKitchen,
+        'quick_notes': quickNotes ?? [],
+        if (imageUrl != null) 'image_url': imageUrl,
+        if (parentId != null) 'parent_category_id': parentId,
+        if (flavorLabel != null && flavorLabel.isNotEmpty)
+          'flavor_label': flavorLabel,
+      };
+      await localDataSource.addCachedCategory(CategoryModel.fromEntity(optimistic));
+      await enqueueCreateEntity(
+        offlineQueue,
+        method: 'POST',
+        path: ApiConstants.categories,
+        body: body,
+        localId: localId,
+      );
+      return Right(optimistic);
+    }
+
     if (await networkInfo.isConnected) {
       try {
         final result = await remoteDataSource.createCategory(

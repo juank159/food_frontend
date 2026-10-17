@@ -253,6 +253,7 @@ Future<void> init() async {
       remoteDataSource: sl(),
       localDataSource: sl(),
       networkInfo: sl(),
+      offlineQueue: sl(),
     ),
   );
 
@@ -280,6 +281,7 @@ Future<void> init() async {
       remoteDataSource: sl(),
       localDataSource: sl(),
       networkInfo: sl(),
+      offlineQueue: sl(),
     ),
   );
 

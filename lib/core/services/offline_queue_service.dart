@@ -25,6 +25,18 @@ enum QueueOperationType {
   /// ronda anterior pero NUNCA se usaron (sin encolador, sin handler)
   /// — se borraron en vez de dejarlos muertos.
   genericMutation,
+
+  /// Crea una entidad NUEVA (producto, categoría, grupo de modifiers,
+  /// modifier, crema/sabor) — a diferencia de `genericMutation`, el
+  /// payload trae un `local_id` (el id temporal `local_...` que ya
+  /// usa el preview optimista en la UI). Cuando el sync la crea con
+  /// éxito, `AppSyncService` guarda el mapeo `local_id -> id real` en
+  /// `OfflineQueueService.recordIdMapping` y lo aplica a TODAS las
+  /// entradas restantes de la cola antes de procesarlas — así, si se
+  /// crea un producto offline y en la misma sesión se le agrega un
+  /// extra que referencia `product_id: local_...`, ese extra sincroniza
+  /// con el id real sin que el usuario haga nada.
+  createEntity,
 }
 
 /// Encola una mutación genérica (ver `QueueOperationType.genericMutation`)
@@ -79,6 +91,59 @@ Future<bool> removeQueuedMutationByClientRef(
     await queue.remove(entry.id);
   }
   return true;
+}
+
+/// Encola la creación de una entidad NUEVA (ver `QueueOperationType.createEntity`).
+/// [localId] es el id temporal (`local_...`) que la UI ya le puso al
+/// objeto optimista — una vez el sync la crea de verdad, ese id queda
+/// resuelto a su id real en toda la cola (ver `recordIdMapping`).
+Future<void> enqueueCreateEntity(
+  OfflineQueueService queue, {
+  required String method,
+  required String path,
+  required Map<String, dynamic> body,
+  required String localId,
+}) async {
+  await queue.enqueue(QueueEntry(
+    id: const Uuid().v4(),
+    type: QueueOperationType.createEntity,
+    payload: {
+      'method': method,
+      'path': path,
+      'body': body,
+      'local_id': localId,
+    },
+    createdAt: DateTime.now(),
+  ));
+}
+
+/// Reemplaza, de forma recursiva, cualquier id local conocido en
+/// [idMap] dentro de [node] por su id real. Usado para resolver
+/// referencias a entidades creadas offline justo antes de reproducir
+/// cada entrada de la cola — ver `OfflineQueueService.remapEntry`.
+///
+/// Hace reemplazo de SUBSTRING (no solo igualdad exacta) porque el id
+/// local puede venir como valor de un campo del body (`category_id`,
+/// `product_id`, un elemento de `flavor_ids`) O embebido dentro de un
+/// `path` ya armado (ej. `/products/modifier-groups/local_mg_123/modifiers`).
+/// Los ids locales son strings únicos (`local_<algo>_<timestamp>`), así
+/// que este reemplazo ciego es seguro — no hay colisión posible con
+/// texto legítimo.
+dynamic remapIdsDeep(dynamic node, Map<String, String> idMap) {
+  if (node is String) {
+    var result = node;
+    for (final e in idMap.entries) {
+      if (result.contains(e.key)) result = result.replaceAll(e.key, e.value);
+    }
+    return result;
+  }
+  if (node is List) return node.map((e) => remapIdsDeep(e, idMap)).toList();
+  if (node is Map) {
+    return node.map(
+      (k, v) => MapEntry(k, remapIdsDeep(v, idMap)),
+    );
+  }
+  return node;
 }
 
 /// Una entrada en la cola de operaciones pendientes.
@@ -144,11 +209,55 @@ class QueueEntry {
 class OfflineQueueService {
   static const _boxName = 'offline_queue';
   static const _queueKey = 'entries';
+  static const _idMapKey = 'id_remap';
 
   late Box _box;
 
   Future<void> init() async {
     _box = await Hive.openBox(_boxName);
+  }
+
+  // ─── ID REMAP (ver QueueOperationType.createEntity) ────────────────────────
+
+  Map<String, String> _loadIdMap() {
+    final raw = _box.get(_idMapKey) as String?;
+    if (raw == null) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Guarda que [localId] (un id `local_...` optimista) ya se
+  /// sincronizó como [realId] en el servidor. Persistido — sobrevive
+  /// un reinicio de la app aunque el resto de la cola todavía no
+  /// termine de sincronizar.
+  Future<void> recordIdMapping(String localId, String realId) async {
+    final map = _loadIdMap();
+    map[localId] = realId;
+    await _box.put(_idMapKey, jsonEncode(map));
+  }
+
+  /// Reescribe `payload['body']` (y `client_ref`/`local_id` si los
+  /// trae) de [entry] resolviendo cualquier id local ya conocido a su
+  /// id real — ver `remapIdsDeep`. Se llama justo antes de reproducir
+  /// cada entrada en `AppSyncService.processQueue`, así que una
+  /// entidad creada offline y referenciada por otra entrada MÁS
+  /// NUEVA en la misma cola sincroniza con el id correcto sin
+  /// intervención del usuario.
+  QueueEntry remapEntry(QueueEntry entry) {
+    final idMap = _loadIdMap();
+    if (idMap.isEmpty) return entry;
+    final remapped = remapIdsDeep(entry.payload, idMap);
+    return QueueEntry(
+      id: entry.id,
+      type: entry.type,
+      payload: Map<String, dynamic>.from(remapped as Map),
+      createdAt: entry.createdAt,
+      retryCount: entry.retryCount,
+      lastError: entry.lastError,
+    );
   }
 
   /// Agrega una operación a la cola.

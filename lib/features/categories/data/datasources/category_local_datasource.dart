@@ -9,6 +9,13 @@ abstract class CategoryLocalDataSource {
   /// Caché SIN importar su edad — para pintado "local-first" (ver
   /// `ProductLocalDataSource.peekCachedProducts`, mismo patrón).
   Future<List<CategoryModel>?> peekCachedCategories();
+
+  /// Agrega una categoría creada offline (id temporal `local_...`) a
+  /// la caché de la lista, para que aparezca de inmediato en cualquier
+  /// pantalla que la lea y sobreviva un reinicio mientras la creación
+  /// real sigue en cola. No falla si todavía no hay caché — crea una
+  /// lista nueva con un solo elemento.
+  Future<void> addCachedCategory(CategoryModel category);
 }
 
 class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
@@ -42,5 +49,11 @@ class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
     final raw = cache.getList(CacheKeys.categories);
     if (raw == null) return null;
     return raw.map((e) => CategoryModel.fromJson(e)).toList();
+  }
+
+  @override
+  Future<void> addCachedCategory(CategoryModel category) async {
+    final raw = cache.getList(CacheKeys.categories) ?? [];
+    await cache.saveList(CacheKeys.categories, [...raw, category.toJson()]);
   }
 }
