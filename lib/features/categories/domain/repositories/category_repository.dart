@@ -13,6 +13,11 @@ abstract class CategoryRepository {
     int? limit,
   });
 
+  /// Catálogo cacheado SIN tocar la red ni importar su edad — para pintar
+  /// la pantalla al instante ("local-first"). `null` si nunca se
+  /// cacheó nada (primera vez).
+  Future<List<Category>?> getCachedCategoriesPeek();
+
   /// Obtiene el árbol de categorías (estructura jerárquica)
   Future<Either<Failure, List<Category>>> getCategoryTree({
     bool? isActive,

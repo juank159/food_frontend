@@ -5,6 +5,7 @@ import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/usecases/get_active_categories_usecase.dart';
+import '../../domain/usecases/get_cached_categories_peek_usecase.dart';
 import '../../domain/usecases/get_categories_usecase.dart';
 import '../../domain/usecases/get_category_by_id_usecase.dart';
 import '../../domain/usecases/get_category_tree_usecase.dart';
@@ -16,12 +17,14 @@ class CategoriesController extends GetxController {
   final GetCategoryTreeUseCase getCategoryTreeUseCase;
   final GetActiveCategoriesUseCase getActiveCategoriesUseCase;
   final GetCategoryByIdUseCase getCategoryByIdUseCase;
+  final GetCachedCategoriesPeekUseCase getCachedCategoriesPeekUseCase;
 
   CategoriesController({
     required this.getCategoriesUseCase,
     required this.getCategoryTreeUseCase,
     required this.getActiveCategoriesUseCase,
     required this.getCategoryByIdUseCase,
+    required this.getCachedCategoriesPeekUseCase,
   });
 
   // Observable states
@@ -72,27 +75,48 @@ class CategoriesController extends GetxController {
     }
   }
 
-  /// Carga todas las categorías con filtros
+  /// Carga todas las categorías con filtros.
+  ///
+  /// Local-first (mismo patrón que `ProductsController.loadProducts`):
+  /// si no hay búsqueda de texto, antes de pedirle nada al servidor
+  /// pintamos YA el catálogo cacheado (filtrado en memoria por
+  /// `isActive` si aplica) para que la pantalla no se sienta lenta en
+  /// cada visita. El caché siempre representa el catálogo COMPLETO
+  /// (ver `CategoryRepositoryImpl.getCategories` — solo cachea el
+  /// fetch sin filtros), así que filtrarlo acá es seguro.
   Future<void> loadCategories({bool? isActive, String? search}) async {
-    isLoading.value = true;
+    final effectiveIsActive = isActive ?? (showOnlyActive.value ? true : null);
+    final effectiveSearch =
+        search ?? (searchQuery.value.isNotEmpty ? searchQuery.value : null);
+
+    var paintedFromCache = false;
+    if (effectiveSearch == null) {
+      final cached = await getCachedCategoriesPeekUseCase();
+      if (cached != null && cached.isNotEmpty) {
+        categories.value = effectiveIsActive == null
+            ? cached
+            : cached.where((c) => c.isActive == effectiveIsActive).toList();
+        paintedFromCache = true;
+      }
+    }
+
+    isLoading.value = !paintedFromCache;
     errorMessage.value = '';
 
     final result = await getCategoriesUseCase(
-      isActive: isActive ?? (showOnlyActive.value ? true : null),
-      search:
-          search ?? (searchQuery.value.isNotEmpty ? searchQuery.value : null),
+      isActive: effectiveIsActive,
+      search: effectiveSearch,
     );
 
     result.fold(
       (failure) {
-        errorMessage.value = failure.message;
-        isLoading.value = false;
+        if (!paintedFromCache) errorMessage.value = failure.message;
       },
       (categoriesList) {
         categories.value = categoriesList;
-        isLoading.value = false;
       },
     );
+    isLoading.value = false;
   }
 
   /// Carga el árbol de categorías

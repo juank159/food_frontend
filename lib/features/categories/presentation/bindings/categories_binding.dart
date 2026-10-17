@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/usecases/get_active_categories_usecase.dart';
+import '../../domain/usecases/get_cached_categories_peek_usecase.dart';
 import '../../domain/usecases/get_categories_usecase.dart';
 import '../../domain/usecases/get_category_by_id_usecase.dart';
 import '../../domain/usecases/get_category_tree_usecase.dart';
@@ -18,6 +19,7 @@ class CategoriesBinding extends Bindings {
         getCategoryTreeUseCase: sl<GetCategoryTreeUseCase>(),
         getActiveCategoriesUseCase: sl<GetActiveCategoriesUseCase>(),
         getCategoryByIdUseCase: sl<GetCategoryByIdUseCase>(),
+        getCachedCategoriesPeekUseCase: sl<GetCachedCategoriesPeekUseCase>(),
       ),
     );
   }

@@ -27,6 +27,7 @@ import '../../features/categories/domain/repositories/category_repository.dart';
 import '../../features/categories/domain/usecases/create_category_usecase.dart';
 import '../../features/categories/domain/usecases/get_active_categories_usecase.dart';
 import '../../features/categories/domain/usecases/get_categories_usecase.dart';
+import '../../features/categories/domain/usecases/get_cached_categories_peek_usecase.dart';
 import '../../features/categories/domain/usecases/get_category_by_id_usecase.dart';
 import '../../features/categories/domain/usecases/get_category_tree_usecase.dart';
 import '../../features/categories/domain/usecases/update_category_usecase.dart';
@@ -261,6 +262,7 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetCategoriesUseCase(sl()));
+  sl.registerLazySingleton(() => GetCachedCategoriesPeekUseCase(sl()));
   sl.registerLazySingleton(() => GetCategoryTreeUseCase(sl()));
   sl.registerLazySingleton(() => GetActiveCategoriesUseCase(sl()));
   sl.registerLazySingleton(() => GetCategoryByIdUseCase(sl()));

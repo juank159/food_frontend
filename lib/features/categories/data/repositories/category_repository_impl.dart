@@ -63,6 +63,13 @@ class CategoryRepositoryImpl implements CategoryRepository {
   }
 
   @override
+  Future<List<Category>?> getCachedCategoriesPeek() async {
+    final cached = await localDataSource.peekCachedCategories();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
+  }
+
+  @override
   Future<Either<Failure, List<Category>>> getCategoryTree({
     bool? isActive,
   }) async {

@@ -16,6 +16,7 @@ class ProductFormBinding extends Bindings {
           getCategoryTreeUseCase: sl(),
           getActiveCategoriesUseCase: sl(),
           getCategoryByIdUseCase: sl(),
+          getCachedCategoriesPeekUseCase: sl(),
         ),
       );
     }

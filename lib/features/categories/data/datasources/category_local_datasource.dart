@@ -5,6 +5,10 @@ abstract class CategoryLocalDataSource {
   Future<List<CategoryModel>?> getCachedCategories();
   Future<void> cacheCategories(List<Map<String, dynamic>> rawJsonList);
   bool get hasFreshCache;
+
+  /// Caché SIN importar su edad — para pintado "local-first" (ver
+  /// `ProductLocalDataSource.peekCachedProducts`, mismo patrón).
+  Future<List<CategoryModel>?> peekCachedCategories();
 }
 
 class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
@@ -32,4 +36,11 @@ class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
   @override
   bool get hasFreshCache =>
       !cache.isStale(CacheKeys.categories, maxAge: CacheKeys.catalogTtl);
+
+  @override
+  Future<List<CategoryModel>?> peekCachedCategories() async {
+    final raw = cache.getList(CacheKeys.categories);
+    if (raw == null) return null;
+    return raw.map((e) => CategoryModel.fromJson(e)).toList();
+  }
 }
