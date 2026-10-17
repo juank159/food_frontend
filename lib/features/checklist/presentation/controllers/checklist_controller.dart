@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
@@ -22,12 +23,15 @@ class ChecklistItem {
         text: (json['text'] as String?) ?? '',
         isDone: (json['is_done'] as bool?) ?? false,
       );
+
+  Map<String, dynamic> toJson() => {'id': id, 'text': text, 'is_done': isDone};
 }
 
 /// Controller de la checklist ("lo que hace falta comprar"). Usa Dio
 /// directo (patrón simple, como BusinessSettings). Endpoints `/checklist`.
 class ChecklistController extends GetxController {
   late final Dio _dio;
+  late final LocalCacheService _cache;
 
   final RxList<ChecklistItem> items = <ChecklistItem>[].obs;
   final RxBool isLoading = false.obs;
@@ -41,20 +45,37 @@ class ChecklistController extends GetxController {
   void onInit() {
     super.onInit();
     _dio = GetIt.I<Dio>();
+    _cache = GetIt.I<LocalCacheService>();
     load();
   }
 
+  /// Local-first (mismo patrón que products/categories/etc.): pinta la
+  /// lista cacheada al instante antes de esperar la red.
   Future<void> load() async {
-    isLoading.value = true;
+    final cachedRaw = _cache.getList(CacheKeys.checklist);
+    final cached = cachedRaw
+        ?.map(ChecklistItem.fromJson)
+        .toList();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache) items.value = cached;
+
+    isLoading.value = !paintedFromCache;
     error.value = '';
     try {
       final res = await _dio.get('/checklist');
-      items.value = ApiResponseUtils.list(res)
+      final list = ApiResponseUtils.list(res)
           .whereType<Map<String, dynamic>>()
           .map(ChecklistItem.fromJson)
           .toList();
+      items.value = list;
+      await _cache.saveList(
+        CacheKeys.checklist,
+        list.map((i) => i.toJson()).toList(),
+      );
     } catch (e) {
-      error.value = ApiResponseUtils.errorMessage(e) ?? 'Error';
+      if (!paintedFromCache) {
+        error.value = ApiResponseUtils.errorMessage(e) ?? 'Error';
+      }
     } finally {
       isLoading.value = false;
     }
