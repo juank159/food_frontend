@@ -241,14 +241,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         'desde el navegador.',
       ],
     };
-    final encoded = base64Encode(utf8.encode(jsonEncode(payload)));
-    // IMPORTANTE (round 2, corrige el error "Link non valido" que la propia
-    // app devolvió): NO pasar por `Uri.parse`/`Uri.encodeComponent` — la app
-    // hace un parsing simple de string (corta el prefijo y decodifica tal
-    // cual), así que percent-encodear el blob Base64 (los `+`/`/`/`=` pasan
-    // a `%2B`/`%2F`/`%3D`) le llega corrupto. Se concatena el string crudo
-    // y se manda con `launchUrlString` (sin construir un `Uri`, que además
-    // podría reinterpretar `/` dentro del blob como separadores de path).
+    // Round 3. Round 1 (Base64 estándar + percent-encoding vía Uri.parse):
+    // la app SÍ abrió pero dijo "Link non valido" — el percent-encoding
+    // (%2B/%2F/%3D) le llegaba corrupto, porque esta app no lo decodifica.
+    // Round 2 (Base64 estándar crudo, sin percent-encoding): no pasó NADA,
+    // ni en PWA ni en el navegador — el `/` y `+` sueltos después de
+    // `wbprint://` hacen que el navegador ni considere la URL válida para
+    // intentar abrir una app (ni siquiera llega a iOS).
+    // Round 3: Base64 **URL-safe** (alfabeto `-`/`_` en vez de `+`/`/`) sin
+    // percent-encoding — válido como URL para el navegador Y literal para
+    // la app, sin que nadie tenga que des-escapar nada.
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(payload)));
     final rawLink = 'wbprint://$encoded';
     // OJO: en web, el launch llama a `window.open(url, ...)` directo, sin
     // chequear si el esquema tiene un handler real — casi siempre "funciona"
