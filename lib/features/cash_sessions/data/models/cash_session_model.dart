@@ -113,6 +113,31 @@ class CashSessionModel {
     );
   }
 
+  /// Round-trip con `fromJson` en formato plano — para persistir el
+  /// último estado conocido de caja y sobrevivir un reinicio de la
+  /// app sin conexión (ver CashSessionRepositoryImpl.getCurrent).
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'opened_by': openedBy,
+        'opened_by_name': openedByName,
+        'opened_at': openedAt,
+        'opening_amount': openingAmount,
+        'closed_by': closedBy,
+        'closed_by_name': closedByName,
+        'closed_at': closedAt,
+        'closing_amount_counted': closingAmountCounted,
+        'total_cash_collected': totalCashCollected,
+        'total_payments_count': totalPaymentsCount,
+        'total_cash_expenses': totalCashExpenses,
+        'total_other_collected': totalOtherCollected,
+        'total_other_count': totalOtherCount,
+        'expected_amount': expectedAmount,
+        'difference': difference,
+        'status': status,
+        'notes': notes,
+        'closing_notes': closingNotes,
+      };
+
   CashSession toEntity() {
     return CashSession(
       id: id,

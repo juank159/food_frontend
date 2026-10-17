@@ -125,6 +125,7 @@ abstract class CacheKeys {
   static const tables = 'tables';
   static const floorPlan = 'floor_plan';
   static const openTabSessions = 'open_tab_sessions';
+  static const currentCashSession = 'current_cash_session';
   // TTLs específicos
   static const Duration catalogTtl = Duration(hours: 24);
   static const Duration operationalTtl = Duration(hours: 4);

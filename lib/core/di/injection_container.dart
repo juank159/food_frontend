@@ -499,6 +499,7 @@ Future<void> init() async {
     () => CashSessionRepositoryImpl(
       remoteDataSource: sl(),
       networkInfo: sl(),
+      localCache: sl(),
     ),
   );
   sl.registerLazySingleton<CashSessionRemoteDataSource>(
