@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/error/failures.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
@@ -69,10 +70,16 @@ class PaymentController extends GetxController {
     }
   }
 
-  /// Procesa el pago completo de una orden
+  /// Procesa el pago completo de una orden.
+  ///
+  /// `allowCashSessionRetry` es interno — controla el reintento
+  /// automático UNA sola vez tras abrir caja (ver el bug real
+  /// documentado en `_handleCashSessionRequired`). No pasar `false`
+  /// desde afuera.
   Future<Payment?> processOrderPayment({
     required String orderId,
     required double orderTotal,
+    bool allowCashSessionRetry = true,
   }) async {
     try {
       isProcessing.value = true;
@@ -90,49 +97,80 @@ class PaymentController extends GetxController {
         notes: notes.value.isNotEmpty ? notes.value : null,
       );
 
-      return result.fold(
-        (failure) {
-          errorMessage.value = failure.message;
-          // Si es el código semántico de "falta caja", mostramos el
-          // dialog amigable en lugar del snackbar genérico. El cajero
-          // puede abrir caja sin perder el flujo.
-          if (isCashSessionRequiredError(failure.message)) {
-            handleCashSessionError(failure.message);
-            return null;
-          }
-          AppSnackbar.show(
-            'Error',
-            failure.message,
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.error,
-            colorText: Get.theme.colorScheme.onError,
-            duration: const Duration(seconds: 5),
+      Failure? foldFailure;
+      Payment? createdPayment;
+      result.fold((f) => foldFailure = f, (p) => createdPayment = p);
+
+      if (foldFailure != null) {
+        final failure = foldFailure!;
+        errorMessage.value = failure.message;
+        if (isCashSessionRequiredError(failure.message)) {
+          return _handleCashSessionRequired(
+            allowRetry: allowCashSessionRetry,
+            message: failure.message,
+            retry: () => processOrderPayment(
+              orderId: orderId,
+              orderTotal: orderTotal,
+              allowCashSessionRetry: false,
+            ),
           );
-          return null;
-        },
-        (payment) {
-          AppSnackbar.show(
-            'Pago exitoso',
-            'Pago procesado correctamente',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.primary,
-            colorText: Get.theme.colorScheme.onPrimary,
-            duration: const Duration(seconds: 3),
-          );
+        }
+        AppSnackbar.show(
+          'Error',
+          failure.message,
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error,
+          colorText: Get.theme.colorScheme.onError,
+          duration: const Duration(seconds: 5),
+        );
+        return null;
+      }
 
-          // Agregar a la lista de pagos
-          payments.add(payment);
-          _notifyOrderChanged(orderId, tryPrintReceipt: true);
-
-          // Resetear formulario
-          resetPaymentForm();
-
-          return payment;
-        },
+      final payment = createdPayment!;
+      AppSnackbar.show(
+        'Pago exitoso',
+        'Pago procesado correctamente',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Get.theme.colorScheme.primary,
+        colorText: Get.theme.colorScheme.onPrimary,
+        duration: const Duration(seconds: 3),
       );
+
+      // Agregar a la lista de pagos
+      payments.add(payment);
+      _notifyOrderChanged(orderId, tryPrintReceipt: true);
+
+      // Resetear formulario
+      resetPaymentForm();
+
+      return payment;
     } finally {
       isProcessing.value = false;
     }
+  }
+
+  /// Bug real corregido: cuando el cobro fallaba por `CASH_SESSION_
+  /// REQUIRED`, se llamaba `handleCashSessionError(...)` SIN `await`
+  /// (fire-and-forget) y se devolvía `null` de una — el dialog de
+  /// "Necesitás abrir caja" aparecía ENCIMA del dialog de cobro, pero
+  /// el pago original nunca se reintentaba. El cajero terminaba
+  /// abriendo caja y viendo el dialog de cobro ahí parado, sin cerrarse
+  /// ni procesar nada — parecía que "no dejaba cobrar".
+  ///
+  /// Ahora se espera el resultado del dialog y, si el cajero abrió
+  /// caja desde ahí, se reintenta el MISMO cobro automáticamente —
+  /// una sola vez (`allowRetry` evita loop infinito si algo más sigue
+  /// fallando después de abrir caja).
+  Future<Payment?> _handleCashSessionRequired({
+    required bool allowRetry,
+    required String message,
+    required Future<Payment?> Function() retry,
+  }) async {
+    final opened = await handleCashSessionError(message);
+    if (opened && allowRetry) {
+      return retry();
+    }
+    return null;
   }
 
   /// Registra UN pago parcial inmediato.
@@ -155,6 +193,7 @@ class PaymentController extends GetxController {
     double? receivedAmount,
     String? transactionReference,
     String? notes,
+    bool allowCashSessionRetry = true,
   }) async {
     try {
       isProcessing.value = true;
@@ -169,39 +208,53 @@ class PaymentController extends GetxController {
         notes: notes,
       );
 
-      return result.fold(
-        (failure) {
-          errorMessage.value = failure.message;
-          if (isCashSessionRequiredError(failure.message)) {
-            handleCashSessionError(failure.message);
-            return null;
-          }
-          AppSnackbar.show(
-            'No se pudo registrar el pago',
-            failure.message,
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.error,
-            colorText: Get.theme.colorScheme.onError,
+      Failure? foldFailure;
+      Payment? createdPayment;
+      result.fold((f) => foldFailure = f, (p) => createdPayment = p);
+
+      if (foldFailure != null) {
+        final failure = foldFailure!;
+        errorMessage.value = failure.message;
+        if (isCashSessionRequiredError(failure.message)) {
+          return _handleCashSessionRequired(
+            allowRetry: allowCashSessionRetry,
+            message: failure.message,
+            retry: () => addPartialPayment(
+              orderId: orderId,
+              paymentMethod: paymentMethod,
+              amount: amount,
+              receivedAmount: receivedAmount,
+              transactionReference: transactionReference,
+              notes: notes,
+              allowCashSessionRetry: false,
+            ),
           );
-          return null;
-        },
-        (payment) {
-          payments.add(payment);
-          // Propagar el cambio al detalle de la orden y, en cascada,
-          // a la lista de órdenes — así la card se actualiza sin
-          // pull-to-refresh manual al volver al listado.
-          _notifyOrderChanged(orderId, tryPrintReceipt: true);
-          AppSnackbar.show(
-            'Pago registrado',
-            '${paymentMethod.displayName} · ${payment.amount.toStringAsFixed(0)}',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Get.theme.colorScheme.primary,
-            colorText: Get.theme.colorScheme.onPrimary,
-            duration: const Duration(seconds: 2),
-          );
-          return payment;
-        },
+        }
+        AppSnackbar.show(
+          'No se pudo registrar el pago',
+          failure.message,
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error,
+          colorText: Get.theme.colorScheme.onError,
+        );
+        return null;
+      }
+
+      final payment = createdPayment!;
+      payments.add(payment);
+      // Propagar el cambio al detalle de la orden y, en cascada,
+      // a la lista de órdenes — así la card se actualiza sin
+      // pull-to-refresh manual al volver al listado.
+      _notifyOrderChanged(orderId, tryPrintReceipt: true);
+      AppSnackbar.show(
+        'Pago registrado',
+        '${paymentMethod.displayName} · ${payment.amount.toStringAsFixed(0)}',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Get.theme.colorScheme.primary,
+        colorText: Get.theme.colorScheme.onPrimary,
+        duration: const Duration(seconds: 2),
       );
+      return payment;
     } finally {
       isProcessing.value = false;
     }
