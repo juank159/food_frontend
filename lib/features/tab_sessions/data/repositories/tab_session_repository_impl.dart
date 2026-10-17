@@ -1,22 +1,27 @@
 // lib features/tab_sessions/data/repositories/tab_session_repository_impl.dart
 import 'package:dartz/dartz.dart';
+import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
+import '../../../../core/services/offline_queue_service.dart';
 import '../../domain/entities/tab_session.dart';
 import '../../domain/repositories/tab_session_repository.dart';
 import '../datasources/tab_session_local_datasource.dart';
 import '../datasources/tab_session_remote_datasource.dart';
+import '../models/tab_session_model.dart';
 
 class TabSessionRepositoryImpl implements TabSessionRepository {
   final TabSessionRemoteDataSource remoteDataSource;
   final TabSessionLocalDataSource localDataSource;
   final NetworkInfo networkInfo;
+  final OfflineQueueService offlineQueue;
 
   TabSessionRepositoryImpl({
     required this.remoteDataSource,
     required this.localDataSource,
     required this.networkInfo,
+    required this.offlineQueue,
   });
 
   Future<Either<Failure, T>> _run<T>(Future<T> Function() action) async {
@@ -107,12 +112,49 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
     String? customerName,
     String? notes,
     int? partySize,
-  }) {
+  }) async {
+    final body = <String, dynamic>{};
+    if (customerName != null) body['customer_name'] = customerName;
+    if (notes != null) body['notes'] = notes;
+    if (partySize != null) body['party_size'] = partySize;
+
+    // Renombrar la "etiqueta" de una cuenta (customerName/notes) es una
+    // mutación sobre algo que YA existe con id real — segura de
+    // encolar offline, igual que las mutaciones de OrderDetailController.
+    // Esto es justo lo que el usuario pidió poder hacer sin internet.
+    if (!await networkInfo.isConnected) {
+      final cachedList = await localDataSource.peekCachedOpenTabs();
+      TabSessionModel? cached;
+      if (cachedList != null) {
+        for (final m in cachedList) {
+          if (m.id == id) {
+            cached = m;
+            break;
+          }
+        }
+      }
+      if (cached == null) return const Left(NetworkFailure());
+      final optimistic = cached.toEntity().copyWithEditable(
+            customerName: customerName,
+            notes: notes,
+            partySize: partySize,
+          );
+      await localDataSource.patchCachedOpenTab(
+        id,
+        customerName: customerName,
+        notes: notes,
+        partySize: partySize,
+      );
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'PATCH',
+        path: ApiConstants.tabSessionById(id),
+        body: body,
+      );
+      return Right(optimistic);
+    }
+
     return _run(() async {
-      final body = <String, dynamic>{};
-      if (customerName != null) body['customer_name'] = customerName;
-      if (notes != null) body['notes'] = notes;
-      if (partySize != null) body['party_size'] = partySize;
       final model = await remoteDataSource.update(id, body);
       return model.toEntity();
     });

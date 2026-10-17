@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:get/get.dart';
+import '../../../../core/config/constants/api_constants.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/network_info.dart';
+import '../../../../core/services/offline_queue_service.dart';
 import '../../../../core/utils/safe_get.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
+import '../../data/datasources/order_local_datasource.dart';
 import '../../data/datasources/order_remote_datasource.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_item.dart';
@@ -18,14 +22,61 @@ import 'pending_review_watcher.dart';
 
 /// Order Detail Controller
 /// Controller para gestionar el detalle de una orden individual
+///
+/// **Offline**: todas las mutaciones de esta pantalla (cambiar
+/// estado, marcar un item, agregar/quitar/editar cantidad de un item,
+/// editar cliente) operan sobre una orden que YA existe con id real
+/// — nunca generan un id nuevo que algo más vaya a referenciar antes
+/// de sincronizar. Por eso, sin conexión, se aplican OPTIMISTAS
+/// localmente (ya existía ese patrón) y además se ENCOLAN para
+/// cuando vuelva la señal, en vez de revertir el cambio — así el
+/// usuario puede seguir llevando el control de sus órdenes (qué le
+/// debe cada cliente, qué falta entregar) aunque se caiga el
+/// internet. Ver `enqueueGenericMutation`.
 class OrderDetailController extends GetxController {
   final GetOrderByIdUseCase getOrderByIdUseCase;
   final UpdateOrderStatusUseCase updateOrderStatusUseCase;
+  final NetworkInfo networkInfo;
+  final OfflineQueueService offlineQueue;
+  final OrderLocalDataSource orderLocalDataSource;
 
   OrderDetailController({
     required this.getOrderByIdUseCase,
     required this.updateOrderStatusUseCase,
+    required this.networkInfo,
+    required this.offlineQueue,
+    required this.orderLocalDataSource,
   });
+
+  /// Recalcula `subtotal`/`totalAmount` por DELTA al cambiar los items
+  /// localmente (agregar/quitar/editar cantidad) sin conexión — no
+  /// reproduce la lógica completa de impuestos/propina/descuento del
+  /// backend, solo desplaza los totales por la diferencia de items
+  /// para que el preview offline sea razonable. El backend recalcula
+  /// el valor REAL y lo reemplaza en cuanto sincroniza.
+  Order _withRecalculatedTotals(Order base, List<OrderItem> newItems) {
+    final oldItemsSum =
+        base.items.fold<double>(0, (s, i) => s + i.subtotal);
+    final newItemsSum =
+        newItems.fold<double>(0, (s, i) => s + i.subtotal);
+    final delta = newItemsSum - oldItemsSum;
+    return base.copyWith(
+      items: newItems,
+      subtotal: base.subtotal + delta,
+      totalAmount: base.totalAmount + delta,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Mensaje consistente para toda mutación que quedó encolada —
+  /// mismo texto en las 6 pantallas que pueden mutar una orden.
+  void _showQueuedSnackbar() {
+    AppSnackbar.show(
+      'Guardado sin conexión',
+      'Se va a enviar al servidor cuando vuelva la señal.',
+      snackPosition: SnackPosition.TOP,
+    );
+  }
 
   // Observable state
   final Rx<Order?> order = Rx<Order?>(null);
@@ -100,6 +151,27 @@ class OrderDetailController extends GetxController {
   /// manual al volver del detalle para ver el nuevo estado en la lista.
   Future<void> updateOrderStatus(OrderStatus newStatus) async {
     if (!canUpdateStatus) return;
+
+    if (!await networkInfo.isConnected) {
+      final optimistic = currentOrder!.copyWith(
+        status: newStatus,
+        updatedAt: DateTime.now(),
+      );
+      order.value = optimistic;
+      order.refresh();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimistic);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimistic);
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'PATCH',
+        path: ApiConstants.orderStatus(optimistic.id),
+        body: {'status': newStatus.value},
+      );
+      _showQueuedSnackbar();
+      return;
+    }
 
     try {
       isUpdatingStatus.value = true;
@@ -209,8 +281,24 @@ class OrderDetailController extends GetxController {
         updatedAt: now,
       );
     }).toList();
-    order.value = previousOrder.copyWith(items: patchedItems);
+    final optimisticOrder = previousOrder.copyWith(items: patchedItems);
+    order.value = optimisticOrder;
     order.refresh();
+
+    if (!await networkInfo.isConnected) {
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimisticOrder);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimisticOrder);
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'PATCH',
+        path: '/orders/${previousOrder.id}/items/$itemId/status',
+        body: {'status': newStatus.value},
+      );
+      _showQueuedSnackbar();
+      return true;
+    }
 
     updatingItemIds.add(itemId);
     try {
@@ -479,20 +567,62 @@ class OrderDetailController extends GetxController {
   }) async {
     final orderId = currentOrder?.id;
     if (orderId == null) return false;
+
+    final data = <String, dynamic>{
+      if (productId != null) 'product_id': productId,
+      if (variantId != null) 'variant_id': variantId,
+      if (productName != null) 'product_name': productName,
+      if (unitPrice != null) 'unit_price': unitPrice,
+      'quantity': quantity,
+      if (specialInstructions != null)
+        'special_instructions': specialInstructions,
+      if (modifiers != null && modifiers.isNotEmpty) 'modifiers': modifiers,
+    };
+
+    if (!await networkInfo.isConnected) {
+      final previousOrder = currentOrder!;
+      final now = DateTime.now();
+      final optimisticItem = OrderItem(
+        id: 'local_${now.microsecondsSinceEpoch}',
+        orderId: orderId,
+        productId: productId ?? '',
+        // Sin productId (item libre) siempre viene productName; con
+        // productId puede faltar si el caller no lo resolvió — el
+        // backend lo completa al sincronizar.
+        productName: productName ?? 'Producto',
+        unitPrice: unitPrice ?? 0,
+        quantity: quantity,
+        subtotal: (unitPrice ?? 0) * quantity,
+        specialInstructions: specialInstructions,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final optimisticOrder = _withRecalculatedTotals(
+        previousOrder,
+        [...previousOrder.items, optimisticItem],
+      );
+      order.value = optimisticOrder;
+      order.refresh();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimisticOrder);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimisticOrder);
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'POST',
+        path: '/orders/$orderId/items',
+        body: data,
+        // Permite deshacer esto si el usuario borra este MISMO item
+        // antes de reconectar — ver removeItem().
+        clientRef: optimisticItem.id,
+      );
+      _showQueuedSnackbar();
+      return true;
+    }
+
     try {
       isLoading.value = true;
       final ds = sl<OrderRemoteDataSource>();
-      final data = <String, dynamic>{
-        if (productId != null) 'product_id': productId,
-        if (variantId != null) 'variant_id': variantId,
-        if (productName != null) 'product_name': productName,
-        if (unitPrice != null) 'unit_price': unitPrice,
-        'quantity': quantity,
-        if (specialInstructions != null)
-          'special_instructions': specialInstructions,
-        if (modifiers != null && modifiers.isNotEmpty)
-          'modifiers': modifiers,
-      };
       final updated = await ds.addOrderItem(orderId, data);
       order.value = updated.toEntity();
       // Forzar emit aunque Equatable pueda considerar la orden "igual" —
@@ -518,8 +648,35 @@ class OrderDetailController extends GetxController {
     final previousOrder = currentOrder!;
     final optimisticItems =
         previousOrder.items.where((i) => i.id != item.id).toList();
-    order.value = previousOrder.copyWith(items: optimisticItems);
+    final optimisticOrder =
+        _withRecalculatedTotals(previousOrder, optimisticItems);
+    order.value = optimisticOrder;
     order.refresh();
+
+    final isLocalOnlyItem = item.id.startsWith('local_');
+
+    if (!await networkInfo.isConnected || isLocalOnlyItem) {
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimisticOrder);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimisticOrder);
+      // Si el item en sí se había agregado offline y todavía no
+      // sincronizó, deshacemos directamente ese "addItem" encolado —
+      // no tiene sentido mandar un DELETE de algo que el servidor
+      // nunca llegó a crear.
+      final undone = isLocalOnlyItem
+          ? await removeQueuedMutationByClientRef(offlineQueue, item.id)
+          : false;
+      if (!undone && !isLocalOnlyItem) {
+        await enqueueGenericMutation(
+          offlineQueue,
+          method: 'DELETE',
+          path: '/orders/$orderId/items/${item.id}',
+        );
+        _showQueuedSnackbar();
+      }
+      return true;
+    }
 
     try {
       updatingItemIds.add(item.id);
@@ -578,8 +735,40 @@ class OrderDetailController extends GetxController {
         updatedAt: DateTime.now(),
       );
     }).toList();
-    order.value = previousOrder.copyWith(items: optimisticItems);
+    // Para la rama online se conserva el comportamiento histórico (no
+    // recalcula totales, confía en la respuesta real del backend). Para
+    // la rama offline sí recalculamos — no hay respuesta del backend
+    // que vaya a corregir el preview hasta que sincronice, y el usuario
+    // necesita ver cuánto debe el cliente ahora mismo (sin internet).
+    final isOffline = !await networkInfo.isConnected;
+    final optimisticOrder = isOffline
+        ? _withRecalculatedTotals(previousOrder, optimisticItems)
+        : previousOrder.copyWith(items: optimisticItems);
+    order.value = optimisticOrder;
     order.refresh();
+
+    if (item.id.startsWith('local_') || isOffline) {
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimisticOrder);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimisticOrder);
+      // Si el item es offline-only, no hay un "addItem" sincronizado
+      // todavía al que mandarle un PATCH de cantidad — la cantidad
+      // nueva va directo en el body de esa misma mutación encolada.
+      final patchedQueuedAdd = item.id.startsWith('local_')
+          ? await _patchQueuedAddItemQty(item.id, newQty)
+          : false;
+      if (!patchedQueuedAdd && !item.id.startsWith('local_')) {
+        await enqueueGenericMutation(
+          offlineQueue,
+          method: 'PATCH',
+          path: '/orders/$orderId/items/${item.id}/quantity',
+          body: {'quantity': newQty},
+        );
+      }
+      _showQueuedSnackbar();
+      return true;
+    }
 
     try {
       updatingItemIds.add(item.id);
@@ -601,16 +790,107 @@ class OrderDetailController extends GetxController {
     }
   }
 
+  /// Busca la mutación `addItem` todavía encolada para un item
+  /// offline-only (`clientRef == item.id`) y le reescribe la
+  /// `quantity` en su body — para no tener que mandar un segundo PATCH
+  /// de cantidad sobre un item que el servidor nunca llegó a crear.
+  /// Devuelve `true` si encontró y parchó la entrada.
+  Future<bool> _patchQueuedAddItemQty(String localItemId, int newQty) async {
+    final match = offlineQueue.getAll().where(
+          (e) =>
+              e.type == QueueOperationType.genericMutation &&
+              e.payload['client_ref'] == localItemId,
+        );
+    if (match.isEmpty) return false;
+    for (final entry in match) {
+      final body = Map<String, dynamic>.from(entry.payload['body'] ?? {});
+      body['quantity'] = newQty;
+      await offlineQueue.remove(entry.id);
+      await offlineQueue.enqueue(QueueEntry(
+        id: entry.id,
+        type: entry.type,
+        payload: {...entry.payload, 'body': body},
+        createdAt: entry.createdAt,
+      ));
+    }
+    return true;
+  }
+
   /// Actualiza solo el nombre del cliente en la orden. No navega a la
   /// pantalla de edición completa — es una acción rápida en un dialog.
   Future<bool> updateCustomerName(String name) async {
     if (!hasOrder) return false;
     final orderId = currentOrder!.id;
+    final trimmedName = name.trim().isEmpty ? null : name.trim();
+
+    if (!await networkInfo.isConnected) {
+      final base = currentOrder!;
+      // No se puede usar `base.copyWith(customerName: trimmedName)` para
+      // BORRAR el nombre: ese copyWith hace `customerName ?? this.customerName`,
+      // así que pasarle null no limpia nada. Reconstruimos entero solo
+      // para este caso.
+      final optimisticOrder = Order(
+        id: base.id,
+        orderNumber: base.orderNumber,
+        ticketNumber: base.ticketNumber,
+        orderType: base.orderType,
+        orderSource: base.orderSource,
+        status: base.status,
+        tableId: base.tableId,
+        tableElementId: base.tableElementId,
+        tableName: base.tableName,
+        tableLabel: base.tableLabel,
+        tabSessionId: base.tabSessionId,
+        customerId: base.customerId,
+        customerName: trimmedName,
+        customerPhone: base.customerPhone,
+        customerEmail: base.customerEmail,
+        deliveryAddress: base.deliveryAddress,
+        assignedTo: base.assignedTo,
+        assignedToName: base.assignedToName,
+        items: base.items,
+        subtotal: base.subtotal,
+        discountAmount: base.discountAmount,
+        discountPercentage: base.discountPercentage,
+        deliveryFee: base.deliveryFee,
+        tipAmount: base.tipAmount,
+        taxAmount: base.taxAmount,
+        totalAmount: base.totalAmount,
+        paymentMethod: base.paymentMethod,
+        paymentStatus: base.paymentStatus,
+        paidAmount: base.paidAmount,
+        specialInstructions: base.specialInstructions,
+        estimatedTime: base.estimatedTime,
+        confirmedAt: base.confirmedAt,
+        preparedAt: base.preparedAt,
+        deliveredAt: base.deliveredAt,
+        completedAt: base.completedAt,
+        cancelledAt: base.cancelledAt,
+        metadata: base.metadata,
+        createdAt: base.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      order.value = optimisticOrder;
+      order.refresh();
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(optimisticOrder);
+      }
+      await orderLocalDataSource.updateCachedOrder(optimisticOrder);
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'PATCH',
+        path: ApiConstants.orderById(orderId),
+        body: {'customer_name': trimmedName},
+      );
+      _showQueuedSnackbar();
+      return true;
+    }
+
     try {
       final usecase = sl<UpdateOrderUseCase>();
       final result = await usecase(
         id: orderId,
-        customerName: name.trim().isEmpty ? null : name.trim(),
+        customerName: trimmedName,
       );
       return result.fold(
         (failure) {

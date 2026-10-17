@@ -127,5 +127,39 @@ class SyncHandlers {
         }
       },
     );
+
+    // Handler GENÉRICO para mutaciones sobre algo que YA tiene un id
+    // real (orden, item de orden, cuenta abierta) — cambiar estado,
+    // marcar item, agregar/quitar/editar cantidad de un item, editar
+    // cliente, cancelar, renombrar una cuenta. Ver
+    // `enqueueGenericMutation` (quien encola arma `method`/`path`/
+    // `body`). Nunca se usa para crear algo nuevo, así que es tan
+    // segura de encolar como createOrder.
+    syncService.registerHandler(
+      QueueOperationType.genericMutation,
+      (entry) async {
+        try {
+          final method = entry.payload['method'] as String?;
+          final path = entry.payload['path'] as String?;
+          final body = entry.payload['body'];
+          if (method == null || path == null) return true; // corrupta
+          await dio.request(
+            path,
+            data: body,
+            options: Options(method: method),
+          );
+          return true;
+        } on DioException catch (e) {
+          // 404: lo que se quería mutar/borrar ya no existe (ej. un
+          // item que se borró de dos formas distintas, o una orden
+          // que un admin ya eliminó por otro lado). Reintentar para
+          // siempre no tiene sentido — se descarta como "ya resuelto".
+          if (e.response?.statusCode == 404) return true;
+          return false;
+        } catch (e) {
+          return false;
+        }
+      },
+    );
   }
 }

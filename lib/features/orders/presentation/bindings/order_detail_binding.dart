@@ -1,5 +1,8 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/network_info.dart';
+import '../../../../core/services/offline_queue_service.dart';
+import '../../data/datasources/order_local_datasource.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../../../payments/domain/usecases/create_payment_usecase.dart';
@@ -19,6 +22,9 @@ class OrderDetailBinding extends Bindings {
       () => OrderDetailController(
         getOrderByIdUseCase: sl<GetOrderByIdUseCase>(),
         updateOrderStatusUseCase: sl<UpdateOrderStatusUseCase>(),
+        networkInfo: sl<NetworkInfo>(),
+        offlineQueue: sl<OfflineQueueService>(),
+        orderLocalDataSource: sl<OrderLocalDataSource>(),
       ),
     );
 

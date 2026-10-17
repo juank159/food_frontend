@@ -87,6 +87,45 @@ class TabSession extends Equatable {
     this.orders = const [],
   });
 
+  /// Copia solo los campos editables vía `TabSessionRepository.update`
+  /// (customerName/notes/partySize — la "etiqueta" de la cuenta). Null
+  /// en un parámetro significa "no tocar ese campo", igual que en
+  /// `update()` — no hace falta soportar "borrar explícitamente" acá
+  /// porque el repositorio tampoco lo soporta.
+  TabSession copyWithEditable({
+    String? customerName,
+    String? notes,
+    int? partySize,
+  }) {
+    return TabSession(
+      id: id,
+      tableId: tableId,
+      tableElementId: tableElementId,
+      tableName: tableName,
+      customerId: customerId,
+      customerName: customerName ?? this.customerName,
+      openedBy: openedBy,
+      openedByName: openedByName,
+      openedAt: openedAt,
+      closedBy: closedBy,
+      closedByName: closedByName,
+      closedAt: closedAt,
+      status: status,
+      partySize: partySize ?? this.partySize,
+      notes: notes ?? this.notes,
+      totalOrders: totalOrders,
+      subtotal: subtotal,
+      taxAmount: taxAmount,
+      discountAmount: discountAmount,
+      tipAmount: tipAmount,
+      deliveryFee: deliveryFee,
+      totalAmount: totalAmount,
+      paidAmount: paidAmount,
+      balance: balance,
+      orders: orders,
+    );
+  }
+
   /// Conveniencias de UI:
 
   bool get isOpen => status == TabSessionStatus.open;
