@@ -64,4 +64,18 @@ class QrTokenModel {
       ),
     );
   }
+
+  /// Round-trip con `fromJson` — para cachear local-first.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'code': code,
+        'type': type.apiValue,
+        'display_label': displayLabel,
+        'table_element_id': tableElementId,
+        'zone_label': zoneLabel,
+        'is_active': isActive,
+        'scan_count': scanCount,
+        'last_scanned_at': lastScannedAt?.toIso8601String(),
+        'created_at': createdAt.toIso8601String(),
+      };
 }

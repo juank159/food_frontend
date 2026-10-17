@@ -125,6 +125,7 @@ abstract class CacheKeys {
   static const tables = 'tables';
   static const floorPlan = 'floor_plan';
   static const checklist = 'checklist';
+  static const qrTokens = 'qr_tokens';
   static const openTabSessions = 'open_tab_sessions';
   static const currentCashSession = 'current_cash_session';
   static const currentSubscription = 'current_subscription';

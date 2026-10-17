@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../thermal_print/data/thermal_print_service.dart';
 import '../../data/models/available_table.dart';
@@ -11,11 +12,14 @@ class QrTokensController extends GetxController {
   QrTokensController({
     QrTokensRemoteDataSource? dataSource,
     ThermalPrintService? printService,
+    LocalCacheService? cache,
   })  : _ds = dataSource ?? sl<QrTokensRemoteDataSource>(),
-        _print = printService ?? sl<ThermalPrintService>();
+        _print = printService ?? sl<ThermalPrintService>(),
+        _cache = cache ?? sl<LocalCacheService>();
 
   final QrTokensRemoteDataSource _ds;
   final ThermalPrintService _print;
+  final LocalCacheService _cache;
 
   final RxList<QrTokenModel> tokens = <QrTokenModel>[].obs;
   final RxBool loading = false.obs;
@@ -89,14 +93,25 @@ class QrTokensController extends GetxController {
     fetch();
   }
 
+  /// Local-first (mismo patrón que el resto): pinta los QR cacheados
+  /// al instante antes de esperar la red.
   Future<void> fetch() async {
-    loading.value = true;
+    final cachedRaw = _cache.getList(CacheKeys.qrTokens);
+    final cached = cachedRaw?.map(QrTokenModel.fromJson).toList();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache) tokens.assignAll(cached);
+
+    loading.value = !paintedFromCache;
     error.value = null;
     try {
       final result = await _ds.list();
       tokens.assignAll(result);
+      await _cache.saveList(
+        CacheKeys.qrTokens,
+        result.map((t) => t.toJson()).toList(),
+      );
     } catch (e) {
-      error.value = e.toString();
+      if (!paintedFromCache) error.value = e.toString();
     } finally {
       loading.value = false;
     }
