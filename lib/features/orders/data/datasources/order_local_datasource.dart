@@ -8,6 +8,13 @@ abstract class OrderLocalDataSource {
   Future<void> cacheOrders(List<Map<String, dynamic>> rawJsonList);
   bool get hasFreshOrdersCache;
 
+  /// Caché SIN importar su edad — para pintado "local-first" (ver
+  /// `ProductLocalDataSource.peekCachedProducts`, mismo patrón). El
+  /// caller es responsable de filtrar por fecha/estado si hace falta
+  /// (esta caché no está scopeada a "hoy" — guarda el último fetch sin
+  /// filtros, que en la práctica llega vía `loadUnpaidOrders`).
+  Future<List<OrderModel>?> peekCachedOrders();
+
   // Cola de salida (para crear órdenes offline)
   Future<void> enqueueCreateOrder(Map<String, dynamic> createOrderDto);
   List<QueueEntry> getPendingOrderCreations();
@@ -41,6 +48,13 @@ class OrderLocalDataSourceImpl implements OrderLocalDataSource {
   @override
   Future<void> cacheOrders(List<Map<String, dynamic>> rawJsonList) async {
     await cache.saveList(_cacheKey, rawJsonList);
+  }
+
+  @override
+  Future<List<OrderModel>?> peekCachedOrders() async {
+    final raw = cache.getList(_cacheKey);
+    if (raw == null) return null;
+    return raw.map((json) => OrderModel.fromJson(json)).toList();
   }
 
   // ─── OUTBOX QUEUE ─────────────────────────────────────────────────────────

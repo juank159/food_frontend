@@ -80,6 +80,13 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<List<Order>?> getCachedOrdersPeek() async {
+    final cached = await localDataSource.peekCachedOrders();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
+  }
+
+  @override
   Future<Either<Failure, Order>> getOrderById(String id) async {
     if (await networkInfo.isConnected) {
       try {

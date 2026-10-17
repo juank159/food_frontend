@@ -3,6 +3,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../domain/entities/order.dart' as order_entity;
 import '../../domain/usecases/create_order_usecase.dart';
 import '../../domain/usecases/get_active_orders_usecase.dart';
+import '../../domain/usecases/get_cached_orders_peek_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
@@ -21,6 +22,7 @@ class OrdersController extends GetxController {
   final GetActiveOrdersUseCase getActiveOrdersUseCase;
   final CreateOrderUseCase createOrderUseCase;
   final UpdateOrderStatusUseCase updateOrderStatusUseCase;
+  final GetCachedOrdersPeekUseCase getCachedOrdersPeekUseCase;
 
   OrdersController({
     required this.getOrdersUseCase,
@@ -28,6 +30,7 @@ class OrdersController extends GetxController {
     required this.getActiveOrdersUseCase,
     required this.createOrderUseCase,
     required this.updateOrderStatusUseCase,
+    required this.getCachedOrdersPeekUseCase,
   });
 
   // Observable states
@@ -148,7 +151,16 @@ class OrdersController extends GetxController {
     });
   }
 
-  /// Carga todas las órdenes con filtros
+  /// Carga todas las órdenes con filtros.
+  ///
+  /// Local-first (mismo patrón que products/categories/employees/
+  /// customers/printer_configs): si no hay filtro de estado/tipo/mesa/
+  /// cliente, pinta YA la caché (que no está scopeada a fecha — filtrada
+  /// en memoria al rango efectivo de fechas) antes de esperar la red.
+  /// Las órdenes son datos vivos (cambian de estado todo el tiempo), así
+  /// que esto es solo un preview — el pedido de red real sigue atrás
+  /// SIEMPRE y reemplaza la lista en cuanto responde (normalmente
+  /// menos de un segundo), igual que los demás módulos.
   Future<void> loadOrders({
     OrderStatus? status,
     OrderType? orderType,
@@ -157,28 +169,59 @@ class OrdersController extends GetxController {
     DateTime? start,
     DateTime? end,
   }) async {
-    isLoading.value = true;
+    final effectiveStatus = status ?? filterStatus.value;
+    final effectiveOrderType = orderType ?? filterOrderType.value;
+    final effectiveStart = start ?? startDate.value;
+    final effectiveEnd = end ?? endDate.value;
+
+    final noExtraFilters = effectiveStatus == null &&
+        effectiveOrderType == null &&
+        tableId == null &&
+        customerId == null;
+
+    var paintedFromCache = false;
+    if (noExtraFilters) {
+      final cached = await getCachedOrdersPeekUseCase();
+      if (cached != null && cached.isNotEmpty) {
+        final filtered = (effectiveStart == null && effectiveEnd == null)
+            ? cached
+            : cached.where((o) {
+                if (effectiveStart != null && o.createdAt.isBefore(effectiveStart)) {
+                  return false;
+                }
+                if (effectiveEnd != null && o.createdAt.isAfter(effectiveEnd)) {
+                  return false;
+                }
+                return true;
+              }).toList();
+        if (filtered.isNotEmpty) {
+          orders.value = filtered;
+          paintedFromCache = true;
+        }
+      }
+    }
+
+    isLoading.value = !paintedFromCache;
     errorMessage.value = '';
 
     final result = await getOrdersUseCase(
-      status: status ?? filterStatus.value,
-      orderType: orderType ?? filterOrderType.value,
+      status: effectiveStatus,
+      orderType: effectiveOrderType,
       tableId: tableId,
       customerId: customerId,
-      startDate: start ?? startDate.value,
-      endDate: end ?? endDate.value,
+      startDate: effectiveStart,
+      endDate: effectiveEnd,
     );
 
     result.fold(
       (failure) {
-        errorMessage.value = failure.message;
-        isLoading.value = false;
+        if (!paintedFromCache) errorMessage.value = failure.message;
       },
       (ordersList) {
         orders.value = ordersList;
-        isLoading.value = false;
       },
     );
+    isLoading.value = false;
   }
 
   /// Carga solo las órdenes activas

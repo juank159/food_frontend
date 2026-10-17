@@ -64,6 +64,7 @@ import '../../features/orders/domain/usecases/create_order_usecase.dart';
 import '../../features/orders/domain/usecases/get_active_orders_usecase.dart';
 import '../../features/orders/domain/usecases/get_order_by_id_usecase.dart';
 import '../../features/orders/domain/usecases/get_orders_usecase.dart';
+import '../../features/orders/domain/usecases/get_cached_orders_peek_usecase.dart';
 import '../../features/orders/domain/usecases/update_order_item_status_usecase.dart';
 import '../../features/orders/domain/usecases/update_order_status_usecase.dart';
 import '../../features/orders/domain/usecases/update_order_usecase.dart';
@@ -350,6 +351,7 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetOrdersUseCase(sl()));
+  sl.registerLazySingleton(() => GetCachedOrdersPeekUseCase(sl()));
   sl.registerLazySingleton(() => GetOrderByIdUseCase(sl()));
   sl.registerLazySingleton(() => GetActiveOrdersUseCase(sl()));
   sl.registerLazySingleton(() => CreateOrderUseCase(sl()));

@@ -18,6 +18,12 @@ abstract class OrderRepository {
     int? limit,
   });
 
+  /// Lista cacheada SIN tocar la red ni importar su edad — para pintar
+  /// la pantalla al instante ("local-first"). No está scopeada a
+  /// ningún filtro de fecha/estado en particular — el caller filtra
+  /// en memoria lo que necesite. `null` si nunca se cacheó nada.
+  Future<List<order_entity.Order>?> getCachedOrdersPeek();
+
   /// Obtiene una orden por ID
   Future<Either<Failure, order_entity.Order>> getOrderById(String id);
 

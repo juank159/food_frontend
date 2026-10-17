@@ -4,6 +4,7 @@ import '../../domain/usecases/create_order_usecase.dart';
 import '../../domain/usecases/get_active_orders_usecase.dart';
 import '../../domain/usecases/get_order_by_id_usecase.dart';
 import '../../domain/usecases/get_orders_usecase.dart';
+import '../../domain/usecases/get_cached_orders_peek_usecase.dart';
 import '../../domain/usecases/update_order_status_usecase.dart';
 import '../controllers/orders_controller.dart';
 
@@ -20,6 +21,7 @@ class OrdersBinding extends Bindings {
         getActiveOrdersUseCase: sl<GetActiveOrdersUseCase>(),
         createOrderUseCase: sl<CreateOrderUseCase>(),
         updateOrderStatusUseCase: sl<UpdateOrderStatusUseCase>(),
+        getCachedOrdersPeekUseCase: sl<GetCachedOrdersPeekUseCase>(),
       ),
     );
   }
