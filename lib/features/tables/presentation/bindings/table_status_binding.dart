@@ -21,6 +21,8 @@ class TableStatusBinding extends Bindings {
     Get.lazyPut<TableStatusRepository>(
       () => TableStatusRepositoryImpl(
         datasource: Get.find<TableStatusDatasource>(),
+        localCache: di.sl(),
+        networkInfo: di.sl(),
       ),
     );
 

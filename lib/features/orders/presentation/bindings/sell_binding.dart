@@ -55,6 +55,7 @@ class SellBinding extends Bindings {
       Get.lazyPut<FloorPlanRepository>(
         () => FloorPlanRepositoryImpl(
           dataSource: Get.find<FloorPlanDataSource>(),
+          localCache: sl(),
         ),
       );
     }

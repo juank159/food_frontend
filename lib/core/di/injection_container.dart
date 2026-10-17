@@ -404,7 +404,11 @@ Future<void> init() async {
     () => TableStatusDatasourceImpl(dio: sl()),
   );
   sl.registerLazySingleton<TableStatusRepository>(
-    () => TableStatusRepositoryImpl(datasource: sl()),
+    () => TableStatusRepositoryImpl(
+      datasource: sl(),
+      localCache: sl(),
+      networkInfo: sl(),
+    ),
   );
 
   // Floor Plans — necesario en el TableSelectorWidget para listar planos
@@ -413,7 +417,7 @@ Future<void> init() async {
     () => FloorPlanDataSourceImpl(dio: sl()),
   );
   sl.registerLazySingleton<FloorPlanRepository>(
-    () => FloorPlanRepositoryImpl(dataSource: sl()),
+    () => FloorPlanRepositoryImpl(dataSource: sl(), localCache: sl()),
   );
 
   // ========================================

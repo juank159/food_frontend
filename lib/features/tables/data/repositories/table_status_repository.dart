@@ -1,6 +1,8 @@
 import '../../domain/entities/table_status.dart';
 import '../../domain/entities/table_operations.dart';
 import '../datasources/table_status_datasource.dart';
+import '../../../../core/network/network_info.dart';
+import '../../../../core/services/local_cache_service.dart';
 
 abstract class TableStatusRepository {
   Future<List<TableStatusEntity>> getTableStatusByFloorPlan(String floorPlanId);
@@ -19,16 +21,43 @@ abstract class TableStatusRepository {
 
 class TableStatusRepositoryImpl implements TableStatusRepository {
   final TableStatusDatasource datasource;
+  final LocalCacheService? localCache;
+  final NetworkInfo? networkInfo;
 
-  TableStatusRepositoryImpl({required this.datasource});
+  TableStatusRepositoryImpl({
+    required this.datasource,
+    this.localCache,
+    this.networkInfo,
+  });
 
+  /// El estado de ocupación de mesas es ESTADO COMPARTIDO en tiempo
+  /// real entre varios dispositivos (meseros distintos viendo el mismo
+  /// plano) — a propósito NO se pinta "local-first" (mostrar algo
+  /// viejo mientras hay señal arriesga que dos meseros sienten gente
+  /// en la misma mesa). Mientras hay conexión, SIEMPRE espera la
+  /// respuesta real del servidor. Solo cuando no hay conexión en
+  /// absoluto cae a la última foto conocida (mejor eso que un error
+  /// duro que no deja ni abrir el plano para vender).
   @override
   Future<List<TableStatusEntity>> getTableStatusByFloorPlan(
     String floorPlanId,
   ) async {
+    final cacheKey = 'table_status_$floorPlanId';
     try {
-      return await datasource.getTableStatusByFloorPlan(floorPlanId);
+      final result = await datasource.getTableStatusByFloorPlan(floorPlanId);
+      await localCache?.saveList(
+        cacheKey,
+        result.map((t) => t.toJson()).toList(),
+      );
+      return result;
     } catch (e) {
+      final netInfo = networkInfo;
+      if (netInfo != null && !await netInfo.isConnected) {
+        final raw = localCache?.getList(cacheKey);
+        if (raw != null) {
+          return raw.map((j) => TableStatusEntity.fromJson(j)).toList();
+        }
+      }
       throw Exception('Error obteniendo estados de mesas: $e');
     }
   }

@@ -4,10 +4,12 @@ import '../../domain/entities/floor_plan.dart';
 import '../../domain/repositories/floor_plan_repository.dart';
 import '../datasources/floor_plan_datasource.dart';
 import '../../core/utils/logger.dart';
+import '../../../../core/services/local_cache_service.dart';
 
 /// Implementación del repositorio con cache y retry logic
 class FloorPlanRepositoryImpl implements FloorPlanRepository {
   final FloorPlanDataSource dataSource;
+  final LocalCacheService localCache;
 
   // Cache en memoria con TTL
   final Map<String, _CachedFloorPlan> _cache = {};
@@ -18,15 +20,20 @@ class FloorPlanRepositoryImpl implements FloorPlanRepository {
   static const _maxRetries = 3;
   static const _retryDelay = Duration(seconds: 1);
 
-  FloorPlanRepositoryImpl({required this.dataSource});
+  FloorPlanRepositoryImpl({required this.dataSource, required this.localCache});
 
+  /// El plano de mesas cambia rarísima vez (solo cuando un admin lo
+  /// edita) — a diferencia del cache en memoria (`_listCache`, se
+  /// pierde al reiniciar la app o cambiar de pantalla y volver), esto
+  /// persiste en disco (Hive) para que el plano siga disponible
+  /// offline incluso después de cerrar y abrir la app de nuevo.
   @override
   Future<List<FloorPlan>> getFloorPlans() async {
     const cacheKey = 'all_floor_plans';
 
-    // Verificar cache
+    // Verificar cache en memoria (rápido, dentro de la misma sesión).
     if (_listCache.containsKey(cacheKey) && !_listCache[cacheKey]!.isExpired) {
-      tablesLogger.d('Floor plans obtenidos de cache');
+      tablesLogger.d('Floor plans obtenidos de cache en memoria');
       return _listCache[cacheKey]!.data;
     }
 
@@ -34,12 +41,27 @@ class FloorPlanRepositoryImpl implements FloorPlanRepository {
     try {
       final data = await _retryOperation(() => dataSource.getFloorPlans());
 
-      // Guardar en cache
+      // Guardar en cache (memoria + disco)
       _listCache[cacheKey] = _CachedFloorPlanList(data);
+      await localCache.saveList(
+        CacheKeys.floorPlan,
+        data.map((f) => f.toJson()).toList(),
+      );
 
       tablesLogger.d('Floor plans cargados exitosamente (${data.length} items)');
       return data;
     } catch (e) {
+      // Sin red (o falló tras reintentos): caer al plano guardado en
+      // disco, sin importar su edad — mejor un plano viejo que no
+      // poder vender nada porque no se puede elegir mesa.
+      final cachedRaw = localCache.getList(CacheKeys.floorPlan);
+      if (cachedRaw != null) {
+        tablesLogger.d('Floor plans obtenidos de disco (sin red)');
+        final data =
+            cachedRaw.map((j) => FloorPlan.fromJson(j)).toList();
+        _listCache[cacheKey] = _CachedFloorPlanList(data);
+        return data;
+      }
       tablesLogger.e('Error obteniendo floor plans', error: e);
       throw Exception('Error obteniendo floor plans: $e');
     }

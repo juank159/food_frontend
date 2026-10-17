@@ -23,6 +23,7 @@ class FloorPlansListBinding extends Bindings {
       Get.lazyPut<FloorPlanRepository>(
         () => FloorPlanRepositoryImpl(
           dataSource: Get.find<FloorPlanDataSource>(),
+          localCache: di.sl(),
         ),
       );
     }

@@ -19,8 +19,10 @@ class FloorPlanEditorBinding extends Bindings {
 
     // Repository
     Get.lazyPut<FloorPlanRepository>(
-      () =>
-          FloorPlanRepositoryImpl(dataSource: Get.find<FloorPlanDataSource>()),
+      () => FloorPlanRepositoryImpl(
+        dataSource: Get.find<FloorPlanDataSource>(),
+        localCache: di.sl(),
+      ),
     );
 
     // Controller
