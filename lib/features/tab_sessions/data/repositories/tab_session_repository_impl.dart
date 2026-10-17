@@ -85,9 +85,15 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
       }
     }
     // Sin conexión: cae a la caché sin importar su edad — algo es
-    // mejor que nada para ver qué cuentas están abiertas.
+    // mejor que nada para ver qué cuentas están abiertas. Se le suma
+    // lo que haya encolado offline por cuenta (ver `_withPendingOverlay`)
+    // para que el listado de "cuentas abiertas" muestre el saldo real
+    // (con lo recién despachado) y no el último conocido antes de
+    // perder la señal.
     final cached = await localDataSource.getCachedOpenTabs();
-    if (cached != null) return Right(cached.map((m) => m.toEntity()).toList());
+    if (cached != null) {
+      return Right(cached.map((m) => _withPendingOverlay(m.toEntity())).toList());
+    }
     return const Left(NetworkFailure());
   }
 
@@ -95,15 +101,107 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
   Future<List<TabSession>?> getCachedOpenTabsPeek() async {
     final cached = await localDataSource.peekCachedOpenTabs();
     if (cached == null) return null;
-    return cached.map((m) => m.toEntity()).toList();
+    return cached.map((m) => _withPendingOverlay(m.toEntity())).toList();
   }
 
   @override
-  Future<Either<Failure, TabSession>> findOne(String id) {
+  Future<Either<Failure, TabSession>> findOne(String id) async {
+    // Abrir el detalle de una cuenta SIN internet: este es justo el
+    // caso de negocio que el usuario pidió explícito — "si se va el
+    // internet y tengo 20 clientes despachados, ¿cómo sé qué me debe
+    // cada uno?". Antes esto fallaba directo (network-only) y la
+    // pantalla de detalle no abría en absoluto.
+    if (!await networkInfo.isConnected) {
+      final cachedList = await localDataSource.peekCachedOpenTabs();
+      TabSessionModel? cached;
+      if (cachedList != null) {
+        for (final m in cachedList) {
+          if (m.id == id) {
+            cached = m;
+            break;
+          }
+        }
+      }
+      if (cached == null) return const Left(NetworkFailure());
+      return Right(_withPendingOverlay(cached.toEntity()));
+    }
+
     return _run(() async {
       final model = await remoteDataSource.findOne(id);
       return model.toEntity();
     });
+  }
+
+  /// Suma al saldo/total/cantidad de tickets de [entity] lo que haya
+  /// encolado offline para esa cuenta (ver `_pendingOrdersTotalForTab`)
+  /// — para que el número que ve el cajero incluya lo recién
+  /// despachado sin esperar a sincronizar. No-op si no hay nada
+  /// pendiente para esa cuenta.
+  TabSession _withPendingOverlay(TabSession entity) {
+    final pending = _pendingOrdersTotalForTab(entity.id);
+    if (pending.amount == 0 && pending.count == 0) return entity;
+    return TabSession(
+      id: entity.id,
+      tableId: entity.tableId,
+      tableElementId: entity.tableElementId,
+      tableName: entity.tableName,
+      customerId: entity.customerId,
+      customerName: entity.customerName,
+      openedBy: entity.openedBy,
+      openedByName: entity.openedByName,
+      openedAt: entity.openedAt,
+      closedBy: entity.closedBy,
+      closedByName: entity.closedByName,
+      closedAt: entity.closedAt,
+      status: entity.status,
+      partySize: entity.partySize,
+      notes: entity.notes,
+      totalOrders: entity.totalOrders + pending.count,
+      subtotal: entity.subtotal + pending.amount,
+      taxAmount: entity.taxAmount,
+      discountAmount: entity.discountAmount,
+      tipAmount: entity.tipAmount,
+      deliveryFee: entity.deliveryFee,
+      totalAmount: entity.totalAmount + pending.amount,
+      paidAmount: entity.paidAmount,
+      balance: entity.balance + pending.amount,
+      orders: entity.orders,
+    );
+  }
+
+  /// Suma aproximada (items + modifiers, sin impuestos exactos) de las
+  /// órdenes encoladas offline (`QueueOperationType.createOrder`) que
+  /// pertenecen a la cuenta [tabSessionId] y todavía no sincronizaron.
+  ({double amount, int count}) _pendingOrdersTotalForTab(String tabSessionId) {
+    double total = 0;
+    var count = 0;
+    for (final entry in offlineQueue.getAll()) {
+      if (entry.type != QueueOperationType.createOrder) continue;
+      if (entry.payload['tab_session_id'] != tabSessionId) continue;
+      count++;
+      final items = entry.payload['items'];
+      if (items is! List) continue;
+      for (final raw in items) {
+        if (raw is! Map) continue;
+        final unitPrice = (raw['unit_price'] as num?)?.toDouble() ?? 0;
+        final quantity = (raw['quantity'] as num?)?.toInt() ?? 1;
+        total += unitPrice * quantity;
+        final modifiers = raw['modifiers'];
+        if (modifiers is List) {
+          for (final rawMod in modifiers) {
+            if (rawMod is! Map) continue;
+            final modPrice = (rawMod['price'] as num?)?.toDouble() ?? 0;
+            final modQty = (rawMod['quantity'] as num?)?.toInt() ?? 1;
+            total += modPrice * modQty * quantity;
+          }
+        }
+      }
+      final discount = (entry.payload['discount_amount'] as num?)?.toDouble() ?? 0;
+      final deliveryFee = (entry.payload['delivery_fee'] as num?)?.toDouble() ?? 0;
+      final tip = (entry.payload['tip_amount'] as num?)?.toDouble() ?? 0;
+      total += deliveryFee + tip - discount;
+    }
+    return (amount: total, count: count);
   }
 
   @override
