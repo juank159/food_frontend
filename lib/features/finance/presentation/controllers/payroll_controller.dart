@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import 'expenses_controller.dart' show moneyToDouble;
@@ -47,11 +48,28 @@ class PayrollEntry {
         paidAt: DateTime.tryParse(json['paid_at']?.toString() ?? ''),
         notes: json['notes'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'user_id': userId,
+        'employee_name': employeeName,
+        'period_label': periodLabel,
+        'base_amount': baseAmount,
+        'additions': additions,
+        'deductions': deductions,
+        'net_amount': netAmount,
+        'is_paid': isPaid,
+        'paid_at': paidAt?.toIso8601String(),
+        'notes': notes,
+      };
 }
 
 /// Controller de nómina. Dio directo. Endpoints `/payroll`.
 class PayrollController extends GetxController {
   late final Dio _dio;
+  late final LocalCacheService _cache;
+
+  static const _cacheKey = 'payroll_snapshot';
 
   final RxList<PayrollEntry> items = <PayrollEntry>[].obs;
   final RxDouble totalNet = 0.0.obs;
@@ -65,28 +83,46 @@ class PayrollController extends GetxController {
   void onInit() {
     super.onInit();
     _dio = GetIt.I<Dio>();
+    _cache = GetIt.I<LocalCacheService>();
     load();
   }
 
+  /// Local-first (mismo patrón que el resto): pinta la última nómina
+  /// cacheada al instante, refresca atrás sin bloquear.
   Future<void> load() async {
-    isLoading.value = true;
+    final cachedRaw = _cache.getObject(_cacheKey);
+    final paintedFromCache = cachedRaw != null;
+    if (paintedFromCache) _applySnapshot(cachedRaw);
+
+    isLoading.value = !paintedFromCache;
     error.value = '';
     try {
       final res = await _dio.get('/payroll');
       final obj = ApiResponseUtils.object(res);
-      items.value = ((obj['items'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(PayrollEntry.fromJson)
-          .toList();
-      totalNet.value = moneyToDouble(obj['total_net']);
-      totalPaid.value = moneyToDouble(obj['total_paid']);
-      totalPending.value = moneyToDouble(obj['total_pending']);
+      _applySnapshot(obj);
+      await _cache.saveObject(_cacheKey, {
+        'items': items.map((e) => e.toJson()).toList(),
+        'total_net': totalNet.value,
+        'total_paid': totalPaid.value,
+        'total_pending': totalPending.value,
+      });
     } catch (e) {
-      error.value =
-          ApiResponseUtils.errorMessage(e) ?? 'Error al cargar nómina';
+      if (!paintedFromCache) {
+        error.value = ApiResponseUtils.errorMessage(e) ?? 'Error al cargar nómina';
+      }
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _applySnapshot(Map<String, dynamic> obj) {
+    items.value = ((obj['items'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(PayrollEntry.fromJson)
+        .toList();
+    totalNet.value = moneyToDouble(obj['total_net']);
+    totalPaid.value = moneyToDouble(obj['total_paid']);
+    totalPending.value = moneyToDouble(obj['total_pending']);
   }
 
   Future<bool> save({

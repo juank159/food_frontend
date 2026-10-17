@@ -112,5 +112,20 @@ class SyncHandlers {
         }
       },
     );
+
+    // Handler para gastos creados offline — ver ExpensesController.save
+    // para el porqué es seguro encolar esto (registro hoja, nada más
+    // lo referencia antes de sincronizar).
+    syncService.registerHandler(
+      QueueOperationType.createExpense,
+      (entry) async {
+        try {
+          await dio.post('/expenses', data: entry.payload);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      },
+    );
   }
 }

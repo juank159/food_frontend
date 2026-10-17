@@ -12,6 +12,7 @@ enum QueueOperationType {
   addOrderToTab,
   clockIn,
   clockOut,
+  createExpense,
 }
 
 /// Una entrada en la cola de operaciones pendientes.
