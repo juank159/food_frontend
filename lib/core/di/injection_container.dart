@@ -573,6 +573,7 @@ Future<void> init() async {
     () => InventoryRepositoryImpl(
       remoteDataSource: sl(),
       networkInfo: sl(),
+      localCache: sl(),
     ),
   );
 

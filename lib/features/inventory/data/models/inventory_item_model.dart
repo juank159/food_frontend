@@ -50,6 +50,19 @@ class InventoryItemModel {
     );
   }
 
+  /// Round-trip con `fromJson` — para cachear local-first.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'sku': sku,
+        'current_stock': currentStock,
+        'min_stock_alert': minStockAlert,
+        'track_inventory': trackInventory,
+        'is_available': isAvailable,
+        'category': categoryName != null ? {'name': categoryName} : null,
+        'base_price': basePrice,
+      };
+
   InventoryItem toEntity() => InventoryItem(
         id: id,
         name: name,
