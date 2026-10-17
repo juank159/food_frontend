@@ -44,19 +44,32 @@ class PrinterConfigsController extends GetxController {
     fetch();
   }
 
+  /// Local-first (mismo patrón que products/categories/employees/
+  /// customers): si hay config cacheada, la pinta YA sin el loading
+  /// grande — el pedido de red de siempre sigue atrás y, si responde,
+  /// reemplaza la lista. Si la red falla y ya había algo pintado, se
+  /// queda con eso en silencio en vez de tapar la pantalla con error.
   Future<void> fetch() async {
-    loading.value = true;
     error.value = null;
+
+    final cached = await _local.peekCachedPrinterConfigs();
+    final paintedFromCache = cached != null && cached.isNotEmpty;
+    if (paintedFromCache) {
+      printers.assignAll(cached);
+    }
+
+    loading.value = !paintedFromCache;
     try {
       final list = await _ds.list();
       printers.assignAll(list);
       // Persist to local cache so configs survive app restart when offline.
       await _local.cachePrinterConfigs(list.map((p) => p.toJson()).toList());
     } catch (e) {
+      if (paintedFromCache) return; // ya hay algo en pantalla, no molestar
       // Network or server failure — try local cache before surfacing error.
-      final cached = await _local.getCachedPrinterConfigs();
-      if (cached != null && cached.isNotEmpty) {
-        printers.assignAll(cached);
+      final fallback = await _local.getCachedPrinterConfigs();
+      if (fallback != null && fallback.isNotEmpty) {
+        printers.assignAll(fallback);
         // Don't expose an error to the UI; silent fallback.
       } else {
         error.value = e.toString();

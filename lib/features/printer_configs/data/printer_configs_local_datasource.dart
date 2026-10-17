@@ -10,6 +10,10 @@ abstract class PrinterConfigsLocalDataSource {
 
   /// True si la caché existe y tiene menos de 7 días.
   bool get hasFreshCache;
+
+  /// Caché SIN importar su edad — para pintado "local-first" (ver
+  /// `ProductLocalDataSource.peekCachedProducts`, mismo patrón).
+  Future<List<PrinterConfigModel>?> peekCachedPrinterConfigs();
 }
 
 class PrinterConfigsLocalDataSourceImpl implements PrinterConfigsLocalDataSource {
@@ -35,4 +39,11 @@ class PrinterConfigsLocalDataSourceImpl implements PrinterConfigsLocalDataSource
   @override
   bool get hasFreshCache =>
       !cache.isStale(CacheKeys.printerConfigs, maxAge: CacheKeys.configTtl);
+
+  @override
+  Future<List<PrinterConfigModel>?> peekCachedPrinterConfigs() async {
+    final raw = cache.getList(CacheKeys.printerConfigs);
+    if (raw == null) return null;
+    return raw.map((e) => PrinterConfigModel.fromJson(e)).toList();
+  }
 }
