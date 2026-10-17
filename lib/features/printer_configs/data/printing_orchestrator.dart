@@ -849,20 +849,31 @@ class PrintingOrchestrator {
     final effectiveOrderType = deliveryOrTakeaway.orderType;
     final effectiveTableLabel =
         session.tableName != null ? 'Mesa ${session.tableName}' : null;
-    // Encabezado "Cuenta · X": mesa si hay, sino el nombre real del
-    // cliente (ya persistido en la orden — ver fix de backend en
-    // `ensureSessionForOrder`/`orders.service.ts`), sino lo que
-    // `displayLabel()` resuelva como último recurso.
-    final effectiveCustomerName = deliveryOrTakeaway.customerName?.trim();
-    final label = effectiveTableLabel ??
-        (effectiveCustomerName != null && effectiveCustomerName.isNotEmpty
-            ? effectiveCustomerName
-            : session.displayLabel());
 
     // Unir ítems de todos los tickets activos
     final allItems = orders
         .expand((o) => o.items.map(_toTicketItem))
         .toList();
+
+    // Bug real reportado: acá el campo "Orden:" mostraba "Cuenta ·
+    // Ingrid" (mezclando la etiqueta de la cuenta con el identificador),
+    // mientras que imprimir el MISMO ticket desde su propio detalle
+    // mostraba el número real ("ORD-20261017-0004") — dos formatos
+    // distintos del mismo recibo según qué botón se tocara. El nombre
+    // del cliente YA se muestra aparte, en "Cliente:" (ver
+    // `customerName` más abajo) — "Orden:" debe ser un identificador,
+    // igual que en el recibo de un ticket individual. Una cuenta
+    // agrupa N tickets sin un order_number único propio, así que
+    // usamos el del ticket más antiguo (orden cronológico) como
+    // identificador principal, con el conteo de los demás si hay más.
+    DateTime parseCreatedAt(String s) => DateTime.tryParse(s) ?? DateTime.now();
+    final sortedOrders = [...orders]
+      ..sort((a, b) =>
+          parseCreatedAt(a.createdAt).compareTo(parseCreatedAt(b.createdAt)));
+    final primaryOrderNumber = sortedOrders.first.orderNumber;
+    final orderNumberLabel = sortedOrders.length > 1
+        ? '$primaryOrderNumber (+${sortedOrders.length - 1})'
+        : primaryOrderNumber;
 
     final ticket = TicketData(
       businessName: tenant.businessName,
@@ -870,7 +881,7 @@ class PrintingOrchestrator {
       phone: tenant.phone,
       taxId: tenant.taxId,
       logoBytes: logoBytes,
-      orderNumber: 'Cuenta · $label',
+      orderNumber: orderNumberLabel,
       createdAt: session.openedAt,
       tableLabel: effectiveTableLabel,
       orderType: effectiveOrderType,
