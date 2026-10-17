@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -234,23 +234,30 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     }
     final payload = {
       'printerIp': p.host,
-      'title': 'Prueba PWA — ${p.name}',
+      'title': 'Prueba PWA',
       'content': [
         'Si ves esto impreso,',
-        'el puente wbprint:// funciona',
+        'el puente wbprint funciona',
         'desde el navegador.',
       ],
     };
     final encoded = base64Encode(utf8.encode(jsonEncode(payload)));
-    final uri = Uri.parse('wbprint://${Uri.encodeComponent(encoded)}');
-    // OJO: en web, `launchUrl` llama a `window.open(url, ...)` directo, sin
-    // chequear si el esquema tiene un handler real — casi siempre devuelve
-    // `true` aunque no exista ninguna app que atienda `wbprint://`. Por eso
-    // NO mostramos "funcionó"/"no funcionó" acá: la única señal real es si
-    // sale el ticket de la impresora (o si el navegador te pregunta "¿Abrir
-    // en WiFi Browser Print POS?"). Se abre en pestaña nueva (no `_self`)
-    // para no perder esta pantalla si el esquema no tiene handler.
-    await launchUrl(uri);
+    // IMPORTANTE (round 2, corrige el error "Link non valido" que la propia
+    // app devolvió): NO pasar por `Uri.parse`/`Uri.encodeComponent` — la app
+    // hace un parsing simple de string (corta el prefijo y decodifica tal
+    // cual), así que percent-encodear el blob Base64 (los `+`/`/`/`=` pasan
+    // a `%2B`/`%2F`/`%3D`) le llega corrupto. Se concatena el string crudo
+    // y se manda con `launchUrlString` (sin construir un `Uri`, que además
+    // podría reinterpretar `/` dentro del blob como separadores de path).
+    final rawLink = 'wbprint://$encoded';
+    // OJO: en web, el launch llama a `window.open(url, ...)` directo, sin
+    // chequear si el esquema tiene un handler real — casi siempre "funciona"
+    // aunque no exista ninguna app que atienda `wbprint://`. Por eso NO
+    // mostramos "funcionó"/"no funcionó" acá: la única señal real es si
+    // sale el ticket de la impresora (o si el navegador pregunta "¿Abrir en
+    // WiFi Browser Print POS?"). Se abre en pestaña nueva (no `_self`) para
+    // no perder esta pantalla si el esquema no tiene handler.
+    await launchUrlString(rawLink);
     AppSnackbar.show(
       'Intento enviado',
       'Si el navegador te preguntó "¿Abrir en WiFi Browser Print POS?", '
