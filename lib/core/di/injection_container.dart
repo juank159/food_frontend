@@ -522,6 +522,7 @@ Future<void> init() async {
     () => SubscriptionRepositoryImpl(
       remoteDataSource: sl(),
       networkInfo: sl(),
+      localCache: sl(),
     ),
   );
 
