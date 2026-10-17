@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/usecases/get_available_products_usecase.dart';
+import '../../domain/usecases/get_cached_products_peek_usecase.dart';
 import '../../domain/usecases/get_product_by_id_usecase.dart';
 import '../../domain/usecases/get_products_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -11,11 +12,13 @@ class ProductsController extends GetxController {
   final GetProductsUseCase getProductsUseCase;
   final GetProductByIdUseCase getProductByIdUseCase;
   final GetAvailableProductsUseCase getAvailableProductsUseCase;
+  final GetCachedProductsPeekUseCase getCachedProductsPeekUseCase;
 
   ProductsController({
     required this.getProductsUseCase,
     required this.getProductByIdUseCase,
     required this.getAvailableProductsUseCase,
+    required this.getCachedProductsPeekUseCase,
   });
 
   // Observable states
@@ -36,13 +39,32 @@ class ProductsController extends GetxController {
   }
 
   /// Cargar productos con filtros
+  ///
+  /// Local-first: si no hay filtros (carga del catálogo completo), antes
+  /// de pedirle nada al servidor pintamos YA lo que haya cacheado —
+  /// aunque tenga horas — para que la pantalla no se sienta lenta en
+  /// cada visita. El pedido de red de siempre sigue atrás y, cuando
+  /// responde, reemplaza la lista (silenciosamente si ya había algo
+  /// pintado — solo mostramos el loading grande/el error si de verdad
+  /// no había nada que mostrar).
   Future<void> loadProducts({
     String? categoryId,
     bool? isAvailable,
     String? search,
   }) async {
+    final noFilters = categoryId == null && isAvailable == null && search == null;
+
+    var paintedFromCache = false;
+    if (noFilters) {
+      final cached = await getCachedProductsPeekUseCase();
+      if (cached != null && cached.isNotEmpty) {
+        products.value = cached;
+        paintedFromCache = true;
+      }
+    }
+
     try {
-      isLoading.value = true;
+      isLoading.value = !paintedFromCache;
       errorMessage.value = '';
 
       // Cargamos el catálogo COMPLETO una sola vez y filtramos en memoria
@@ -58,6 +80,7 @@ class ProductsController extends GetxController {
 
       result.fold(
         (failure) {
+          if (paintedFromCache) return; // ya hay algo en pantalla, no molestar
           errorMessage.value = failure.message;
           AppSnackbar.show(
             'Error',

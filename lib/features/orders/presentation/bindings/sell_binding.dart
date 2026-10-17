@@ -6,6 +6,7 @@ import '../../../payments/presentation/bindings/payment_binding.dart';
 import '../../../products/domain/usecases/get_available_products_usecase.dart';
 import '../../../products/domain/usecases/get_product_by_id_usecase.dart';
 import '../../../products/domain/usecases/get_products_usecase.dart';
+import '../../../products/domain/usecases/get_cached_products_peek_usecase.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
 import '../../../tables/data/datasources/floor_plan_datasource.dart';
 import '../../../tables/data/repositories/floor_plan_repository_impl.dart';
@@ -39,6 +40,7 @@ class SellBinding extends Bindings {
           getProductsUseCase: sl<GetProductsUseCase>(),
           getProductByIdUseCase: sl<GetProductByIdUseCase>(),
           getAvailableProductsUseCase: sl<GetAvailableProductsUseCase>(),
+          getCachedProductsPeekUseCase: sl<GetCachedProductsPeekUseCase>(),
         ),
       );
     }

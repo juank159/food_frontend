@@ -72,6 +72,13 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
+  Future<List<Product>?> getCachedProductsPeek() async {
+    final cached = await localDataSource.peekCachedProducts();
+    if (cached == null) return null;
+    return cached.map((m) => m.toEntity()).toList();
+  }
+
+  @override
   Future<Either<Failure, Product>> getProductById(String id) async {
     if (await networkInfo.isConnected) {
       try {

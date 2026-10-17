@@ -70,6 +70,7 @@ import '../../features/products/domain/repositories/product_repository.dart';
 import '../../features/products/domain/usecases/get_available_products_usecase.dart';
 import '../../features/products/domain/usecases/get_product_by_id_usecase.dart';
 import '../../features/products/domain/usecases/get_products_usecase.dart';
+import '../../features/products/domain/usecases/get_cached_products_peek_usecase.dart';
 import '../../features/products/domain/usecases/create_product_usecase.dart';
 import '../../features/products/domain/usecases/update_product_usecase.dart';
 import '../../features/products/domain/usecases/delete_product_usecase.dart';
@@ -215,6 +216,7 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetProductsUseCase(sl()));
+  sl.registerLazySingleton(() => GetCachedProductsPeekUseCase(sl()));
   sl.registerLazySingleton(() => GetProductByIdUseCase(sl()));
   sl.registerLazySingleton(() => GetAvailableProductsUseCase(sl()));
   sl.registerLazySingleton(() => CreateProductUseCase(sl()));

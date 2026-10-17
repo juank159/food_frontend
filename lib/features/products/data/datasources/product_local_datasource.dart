@@ -13,6 +13,14 @@ abstract class ProductLocalDataSource {
 
   /// True si la caché existe y tiene menos de 24 horas.
   bool get hasFreshCache;
+
+  /// Devuelve la lista cacheada SIN importar qué tan vieja sea — a
+  /// diferencia de `getCachedProducts()` (que respeta el TTL de 24h y
+  /// devuelve null si venció). Se usa para el pintado "local-first":
+  /// mejor mostrar el catálogo (aunque tenga horas) YA, que hacer
+  /// esperar al usuario a la red cada vez que abre la pantalla. La
+  /// llamada de red que sigue atrás refresca esto para la próxima vez.
+  Future<List<ProductModel>?> peekCachedProducts();
 }
 
 class ProductLocalDataSourceImpl implements ProductLocalDataSource {
@@ -50,4 +58,11 @@ class ProductLocalDataSourceImpl implements ProductLocalDataSource {
   @override
   bool get hasFreshCache =>
       !cache.isStale(CacheKeys.products, maxAge: CacheKeys.catalogTtl);
+
+  @override
+  Future<List<ProductModel>?> peekCachedProducts() async {
+    final raw = cache.getList(CacheKeys.products);
+    if (raw == null) return null;
+    return raw.map((e) => ProductModel.fromJson(e)).toList();
+  }
 }

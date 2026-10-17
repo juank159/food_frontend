@@ -19,6 +19,12 @@ abstract class ProductRepository {
     int? limit,
   });
 
+  /// Catálogo cacheado, sin tocar la red ni importar qué tan vieja sea
+  /// la caché. `null` si nunca se cacheó nada (primera vez). Para
+  /// pintar la pantalla de productos al instante ("local-first") antes
+  /// de que `getProducts()` termine de refrescar contra el servidor.
+  Future<List<Product>?> getCachedProductsPeek();
+
   /// Obtener un producto por ID
   Future<Either<Failure, Product>> getProductById(String id);
 

@@ -10,6 +10,7 @@ import '../../../products/domain/usecases/get_available_products_usecase.dart';
 import '../../../products/domain/usecases/get_modifiers_usecase.dart';
 import '../../../products/domain/usecases/get_product_by_id_usecase.dart';
 import '../../../products/domain/usecases/get_products_usecase.dart';
+import '../../../products/domain/usecases/get_cached_products_peek_usecase.dart';
 import '../../../orders/domain/usecases/create_order_usecase.dart';
 import '../../../orders/domain/usecases/get_active_orders_usecase.dart';
 import '../../../orders/domain/usecases/get_order_by_id_usecase.dart';
@@ -40,6 +41,7 @@ class HomeBinding extends Bindings {
         getProductsUseCase: sl<GetProductsUseCase>(),
         getProductByIdUseCase: sl<GetProductByIdUseCase>(),
         getAvailableProductsUseCase: sl<GetAvailableProductsUseCase>(),
+        getCachedProductsPeekUseCase: sl<GetCachedProductsPeekUseCase>(),
       ),
     );
 

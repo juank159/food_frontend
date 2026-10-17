@@ -7,6 +7,7 @@ import '../../../categories/domain/usecases/get_category_tree_usecase.dart';
 import '../../../categories/presentation/controllers/categories_controller.dart';
 import '../../domain/usecases/delete_modifier_usecase.dart';
 import '../../domain/usecases/get_available_products_usecase.dart';
+import '../../domain/usecases/get_cached_products_peek_usecase.dart';
 import '../../domain/usecases/get_modifiers_usecase.dart';
 import '../../domain/usecases/get_product_by_id_usecase.dart';
 import '../../domain/usecases/get_products_usecase.dart';
@@ -24,6 +25,7 @@ class ProductsBinding extends Bindings {
         getProductsUseCase: sl<GetProductsUseCase>(),
         getProductByIdUseCase: sl<GetProductByIdUseCase>(),
         getAvailableProductsUseCase: sl<GetAvailableProductsUseCase>(),
+        getCachedProductsPeekUseCase: sl<GetCachedProductsPeekUseCase>(),
       ),
     );
 
