@@ -149,8 +149,9 @@ class HomeController extends GetxController {
       _netProfitMonth.value = net is num ? net.toDouble() : 0.0;
       _hasProfitData.value = true;
     } catch (e) {
+      // Si ya teníamos un valor bueno de un fetch anterior (ej. se cayó
+      // la red en un refresh posterior), lo dejamos — no lo borramos.
       debugPrint('Error cargando ganancia del mes: $e');
-      _hasProfitData.value = false;
     }
   }
 
@@ -181,8 +182,10 @@ class HomeController extends GetxController {
       final revenue = body['total_revenue'];
       _totalSalesToday.value = revenue is num ? revenue.toDouble() : 0.0;
     } catch (e) {
+      // Dejamos el último valor conocido en vez de borrarlo a 0 — un
+      // refresh fallido (ej. sin señal) no debe hacer desaparecer una
+      // cifra que ya se había cargado bien.
       debugPrint('Error cargando total de ventas del día: $e');
-      _totalSalesToday.value = 0.0;
     }
   }
 
@@ -210,7 +213,6 @@ class HomeController extends GetxController {
       _activeOrders.value = list.length;
     } catch (e) {
       debugPrint('Error cargando órdenes activas: $e');
-      _activeOrders.value = 0;
     }
   }
 
@@ -237,7 +239,6 @@ class HomeController extends GetxController {
       _totalSalesYesterday.value = revenue is num ? revenue.toDouble() : 0.0;
     } catch (e) {
       debugPrint('Error cargando ventas de ayer: $e');
-      _totalSalesYesterday.value = 0.0;
     }
   }
 
@@ -260,8 +261,6 @@ class HomeController extends GetxController {
       _totalTables.value = total is num ? total.toInt() : 0;
     } catch (e) {
       debugPrint('Error cargando estadísticas de mesas: $e');
-      _occupiedTables.value = 0;
-      _totalTables.value = 0;
     }
   }
 
@@ -278,7 +277,6 @@ class HomeController extends GetxController {
       _totalCustomers.value = total is num ? total.toInt() : 0;
     } catch (e) {
       debugPrint('Error cargando total de clientes: $e');
-      _totalCustomers.value = 0;
     }
   }
 
