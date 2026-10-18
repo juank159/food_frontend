@@ -1,5 +1,24 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# Bug real reportado: `flutter build windows` fallaba con
+# "CMake Error ... Compatibility with CMake < 3.5 has been removed"
+# en el `CMakeLists.txt` VENDORIZADO del SDK de Firebase para Windows
+# (`firebase_cpp_sdk_windows`, que `firebase_core`/`firebase_messaging`
+# descargan y extraen solos durante el build) — ese CMakeLists de
+# terceros todavía declara una versión mínima vieja que las versiones
+# nuevas de CMake (4.x) ya no toleran sin este flag.
+#
+# Esto se arreglaba a mano corriendo
+# `$env:CMAKE_POLICY_VERSION_MINIMUM="3.5"` antes de cada build — fijar
+# la misma variable acá, como CACHE, hace que aplique siempre sola
+# (a CUALQUIER subdirectorio que se agregue después en este mismo
+# proceso de configuración, vendorizado o no) sin que el operario
+# tenga que acordarse de nada ni tocar su máquina.
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM "3.5" CACHE STRING "" FORCE)
+endif()
+
 project(menu_plat LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
