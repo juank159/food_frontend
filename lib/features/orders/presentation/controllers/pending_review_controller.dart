@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../data/datasources/order_remote_datasource.dart';
@@ -64,6 +65,10 @@ class PendingReviewController extends GetxController {
     super.onInit();
     fetch(initial: true);
     _startPolling();
+    // Abrir esta bandeja ya es "revisar" los pedidos pendientes — apaga
+    // la alerta en loop (sonido+vibración) que pudo haber arrancado
+    // `firebaseBackgroundMessageHandler` con la app cerrada/bloqueada.
+    PushNotificationService.stopRingingAlert().ignore();
   }
 
   @override

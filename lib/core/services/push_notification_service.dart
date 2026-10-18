@@ -9,11 +9,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
+import 'package:vibration/vibration.dart';
 
 import '../config/constants/api_constants.dart';
 import '../routes/app_routes.dart';
 import '../utils/api_response_utils.dart';
 import '../../features/payments/presentation/controllers/breb_payment_controller.dart';
+
+/// `playerId` fijo (no uno random por instancia) — así una llamada a
+/// `AudioPlayer(playerId: _kRingingPlayerId).stop()` hecha desde el
+/// isolate PRINCIPAL (cuando el usuario abre el pedido) apunta al mismo
+/// reproductor nativo que arrancó `firebaseBackgroundMessageHandler` en
+/// su propio isolate — son objetos Dart distintos, pero `audioplayers`
+/// los resuelve por este id contra el mismo registro nativo del proceso.
+const _kRingingPlayerId = 'qr_alert_ring';
+
+/// Mismo patrón que usa `PendingReviewWatcher` para la alerta en
+/// foreground — repetir el mismo patrón es intencional, es la MISMA
+/// alerta, solo que esta corre con la app cerrada/bloqueada.
+const _kRingingVibrationPattern = [0, 800, 200, 800, 200, 800, 200, 800];
 
 /// Canal v7: IMPORTANCE_HIGH con sonido custom (`res/raw/qr_alert.mp3`) y
 /// vibración. Creado de verdad por `MainApplication.setupQrChannel()` (Kotlin
@@ -47,7 +61,8 @@ Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
   }
 
   // Cuando otro dispositivo del mismo tenant aprobó/rechazó el pedido,
-  // cancelamos la notificación local para que no siga visible en la bandeja.
+  // cancelamos la notificación local para que no siga visible en la bandeja
+  // Y apagamos la alerta en loop (sonido+vibración) si estaba sonando.
   if (message.data['action'] == 'dismiss_notification') {
     final orderId = message.data['order_id'] as String?;
     if (orderId != null) {
@@ -59,6 +74,33 @@ Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
       );
       await notifs.cancel(orderId.hashCode);
     }
+    await PushNotificationService.stopRingingAlert();
+    return;
+  }
+
+  // Bug real reportado: una notificación normal de Android suena UNA
+  // sola vez — no alcanza para que el mesero se dé cuenta con el
+  // celular en el bolsillo o bloqueado. Dentro de la app esto ya
+  // funciona bien vía `PendingReviewWatcher` (loop de sonido+vibración
+  // hasta "Ahora no"/"Ver pedidos") — pero ese código solo corre con
+  // la app viva en memoria. Esto replica el mismo loop desde el
+  // handler en background, que SÍ se dispara con la app cerrada.
+  //
+  // Por qué llega en un mensaje aparte (`qr_order_ring`, solo datos) y
+  // no junto con la notificación visible: Android solo invoca este
+  // handler en background/con la app cerrada para mensajes SIN bloque
+  // `notification` — si llega junto con uno (como la notificación
+  // visible principal), Android la entrega directo a la bandeja del
+  // sistema y este handler nunca se dispara. Ya pasó una vez en este
+  // proyecto (julio 2026): mandar TODO como solo-datos para controlar
+  // el sonido hizo que las notificaciones dejaran de llegar de forma
+  // confiable, y se tuvo que revertir. Por eso la notificación visible
+  // (confiable, siempre llega) y este loop (best-effort, se arma
+  // encima) van en mensajes separados — si este segundo mensaje
+  // llegara tarde o se perdiera, el mesero de todos modos ve y
+  // escucha la notificación principal una vez.
+  if (message.data['type'] == 'qr_order_ring') {
+    await PushNotificationService.startRingingAlert();
   }
 }
 
@@ -256,15 +298,59 @@ class PushNotificationService {
 
   static void _onNotifTap(NotificationResponse details) {
     if (details.payload == 'qr_order') {
+      stopRingingAlert().ignore();
       Get.toNamed(AppRoutes.pendingReviewOrders);
     }
   }
 
   static void _handleMessageOpen(RemoteMessage message) {
     if (message.data['type'] == 'qr_order') {
+      stopRingingAlert().ignore();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Get.toNamed(AppRoutes.pendingReviewOrders);
       });
     }
+  }
+
+  // ───────────────────── Alerta en loop (ver más arriba) ─────────────────────
+
+  /// Arranca el loop de sonido+vibración desde `firebaseBackgroundMessageHandler`.
+  /// Nunca debe tumbar el handler — cualquier falla queda en silencio.
+  static Future<void> startRingingAlert() async {
+    try {
+      final hasVibrator = (await Vibration.hasVibrator()) == true;
+      if (hasVibrator) {
+        await Vibration.vibrate(
+          pattern: _kRingingVibrationPattern,
+          repeat: 0,
+          intensities: const [0, 255, 0, 255, 0, 255, 0, 255],
+        );
+      }
+    } catch (_) {}
+
+    try {
+      final player = AudioPlayer(playerId: _kRingingPlayerId);
+      await player.setReleaseMode(ReleaseMode.loop);
+      await player.play(AssetSource('sounds/qr_alert.mp3'));
+    } catch (_) {
+      // Sin archivo de sonido o sin soporte de audio en background — al
+      // menos la vibración (que sí es confiablemente a nivel de sistema)
+      // ya quedó andando arriba.
+    }
+  }
+
+  /// Apaga el loop — se llama al abrir el pedido/la bandeja de pedidos QR,
+  /// al tocar la notificación, o cuando llega la señal de que otro
+  /// dispositivo ya atendió el pedido. Idempotente: no hace nada si no
+  /// había ningún loop corriendo.
+  static Future<void> stopRingingAlert() async {
+    try {
+      await Vibration.cancel();
+    } catch (_) {}
+    try {
+      final player = AudioPlayer(playerId: _kRingingPlayerId);
+      await player.stop();
+      await player.release();
+    } catch (_) {}
   }
 }

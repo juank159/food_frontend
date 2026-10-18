@@ -36,7 +36,7 @@
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="qr_orders_v5" />
+            android:value="qr_orders_v7" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
