@@ -96,20 +96,24 @@ class _SellPageState extends State<SellPage> {
       final tableId = args['tableId'] as String?;
       final tableName = args['tableName'] as String?;
       if (tabSessionId != null) {
-        controller.applyMode(SellMode.tabSession(
-          sessionId: tabSessionId,
-          sessionLabel: tableName ?? 'Cuenta abierta',
-          tableElementId: tableElementId,
-          tableId: tableId,
-          tableName: tableName,
-        ));
+        controller.applyMode(
+          SellMode.tabSession(
+            sessionId: tabSessionId,
+            sessionLabel: tableName ?? 'Cuenta abierta',
+            tableElementId: tableElementId,
+            tableId: tableId,
+            tableName: tableName,
+          ),
+        );
         return;
       } else if (tableElementId != null && tableName != null) {
-        controller.applyMode(SellMode.dineIn(
-          tableElementId: tableElementId,
-          tableId: tableId,
-          tableName: tableName,
-        ));
+        controller.applyMode(
+          SellMode.dineIn(
+            tableElementId: tableElementId,
+            tableId: tableId,
+            tableName: tableName,
+          ),
+        );
         return;
       }
     }
@@ -149,9 +153,7 @@ class _SellPageState extends State<SellPage> {
           children: [
             _Header(controller: controller),
             _ModePill(controller: controller),
-            Expanded(
-              child: ProductSelectorWidget(orderController: controller),
-            ),
+            Expanded(child: ProductSelectorWidget(orderController: controller)),
           ],
         ),
       ),
@@ -307,7 +309,9 @@ class _ModePill extends StatelessWidget {
                   // elegir otro destino.
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: mode.pillColor.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
@@ -324,8 +328,10 @@ class _ModePill extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(lockedToTab ? Icons.tune : Icons.swap_horiz,
-                            size: 14),
+                        Icon(
+                          lockedToTab ? Icons.tune : Icons.swap_horiz,
+                          size: 14,
+                        ),
                       ],
                     ),
                   ),
@@ -377,7 +383,11 @@ class _ModePill extends StatelessWidget {
             ),
             for (final opt in const [
               (OrderType.dineIn, 'En el local', Icons.restaurant),
-              (OrderType.takeaway, 'Para llevar', Icons.takeout_dining_outlined),
+              (
+                OrderType.takeaway,
+                'Para llevar',
+                Icons.takeout_dining_outlined,
+              ),
               (OrderType.delivery, 'Domicilio', Icons.delivery_dining_outlined),
             ])
               ListTile(
@@ -424,8 +434,11 @@ class _BottomBar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Row(
                 children: const [
-                  Icon(Icons.touch_app_outlined,
-                      color: AppColors.textSecondary, size: 20),
+                  Icon(
+                    Icons.touch_app_outlined,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -463,7 +476,9 @@ class _BottomBar extends StatelessWidget {
                     onTap: () => _showCartSheet(context),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.background,
                         borderRadius: BorderRadius.circular(14),
@@ -517,8 +532,9 @@ class _BottomBar extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      disabledBackgroundColor:
-                          AppColors.border.withValues(alpha: 0.6),
+                      disabledBackgroundColor: AppColors.border.withValues(
+                        alpha: 0.6,
+                      ),
                     ),
                     icon: isLoading
                         ? const SizedBox(
@@ -579,7 +595,11 @@ class _BottomBar extends StatelessWidget {
         expand: false,
         builder: (cartCtx, scrollController) => Padding(
           padding: EdgeInsets.fromLTRB(
-              16, 12, 16, MediaQuery.of(cartCtx).viewPadding.bottom + 16),
+            16,
+            12,
+            16,
+            MediaQuery.of(cartCtx).viewPadding.bottom + 16,
+          ),
           child: CartWidget(controller: controller),
         ),
       ),
@@ -614,7 +634,10 @@ class _BottomBar extends StatelessWidget {
       if (!await ensureOpenCash(context)) return;
       if (!context.mounted) return;
 
-      // Mostrador, takeaway, delivery: cobramos directo.
+      // Mostrador y turno de mostrador (venta express, isCounter): únicos
+      // modos con `autoPayAfterSubmit=true` — cobramos directo. Para
+      // llevar/domicilio/mesa/cuenta abierta van por la rama de abajo
+      // ("Enviar ticket", cobro después).
       final paymentController = Get.find<PaymentController>();
       final result = await showDialog(
         context: context,

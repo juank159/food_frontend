@@ -8,6 +8,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/cash_guard_utils.dart';
 import '../../../../core/widgets/edit_customer_sheet.dart';
 import '../../../../core/widgets/edit_text_sheet.dart';
+import '../../../orders/data/models/order_model.dart';
 import '../../../orders/presentation/models/sell_mode.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
@@ -133,7 +134,11 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                 color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.receipt_long, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.receipt_long,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -253,8 +258,59 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     );
   }
 
+  /// Bug real reportado: la tarjeta de cliente solo mostraba el
+  /// nombre — ni el teléfono (para llevar/domicilio) ni la dirección
+  /// (domicilio) se veían en ningún lado del detalle de la cuenta,
+  /// aunque esos datos SÍ se piden y se guardan al crear el ticket
+  /// (`CustomerInfoWidget`, `Order.customer_phone`/`delivery_address`).
+  /// `TabSession.orders` llega como JSON crudo (no se parsea a
+  /// entidades en el listado/detalle, a diferencia del flujo de
+  /// impresión en `printing_orchestrator.dart`, que SÍ lo hace vía
+  /// `OrderModel.fromJson` para armar el ticket) — replicamos ese mismo
+  /// parseo acá para poder mostrar estos datos en la UI.
+  ({String? phone, String? address}) _extraContactInfo(TabSession s) {
+    final orders = s.orders
+        .whereType<Map<String, dynamic>>()
+        .map(OrderModel.fromJson)
+        .toList();
+    if (orders.isEmpty) return (phone: null, address: null);
+    // Mismo criterio que `_runTabSessionPrint`: si la cuenta tiene un
+    // ticket de domicilio o para llevar, esos son los datos relevantes
+    // de contacto — si no, el primero que haya.
+    final relevant = orders.firstWhere(
+      (o) => o.orderType == 'delivery' || o.orderType == 'takeaway',
+      orElse: () => orders.first,
+    );
+    final phone = relevant.customerPhone?.trim();
+    final address = relevant.orderType == 'delivery'
+        ? _formatDeliveryAddress(relevant.deliveryAddress)
+        : null;
+    return (
+      phone: (phone == null || phone.isEmpty) ? null : phone,
+      address: address,
+    );
+  }
+
+  /// Igual formato que `PrintingOrchestrator._formatDeliveryAddress`
+  /// (duplicado chico a propósito: ese método es privado del
+  /// orchestrator de impresión, no vale la pena exponerlo solo para
+  /// esto).
+  String? _formatDeliveryAddress(Map<String, dynamic>? address) {
+    if (address == null) return null;
+    final parts = <String>[];
+    final street = (address['street'] as String?)?.trim();
+    final city = (address['city'] as String?)?.trim();
+    final notes = (address['notes'] as String?)?.trim();
+    if (street != null && street.isNotEmpty) parts.add(street);
+    if (city != null && city.isNotEmpty) parts.add(city);
+    if (notes != null && notes.isNotEmpty) parts.add(notes);
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
   Widget _buildCustomerCard(TabSession s) {
     final hasCustomer = s.customerName != null && s.customerName!.isNotEmpty;
+    final extra = _extraContactInfo(s);
     return GestureDetector(
       onTap: () => _showEditCustomerSheet(s),
       child: Container(
@@ -285,8 +341,7 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
               child: Icon(
                 hasCustomer ? Icons.person : Icons.person_add_outlined,
                 size: 18,
-                color:
-                    hasCustomer ? AppColors.info : AppColors.textSecondary,
+                color: hasCustomer ? AppColors.info : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: 12),
@@ -306,16 +361,70 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    hasCustomer ? 'Cliente titular · Toca para editar' : 'Toca para agregar',
+                    hasCustomer
+                        ? 'Cliente titular · Toca para editar'
+                        : 'Toca para agregar',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (extra.phone != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.phone_outlined,
+                          size: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          extra.phone!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (extra.address != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.location_on_outlined,
+                            size: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            extra.address!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
-            const Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
+            const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
           ],
         ),
       ),
@@ -422,7 +531,9 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                     backgroundColor: AppColors.accent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 22, vertical: 12),
+                      horizontal: 22,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -505,7 +616,9 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hasNotes ? displayText : 'Agregar ${cardTitle.toLowerCase()}',
+                    hasNotes
+                        ? displayText
+                        : 'Agregar ${cardTitle.toLowerCase()}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -529,8 +642,11 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
                 ],
               ),
             ),
-            const Icon(Icons.edit_outlined,
-                size: 16, color: AppColors.textSecondary),
+            const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
           ],
         ),
       ),

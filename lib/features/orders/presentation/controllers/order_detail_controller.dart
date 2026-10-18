@@ -55,10 +55,8 @@ class OrderDetailController extends GetxController {
   /// para que el preview offline sea razonable. El backend recalcula
   /// el valor REAL y lo reemplaza en cuanto sincroniza.
   Order _withRecalculatedTotals(Order base, List<OrderItem> newItems) {
-    final oldItemsSum =
-        base.items.fold<double>(0, (s, i) => s + i.subtotal);
-    final newItemsSum =
-        newItems.fold<double>(0, (s, i) => s + i.subtotal);
+    final oldItemsSum = base.items.fold<double>(0, (s, i) => s + i.subtotal);
+    final newItemsSum = newItems.fold<double>(0, (s, i) => s + i.subtotal);
     final delta = newItemsSum - oldItemsSum;
     return base.copyWith(
       items: newItems,
@@ -101,16 +99,41 @@ class OrderDetailController extends GetxController {
   bool get canCancel =>
       hasOrder && currentOrder!.isActive && !currentOrder!.isCancelled;
 
-  /// Carga una orden por ID
+  /// Carga una orden por ID.
+  ///
+  /// Bug real reportado (optimización pedida): esta pantalla SIEMPRE
+  /// esperaba a la red, sin pintar nada mientras tanto — a diferencia
+  /// de los 3 listados (Órdenes/Productos/Cuentas abiertas), que ya
+  /// pintan desde caché al instante y la red reemplaza atrás. La
+  /// lista de Órdenes YA cachea cada orden completa (con items) vía
+  /// `OrderLocalDataSource.peekCachedOrders` — reusamos esa misma
+  /// caché acá en vez de crear un cache nuevo por-detalle: si la
+  /// orden que se abre ya estaba en esa lista cacheada, se pinta de
+  /// una (sin spinner) mientras la red trae la versión fresca atrás.
   Future<void> loadOrder(String orderId) async {
     try {
-      isLoading.value = true;
+      final cachedList = await orderLocalDataSource.peekCachedOrders();
+      final cached = cachedList
+          ?.firstWhereOrNull((o) => o.id == orderId)
+          ?.toEntity();
+      final paintedFromCache = cached != null;
+      if (paintedFromCache) {
+        order.value = cached;
+        order.refresh();
+      }
+
+      isLoading.value = !paintedFromCache;
       errorMessage.value = null;
 
       final result = await getOrderByIdUseCase(orderId);
 
       result.fold(
         (failure) {
+          // Si ya había algo pintado desde caché (ej. sin conexión),
+          // no molestamos con un error — el operario sigue viendo la
+          // orden, aunque no sea la versión más fresca. Mismo criterio
+          // que `OpenTabsController.load`.
+          if (paintedFromCache) return;
           errorMessage.value = failure.message;
           AppSnackbar.show(
             'Error',
@@ -324,8 +347,10 @@ class OrderDetailController extends GetxController {
               previousOrder.items[i].id: i,
           };
           final sorted = [...updatedOrder.items]
-            ..sort((a, b) =>
-                (idToIndex[a.id] ?? 9999).compareTo(idToIndex[b.id] ?? 9999));
+            ..sort(
+              (a, b) =>
+                  (idToIndex[a.id] ?? 9999).compareTo(idToIndex[b.id] ?? 9999),
+            );
           final stableOrder = updatedOrder.copyWith(items: sorted);
           order.value = stableOrder;
           order.refresh();
@@ -372,8 +397,7 @@ class OrderDetailController extends GetxController {
   ({int delivered, int total}) get deliveryProgress {
     if (!hasOrder) return (delivered: 0, total: 0);
     final total = currentOrder!.items.length;
-    final delivered =
-        currentOrder!.items.where((i) => i.isDelivered).length;
+    final delivered = currentOrder!.items.where((i) => i.isDelivered).length;
     return (delivered: delivered, total: total);
   }
 
@@ -597,10 +621,10 @@ class OrderDetailController extends GetxController {
         createdAt: now,
         updatedAt: now,
       );
-      final optimisticOrder = _withRecalculatedTotals(
-        previousOrder,
-        [...previousOrder.items, optimisticItem],
-      );
+      final optimisticOrder = _withRecalculatedTotals(previousOrder, [
+        ...previousOrder.items,
+        optimisticItem,
+      ]);
       order.value = optimisticOrder;
       order.refresh();
       if (Get.isRegistered<OrdersController>()) {
@@ -646,10 +670,13 @@ class OrderDetailController extends GetxController {
 
     // Optimistic: quitar item localmente al instante; si falla, revertir.
     final previousOrder = currentOrder!;
-    final optimisticItems =
-        previousOrder.items.where((i) => i.id != item.id).toList();
-    final optimisticOrder =
-        _withRecalculatedTotals(previousOrder, optimisticItems);
+    final optimisticItems = previousOrder.items
+        .where((i) => i.id != item.id)
+        .toList();
+    final optimisticOrder = _withRecalculatedTotals(
+      previousOrder,
+      optimisticItems,
+    );
     order.value = optimisticOrder;
     order.refresh();
 
@@ -797,21 +824,23 @@ class OrderDetailController extends GetxController {
   /// Devuelve `true` si encontró y parchó la entrada.
   Future<bool> _patchQueuedAddItemQty(String localItemId, int newQty) async {
     final match = offlineQueue.getAll().where(
-          (e) =>
-              e.type == QueueOperationType.genericMutation &&
-              e.payload['client_ref'] == localItemId,
-        );
+      (e) =>
+          e.type == QueueOperationType.genericMutation &&
+          e.payload['client_ref'] == localItemId,
+    );
     if (match.isEmpty) return false;
     for (final entry in match) {
       final body = Map<String, dynamic>.from(entry.payload['body'] ?? {});
       body['quantity'] = newQty;
       await offlineQueue.remove(entry.id);
-      await offlineQueue.enqueue(QueueEntry(
-        id: entry.id,
-        type: entry.type,
-        payload: {...entry.payload, 'body': body},
-        createdAt: entry.createdAt,
-      ));
+      await offlineQueue.enqueue(
+        QueueEntry(
+          id: entry.id,
+          type: entry.type,
+          payload: {...entry.payload, 'body': body},
+          createdAt: entry.createdAt,
+        ),
+      );
     }
     return true;
   }
@@ -887,10 +916,7 @@ class OrderDetailController extends GetxController {
 
     try {
       final usecase = sl<UpdateOrderUseCase>();
-      final result = await usecase(
-        id: orderId,
-        customerName: trimmedName,
-      );
+      final result = await usecase(id: orderId, customerName: trimmedName);
       return result.fold(
         (failure) {
           AppSnackbar.show('Error', failure.message);

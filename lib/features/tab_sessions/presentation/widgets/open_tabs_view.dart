@@ -154,24 +154,24 @@ class OpenTabsView extends StatelessWidget {
             onPressed: () => Navigator.of(dialogCtx).pop(false),
             child: const Text('Cancelar'),
           ),
-          Obx(() => FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                ),
-                onPressed: _c.isOpening.value
-                    ? null
-                    : () => Navigator.of(dialogCtx).pop(true),
-                child: _c.isOpening.value
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Abrir cuenta'),
-              )),
+          Obx(
+            () => FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+              onPressed: _c.isOpening.value
+                  ? null
+                  : () => Navigator.of(dialogCtx).pop(true),
+              child: _c.isOpening.value
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Abrir cuenta'),
+            ),
+          ),
         ],
       ),
     );
@@ -291,8 +291,7 @@ class _TabsFilterBarState extends State<_TabsFilterBar> {
   @override
   void initState() {
     super.initState();
-    _search =
-        TextEditingController(text: widget.controller.searchQuery.value);
+    _search = TextEditingController(text: widget.controller.searchQuery.value);
   }
 
   @override
@@ -329,16 +328,19 @@ class _TabsFilterBarState extends State<_TabsFilterBar> {
       saveText: 'Aplicar',
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: Theme.of(ctx)
-              .colorScheme
-              .copyWith(primary: AppColors.primary),
+          colorScheme: Theme.of(
+            ctx,
+          ).colorScheme.copyWith(primary: AppColors.primary),
         ),
         child: child!,
       ),
     );
     if (picked != null) {
-      c.setDatePeriod(DatePeriod.custom,
-          customStart: picked.start, customEnd: picked.end);
+      c.setDatePeriod(
+        DatePeriod.custom,
+        customStart: picked.start,
+        customEnd: picked.end,
+      );
     }
   }
 
@@ -346,19 +348,23 @@ class _TabsFilterBarState extends State<_TabsFilterBar> {
     final c = widget.controller;
     final chips = <ActiveFilterChipData>[];
     if (c.filterTabType.value != null) {
-      chips.add(ActiveFilterChipData(
-        label: c.filterTabType.value!.displayName,
-        onRemove: () => c.filterByTabType(null),
-      ));
+      chips.add(
+        ActiveFilterChipData(
+          label: c.filterTabType.value!.displayName,
+          onRemove: () => c.filterByTabType(null),
+        ),
+      );
     }
     if (c.filterBalance.value != null) {
-      chips.add(ActiveFilterChipData(
-        label: c.filterBalance.value!.displayName,
-        color: c.filterBalance.value == BalanceFilter.withBalance
-            ? AppColors.error
-            : AppColors.success,
-        onRemove: () => c.filterByBalance(null),
-      ));
+      chips.add(
+        ActiveFilterChipData(
+          label: c.filterBalance.value!.displayName,
+          color: c.filterBalance.value == BalanceFilter.withBalance
+              ? AppColors.error
+              : AppColors.success,
+          onRemove: () => c.filterByBalance(null),
+        ),
+      );
     }
     return chips;
   }
@@ -366,27 +372,27 @@ class _TabsFilterBarState extends State<_TabsFilterBar> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    return Obx(() => AppFilterBar(
-          searchController: _search,
-          searchHint: 'Buscar cuenta por nombre…',
-          onSearchChanged: c.setSearchQuery,
-          period: c.datePeriod.value,
-          defaultPeriod: DatePeriod.today,
-          onPeriodSelected: (p) => c.setDatePeriod(p),
-          onPickCustomRange: _pickCustomRange,
-          customRangeLabel: _customLabel(),
-          activeFilterCount: c.advancedFilterCount,
-          onOpenFilters: () => AppDialog.bottomSheet(
-            _TabsFiltersSheet(controller: c),
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-          ),
-          activeChips: _activeChips(),
-          onClearAll: c.advancedFilterCount > 0
-              ? c.clearAdvancedFilters
-              : null,
-        ));
+    return Obx(
+      () => AppFilterBar(
+        searchController: _search,
+        searchHint: 'Buscar cuenta por nombre…',
+        onSearchChanged: c.setSearchQuery,
+        period: c.datePeriod.value,
+        defaultPeriod: DatePeriod.today,
+        onPeriodSelected: (p) => c.setDatePeriod(p),
+        onPickCustomRange: _pickCustomRange,
+        customRangeLabel: _customLabel(),
+        activeFilterCount: c.advancedFilterCount,
+        onOpenFilters: () => AppDialog.bottomSheet(
+          _TabsFiltersSheet(controller: c),
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+        ),
+        activeChips: _activeChips(),
+        onClearAll: c.advancedFilterCount > 0 ? c.clearAdvancedFilters : null,
+      ),
+    );
   }
 }
 
@@ -405,7 +411,10 @@ class _TabsFiltersSheet extends StatelessWidget {
         left: 20,
         right: 20,
         top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).viewPadding.bottom + 12,
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).viewPadding.bottom +
+            12,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -465,8 +474,8 @@ class _TabsFiltersSheet extends StatelessWidget {
                   AppFilterChip(
                     label: t.displayName,
                     selected: selected == t,
-                    onTap: () => controller.filterByTabType(
-                        selected == t ? null : t),
+                    onTap: () =>
+                        controller.filterByTabType(selected == t ? null : t),
                   ),
               ],
             );
@@ -491,18 +500,18 @@ class _TabsFiltersSheet extends StatelessWidget {
                   selected: selected == BalanceFilter.withBalance,
                   accentColor: AppColors.error,
                   onTap: () => controller.filterByBalance(
-                      selected == BalanceFilter.withBalance
-                          ? null
-                          : BalanceFilter.withBalance),
+                    selected == BalanceFilter.withBalance
+                        ? null
+                        : BalanceFilter.withBalance,
+                  ),
                 ),
                 AppFilterChip(
                   label: BalanceFilter.paid.displayName,
                   selected: selected == BalanceFilter.paid,
                   accentColor: AppColors.success,
                   onTap: () => controller.filterByBalance(
-                      selected == BalanceFilter.paid
-                          ? null
-                          : BalanceFilter.paid),
+                    selected == BalanceFilter.paid ? null : BalanceFilter.paid,
+                  ),
                 ),
               ],
             );
@@ -529,17 +538,17 @@ class _TabsFiltersSheet extends StatelessWidget {
   }
 
   Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
-            letterSpacing: 0.2,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      title,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textSecondary,
+        letterSpacing: 0.2,
+      ),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────
@@ -588,24 +597,74 @@ class _StatTile extends StatelessWidget {
   }
 }
 
+/// Icono + color de una cuenta según su destino — mismo criterio visual
+/// que el sheet "¿A quién le vendés?" (`SellModeSheet`), para que el
+/// cajero reconozca de un vistazo qué tipo de cuenta es sin tener que
+/// abrirla.
+///
+/// Bug real reportado: antes esto solo distinguía Mesa (ícono de mesa)
+/// vs "tiene notas" (sofá, cuenta libre) vs TODO LO DEMÁS (siempre
+/// motico) — así que Para llevar y Mostrador también mostraban motico,
+/// igual que Domicilio, en vez de su propio ícono.
+///
+/// Limitación real de los datos: el backend solo guarda 3 valores de
+/// `order_type` (`dine_in`/`takeaway`/`delivery`) — Mostrador, Turno de
+/// mostrador y Para llevar comparten el mismo `takeaway` ahí, no hay
+/// forma de diferenciar "Mostrador" de "Para llevar" con los datos que
+/// se persisten hoy. Sí hay una señal extra: `ticket_number` solo se
+/// asigna cuando el ticket es un turno de mostrador — la usamos para
+/// distinguir Turno del resto.
+class _DestinationVisual {
+  final IconData icon;
+  final Color color;
+  const _DestinationVisual(this.icon, this.color);
+
+  static _DestinationVisual of(TabSession s) {
+    if (s.hasTable) {
+      return const _DestinationVisual(
+        Icons.table_restaurant,
+        AppColors.primary,
+      );
+    }
+    final orders = s.orders.whereType<Map>().toList();
+    final hasDelivery = orders.any((o) => o['order_type'] == 'delivery');
+    if (hasDelivery) {
+      return const _DestinationVisual(Icons.delivery_dining, AppColors.info);
+    }
+    final hasTicketNumber = orders.any((o) => o['ticket_number'] != null);
+    if (hasTicketNumber) {
+      return const _DestinationVisual(
+        Icons.confirmation_number_outlined,
+        AppColors.accent,
+      );
+    }
+    if (s.notes != null && s.notes!.trim().isNotEmpty) {
+      return const _DestinationVisual(Icons.chair_outlined, AppColors.success);
+    }
+    // Sin mesa, sin delivery, sin turno, sin etiqueta de cuenta libre:
+    // lo que queda (Mostrador o Para llevar genuino) se muestra como
+    // "Para llevar" — ver limitación de datos arriba.
+    return const _DestinationVisual(
+      Icons.shopping_bag_outlined,
+      AppColors.warning,
+    );
+  }
+}
+
 class _TabCard extends StatelessWidget {
   final TabSession session;
   final VoidCallback onTap;
 
   const _TabCard({required this.session, required this.onTap});
 
-  IconData _iconFor(TabSession s) {
-    if (s.hasTable) return Icons.table_restaurant_outlined;
-    if (s.notes != null && s.notes!.trim().isNotEmpty) {
-      return Icons.chair_outlined;
-    }
-    return Icons.delivery_dining_outlined;
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasBalance = session.hasPendingBalance;
-    final accent = hasBalance ? AppColors.primary : AppColors.success;
+    final visual = _DestinationVisual.of(session);
+    // El color de "¿debe plata?" (borde) queda independiente del color
+    // de destino (ícono) — son dos señales distintas y el cajero las
+    // quiere ver las dos.
+    final balanceAccent = hasBalance ? AppColors.primary : AppColors.success;
 
     return Material(
       color: AppColors.cardBackground,
@@ -619,7 +678,7 @@ class _TabCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: hasBalance
-                  ? accent.withValues(alpha: 0.5)
+                  ? balanceAccent.withValues(alpha: 0.5)
                   : AppColors.border,
               width: hasBalance ? 1.5 : 1,
             ),
@@ -631,10 +690,10 @@ class _TabCard extends StatelessWidget {
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
+                  color: visual.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(_iconFor(session), size: 22, color: accent),
+                child: Icon(visual.icon, size: 22, color: visual.color),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -697,8 +756,11 @@ class _TabCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right,
-                  color: AppColors.textHint, size: 18),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textHint,
+                size: 18,
+              ),
             ],
           ),
         ),

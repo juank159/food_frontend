@@ -149,13 +149,15 @@ class _SellModeSheetState extends State<SellModeSheet> {
                 title: 'Para llevar',
                 subtitle: 'Cliente retira en el local',
                 mode: const SellMode.takeaway(),
+                onTap: () => _openCustomerInfoForm(OrderType.takeaway),
               ),
               _modeTile(
                 icon: Icons.delivery_dining,
                 color: AppColors.info,
                 title: 'Domicilio',
                 subtitle: 'Reparto a domicilio',
-                onTap: _openDeliveryForm,
+                mode: const SellMode.delivery(),
+                onTap: () => _openCustomerInfoForm(OrderType.delivery),
               ),
             ],
 
@@ -522,31 +524,49 @@ class _SellModeSheetState extends State<SellModeSheet> {
   /// completa en un diálogo propio, y recién al confirmar se aplica
   /// el modo — la pantalla de Vender queda igual que para mostrador o
   /// mesa (solo el catálogo, sin nada extra).
-  Future<void> _openDeliveryForm() async {
+  ///
+  /// Bug real reportado #2: "Para llevar" asignaba el modo directo (sin
+  /// diálogo), pero `OrderFormController.canSubmit` SÍ exige nombre de
+  /// cliente para un takeaway suelto (no en cuenta, no venta rápida) —
+  /// igual que el backend. Resultado: el operario eligía "Para llevar",
+  /// agregaba productos, y al querer cobrar/enviar se encontraba con
+  /// "falta nombre del cliente" sin que la app le hubiera pedido ese
+  /// dato en ningún momento — callejón sin salida. `CustomerInfoWidget`
+  /// ya soporta `orderType != delivery` (solo pide nombre + teléfono
+  /// opcional, sin dirección) así que generalizamos este mismo diálogo
+  /// para los dos destinos en vez de duplicar el flujo.
+  Future<void> _openCustomerInfoForm(OrderType orderType) async {
     final controller = Get.find<OrderFormController>();
+    final isDelivery = orderType == OrderType.delivery;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => Dialog(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: CustomerInfoWidget(
-            orderType: OrderType.delivery,
+            orderType: orderType,
             initialName: controller.customerName.value,
             initialPhone: controller.customerPhone.value,
-            initialDeliveryStreet: controller.deliveryStreet.value,
-            initialDeliveryCity: controller.deliveryCity.value,
-            initialDeliveryNotes: controller.deliveryNotes.value,
-            initialDeliveryFee: controller.deliveryFee.value,
+            initialDeliveryStreet:
+                isDelivery ? controller.deliveryStreet.value : null,
+            initialDeliveryCity:
+                isDelivery ? controller.deliveryCity.value : null,
+            initialDeliveryNotes:
+                isDelivery ? controller.deliveryNotes.value : null,
+            initialDeliveryFee:
+                isDelivery ? controller.deliveryFee.value : null,
             onCancel: () => Navigator.of(dialogCtx).pop(false),
             onSave: (info) {
               controller.setCustomerInfo(name: info.name, phone: info.phone);
-              controller.setDeliveryAddress(
-                street: info.deliveryStreet,
-                city: info.deliveryCity,
-                notes: info.deliveryNotes,
-              );
-              if (info.deliveryFee != null) {
-                controller.setDeliveryFee(info.deliveryFee!);
+              if (isDelivery) {
+                controller.setDeliveryAddress(
+                  street: info.deliveryStreet,
+                  city: info.deliveryCity,
+                  notes: info.deliveryNotes,
+                );
+                if (info.deliveryFee != null) {
+                  controller.setDeliveryFee(info.deliveryFee!);
+                }
               }
               Navigator.of(dialogCtx).pop(true);
             },
@@ -556,10 +576,12 @@ class _SellModeSheetState extends State<SellModeSheet> {
     );
     if (!mounted) return;
     if (confirmed == true) {
-      Navigator.of(context).pop<SellMode>(const SellMode.delivery());
+      Navigator.of(context).pop<SellMode>(
+        isDelivery ? const SellMode.delivery() : const SellMode.takeaway(),
+      );
     }
     // Si canceló, se queda en este sheet para elegir otra cosa — sin
-    // snackbar acá (a diferencia de la mesa, cancelar el form de
-    // domicilio es una acción obvia, no hace falta explicarla).
+    // snackbar acá (a diferencia de la mesa, cancelar este form es una
+    // acción obvia, no hace falta explicarla).
   }
 }

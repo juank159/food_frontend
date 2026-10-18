@@ -16,7 +16,10 @@ import '../../../../core/config/theme/app_colors.dart';
 ///   - `counter`: venta de mostrador, sin mesa ni cliente. Cobro
 ///     inmediato tras submit (modo "Venta Express").
 ///   - `dineIn`: orden de mesa (creará/usará una cuenta de mesa).
-///   - `takeaway`: para llevar — nombre opcional, sin mesa.
+///   - `takeaway`: para llevar — nombre obligatorio (si es ticket suelto,
+///     no en cuenta ni venta rápida), sin mesa. Se pide en un diálogo
+///     propio al elegir este modo, igual que `delivery` — ver
+///     `SellModeSheet._openCustomerInfoForm`.
 ///   - `delivery`: domicilio — nombre + teléfono + dirección obligatorios.
 ///   - `tabSession`: agregar ticket a una cuenta ya abierta (libre o
 ///     de mesa). Después del submit vuelve a la cuenta.
@@ -207,8 +210,19 @@ class _TakeawayMode extends SellMode {
   @override
   Color get pillColor => AppColors.warning;
 
+  // Bug real reportado: en `true` el botón de abajo decía "Cobrar", pero
+  // `OrderFormController.isQuickSale` (lo que de verdad decide si se
+  // cobra ahí mismo) es `mode.isCounter` — para takeaway eso es
+  // `false`. `submitOrder()` entonces creaba la orden y hacía
+  // `Get.back()` de una (mismo camino que mesa/cuenta abierta/
+  // delivery), cerrando la pantalla de Vender ANTES de que
+  // `sell_page._checkout` llegara a mostrar el diálogo de cobro — el
+  // botón no tenía ningún efecto visible de "cobrar", solo creaba la
+  // cuenta sin avisar. Mismo caso que `_DeliveryMode`: para llevar
+  // también se comporta como "crear y enviar el ticket" (el cliente
+  // puede pagar al retirar), no como mostrador.
   @override
-  bool get autoPayAfterSubmit => true;
+  bool get autoPayAfterSubmit => false;
 
   @override
   OrderType get orderType => OrderType.takeaway;
@@ -264,8 +278,8 @@ class _TabSessionMode extends SellMode {
     this.tableId,
     this.tableName,
     OrderType? orderType,
-  })  : tabSessionId = sessionId,
-        _orderTypeOverride = orderType;
+  }) : tabSessionId = sessionId,
+       _orderTypeOverride = orderType;
 
   @override
   String get pillLabel {
@@ -294,11 +308,11 @@ class _TabSessionMode extends SellMode {
 
   @override
   SellMode withOrderType(OrderType type) => _TabSessionMode(
-        sessionId: tabSessionId,
-        sessionLabel: sessionLabel,
-        tableElementId: tableElementId,
-        tableId: tableId,
-        tableName: tableName,
-        orderType: type,
-      );
+    sessionId: tabSessionId,
+    sessionLabel: sessionLabel,
+    tableElementId: tableElementId,
+    tableId: tableId,
+    tableName: tableName,
+    orderType: type,
+  );
 }

@@ -27,12 +27,32 @@ class TabSessionDetailController extends GetxController {
     await load();
   }
 
+  /// Bug real reportado (optimización pedida): esta pantalla SIEMPRE
+  /// esperaba a la red para pintar algo — a diferencia del listado de
+  /// "Cuentas abiertas" (`OpenTabsController.load`), que ya pinta
+  /// desde caché al instante y la red reemplaza atrás. Esa misma
+  /// caché (la lista de cuentas abiertas) YA trae las `orders` de cada
+  /// sesión — no tan completas como `findOne` (sin items/payments
+  /// anidados), pero de sobra para el primer pintado (totales,
+  /// cliente, cantidad de tickets). Reusamos esa caché en vez de crear
+  /// una nueva por-detalle.
   Future<void> load() async {
     if (_sessionId == null) return;
-    isLoading.value = true;
+
+    final cachedList = await useCases.getCachedOpenTabsPeek();
+    final cached = cachedList?.firstWhereOrNull((s) => s.id == _sessionId);
+    final paintedFromCache = cached != null;
+    if (paintedFromCache) {
+      session.value = cached;
+    }
+
+    isLoading.value = !paintedFromCache;
     errorMessage.value = '';
     final result = await useCases.findOne(_sessionId!);
     result.fold((failure) {
+      // Si ya había algo pintado desde caché, no molestamos con un
+      // error — mismo criterio que `OpenTabsController.load`.
+      if (paintedFromCache) return;
       errorMessage.value = failure.message;
       AppSnackbar.show('Error', failure.message);
     }, (s) => session.value = s);
@@ -85,10 +105,7 @@ class TabSessionDetailController extends GetxController {
   Future<bool> updateNotes(String notes) async {
     if (_sessionId == null) return false;
     isMutating.value = true;
-    final result = await useCases.update(
-      _sessionId!,
-      notes: notes.trim(),
-    );
+    final result = await useCases.update(_sessionId!, notes: notes.trim());
     isMutating.value = false;
     return result.fold(
       (failure) {

@@ -28,10 +28,7 @@ import '../../../../core/utils/app_snackbar.dart';
 class ProductSelectorWidget extends StatelessWidget {
   final OrderFormController orderController;
 
-  const ProductSelectorWidget({
-    super.key,
-    required this.orderController,
-  });
+  const ProductSelectorWidget({super.key, required this.orderController});
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +52,9 @@ class ProductSelectorWidget extends StatelessWidget {
       children: [
         // Header with search
         Padding(
-          padding: EdgeInsets.all(responsive.isMobile ? 8 : responsive.padding / 2),
+          padding: EdgeInsets.all(
+            responsive.isMobile ? 8 : responsive.padding / 2,
+          ),
           child: _buildHeader(context, productsController, responsive),
         ),
 
@@ -65,7 +64,9 @@ class ProductSelectorWidget extends StatelessWidget {
 
         // Filters
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: responsive.isMobile ? 8 : responsive.padding / 2),
+          padding: EdgeInsets.symmetric(
+            horizontal: responsive.isMobile ? 8 : responsive.padding / 2,
+          ),
           child: _buildFilters(context, productsController, responsive),
         ),
         SizedBox(height: responsive.isMobile ? 4 : responsive.spacing),
@@ -118,9 +119,14 @@ class ProductSelectorWidget extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Buscar productos...',
               hintStyle: TextStyle(fontSize: responsive.isMobile ? 13 : 14),
-              prefixIcon: Icon(Icons.search, size: responsive.isMobile ? 20 : 24),
+              prefixIcon: Icon(
+                Icons.search,
+                size: responsive.isMobile ? 20 : 24,
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(responsive.isMobile ? 8 : 12),
+                borderRadius: BorderRadius.circular(
+                  responsive.isMobile ? 8 : 12,
+                ),
               ),
               filled: true,
               fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -138,8 +144,10 @@ class ProductSelectorWidget extends StatelessWidget {
         if (!responsive.isDesktop) ...[
           SizedBox(width: responsive.isMobile ? 6 : responsive.spacing),
           IconButton.filledTonal(
-            icon: Icon(Icons.qr_code_scanner,
-                size: responsive.isMobile ? 18 : 20),
+            icon: Icon(
+              Icons.qr_code_scanner,
+              size: responsive.isMobile ? 18 : 20,
+            ),
             tooltip: 'Escanear código',
             padding: responsive.isMobile ? EdgeInsets.zero : null,
             constraints: responsive.isMobile
@@ -171,16 +179,14 @@ class ProductSelectorWidget extends StatelessWidget {
   /// instante. Solo lista las categorías activas que tienen productos en
   /// el catálogo (no muestra secciones vacías), ordenadas por su orden.
   /// Filtrado client-side → cambiar de sección es inmediato, sin requests.
-  Widget _buildCategoryChips(
-    ProductsController pc,
-    CategoriesController cc,
-  ) {
+  Widget _buildCategoryChips(ProductsController pc, CategoriesController cc) {
     return Obx(() {
       final presentIds = pc.products.map((p) => p.categoryId).toSet();
-      final cats = cc.categories
-          .where((c) => c.isActive && presentIds.contains(c.id))
-          .toList()
-        ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+      final cats =
+          cc.categories
+              .where((c) => c.isActive && presentIds.contains(c.id))
+              .toList()
+            ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
       // Con 0 ó 1 categoría la fila no aporta — la ocultamos.
       if (cats.length < 2) return const SizedBox.shrink();
@@ -216,7 +222,8 @@ class ProductSelectorWidget extends StatelessWidget {
     ResponsiveConfig responsive,
   ) {
     return Obx(() {
-      final hasFilters = controller.selectedCategoryId.value != null ||
+      final hasFilters =
+          controller.selectedCategoryId.value != null ||
           controller.showOnlyAvailable.value;
 
       if (!hasFilters) return const SizedBox.shrink();
@@ -249,37 +256,69 @@ class ProductSelectorWidget extends StatelessWidget {
     List<Product> products,
     ResponsiveConfig responsive,
   ) {
-    return GridView.builder(
-      padding: EdgeInsets.all(responsive.isMobile ? 8 : responsive.spacing),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        // Más columnas en pantallas grandes para ver más productos sin
-        // scroll. Mobile sigue en 1 (layout de fila compacta).
-        crossAxisCount: responsive.getGridColumns(
-          mobile: 1,
+    if (responsive.isMobile) {
+      return GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 1,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 3.0,
+        ),
+        itemCount: products.length,
+        itemBuilder: (context, index) =>
+            _buildProductCard(context, products[index], responsive),
+      );
+    }
+    // Mismo patrón que `products_page.dart` (grid de administración de
+    // productos, cuyas cards el usuario pidió explícitamente igualar):
+    // el `childAspectRatio` se calcula EN VIVO a partir del ancho real
+    // de cada celda, no es un número fijo adivinado. La imagen es
+    // cuadrada (1:1 = ancho de la celda) y el bloque de info de abajo
+    // tiene un alto fijo reservado (`infoHeight`) — el aspect ratio que
+    // le pasamos al grid es exactamente `cardWidth / (cardWidth +
+    // infoHeight)`, así que sin importar cuánto cambie el ancho de la
+    // ventana la imagen SIEMPRE llena el ancho completo de la celda
+    // (nunca queda chica ni centrada con márgenes) y el texto SIEMPRE
+    // tiene su espacio garantizado (nunca desborda). `infoHeight` es
+    // más alto que en `products_page.dart` (90) porque esta card tiene
+    // más contenido: nombre + descripción + badge de stock + precio +
+    // stepper de cantidad (vs. solo nombre + descripción + precio +
+    // botón "+" simple en la de admin).
+    const infoHeight = 170.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = responsive.getGridColumns(
           tablet: 3,
           desktop: 4,
           largeDesktop: 5,
-        ),
-        crossAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
-        mainAxisSpacing: responsive.isMobile ? 8 : responsive.spacing,
-        childAspectRatio: responsive.getChildAspectRatio(
-          // Mobile: fila compacta (imagen 80px + padding). 3.0 deja que el
-          // nombre + descripción + precio entren sin desbordar pero sigue
-          // mostrando varios productos por pantalla.
-          mobile: 3.0,
-          tablet: 0.82,
-          desktop: 0.85,
-        ),
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _buildProductCard(context, product, responsive);
+        );
+        final gap = responsive.spacing;
+        final cardWidth =
+            (constraints.maxWidth - gap * (crossAxisCount - 1)) /
+            crossAxisCount;
+        final aspect = cardWidth / (cardWidth + infoHeight);
+        return GridView.builder(
+          padding: EdgeInsets.all(gap),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: aspect,
+            crossAxisSpacing: gap,
+            mainAxisSpacing: gap,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) =>
+              _buildProductCard(context, products[index], responsive),
+        );
       },
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product product, ResponsiveConfig responsive) {
+  Widget _buildProductCard(
+    BuildContext context,
+    Product product,
+    ResponsiveConfig responsive,
+  ) {
     final theme = Theme.of(context);
 
     // Reactivo al carrito: si el operario agregó unidades del mismo producto
@@ -293,8 +332,7 @@ class ProductSelectorWidget extends StatelessWidget {
       final outOfStock = orderController.isProductOutOfStock(product);
       final remaining = orderController.remainingStock(product);
       final cartFull = remaining != null && remaining <= 0;
-      final isAvailable =
-          product.isAvailable && !outOfStock && !cartFull;
+      final isAvailable = product.isAvailable && !outOfStock && !cartFull;
 
       return HoverCard(
         // Tap en la card = abrir el detalle (cantidad + NOTAS para cocina +
@@ -308,34 +346,43 @@ class ProductSelectorWidget extends StatelessWidget {
           decoration: !isAvailable
               ? BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.grey.shade300,
-                      Colors.grey.shade400,
-                    ],
+                    colors: [Colors.grey.shade300, Colors.grey.shade400],
                   ),
-                  borderRadius:
-                      BorderRadius.circular(responsive.isMobile ? 12 : 16),
+                  borderRadius: BorderRadius.circular(
+                    responsive.isMobile ? 12 : 16,
+                  ),
                 )
               : null,
+          // Bug real reportado: esta card vivía dentro de un
+          // SingleChildScrollView por celda del grid — con descripciones
+          // largas, el scroll interno de la card capturaba el gesto de
+          // scroll del mouse/trackpad antes de que llegara al grid
+          // completo (el operario tenía que apuntar justo al espacio
+          // ENTRE cards para poder scrollear el catálogo). Ahora la card
+          // es de altura FIJA (la da el `childAspectRatio` del grid, sin
+          // scroll interno) — ver `_buildProductCardContent`, donde la
+          // descripción usa `Expanded` + `maxLines`/ellipsis para
+          // truncarse en vez de empujar el precio/botón "+" fuera de la
+          // celda.
           child: responsive.isMobile
               ? _buildMobileProductCard(
-                  context, product, theme, isAvailable, responsive, remaining)
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: _buildProductCardContent(context, product,
-                              theme, isAvailable, responsive, remaining),
-                        ),
-                      ),
-                    );
-                  },
+                  context,
+                  product,
+                  theme,
+                  isAvailable,
+                  responsive,
+                  remaining,
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _buildProductCardContent(
+                    context,
+                    product,
+                    theme,
+                    isAvailable,
+                    responsive,
+                    remaining,
+                  ),
                 ),
         ),
       );
@@ -359,32 +406,51 @@ class ProductSelectorWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product Image - Compact
-          Container(
+          // Product Image - Compact. Mismo patrón que el resto de la app
+          // (`CachedNetworkImage` con placeholder/error) en vez del
+          // `NetworkImage` crudo que tenía antes.
+          SizedBox(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              image: product.imageUrl != null
-                  ? DecorationImage(
-                      image: NetworkImage(product.imageUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-              color: product.imageUrl == null
-                  ? theme.colorScheme.surfaceContainerHighest
-                  : null,
-            ),
             child: Stack(
               children: [
-                if (product.imageUrl == null)
-                  Center(
-                    child: Icon(
-                      Icons.restaurant,
-                      size: 32,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child:
+                        product.imageUrl != null && product.imageUrl!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: product.imageUrl!,
+                            // `contain`, no `cover`: una botella u otra foto
+                            // vertical se recortaba arriba/abajo (se perdía
+                            // la tapa y la base) — igual que
+                            // `product_card.dart` (admin), mostramos la
+                            // foto completa con el fondo relleno a los
+                            // lados en vez de cropear.
+                            fit: BoxFit.contain,
+                            width: 80,
+                            height: 80,
+                            placeholder: (_, __) => const SizedBox.shrink(),
+                            errorWidget: (_, __, ___) => Center(
+                              child: Icon(
+                                Icons.restaurant,
+                                size: 32,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.restaurant,
+                              size: 32,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                   ),
+                ),
                 if (!isAvailable)
                   Positioned(
                     top: 4,
@@ -461,8 +527,12 @@ class ProductSelectorWidget extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    _buildAddControl(context, product, isAvailable,
-                        compact: true),
+                    _buildAddControl(
+                      context,
+                      product,
+                      isAvailable,
+                      compact: true,
+                    ),
                   ],
                 ),
               ],
@@ -484,166 +554,207 @@ class ProductSelectorWidget extends StatelessWidget {
     final stockBadge = _buildStockBadge(remaining);
     final isOutOfStock = remaining != null && remaining <= 0;
     return [
-          // Product Image
-          AspectRatio(
-            aspectRatio: 4 / 3,
-            child: Stack(
-              children: [
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: product.imageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(product.imageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                    color: product.imageUrl == null
-                        ? theme.colorScheme.surfaceContainerHighest
-                        : null,
-                  ),
-                  child: product.imageUrl == null
-                      ? Center(
+      // Product Image. Mismo patrón que la card de admin
+      // (`product_card.dart`): `AspectRatio(1)` SIN tope ni centrado —
+      // el grid (`_buildProductsGrid`) ya calcula el `childAspectRatio`
+      // en vivo para que esta imagen cuadrada llene siempre el ancho
+      // completo de la celda (nunca queda chica/centrada con márgenes)
+      // y el bloque de info de abajo tenga su alto reservado. El
+      // `ClipRRect` queda afuera de todo (como en admin) para que la
+      // imagen toque los bordes de la card sin dejar gap.
+      ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Bug real reportado: esta imagen usaba `NetworkImage`
+              // crudo (sin caché ni placeholder/error) mientras el resto
+              // de la app (card de admin en
+              // `products/presentation/widgets/product_card.dart`,
+              // modal de detalle "+", public-menu) usa
+              // `CachedNetworkImage` — eso hacía que el catálogo de
+              // Vender recargara/parpadeara la foto en cada rebuild y
+              // mostrara un ícono roto genérico si fallaba, en vez del
+              // placeholder prolijo. Unificado con el mismo patrón. El
+              // `ClipRRect` queda solo en el nivel de afuera (como en
+              // admin) — no hace falta uno acá también.
+              Container(
+                color: theme.colorScheme.surfaceContainerHighest,
+                child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: product.imageUrl!,
+                        // Bug real reportado: con `cover` una botella
+                        // (foto vertical/alta) se recortaba arriba/abajo
+                        // — solo se veía la parte del medio, sin la tapa
+                        // ni la base. `product_card.dart` (admin) usa
+                        // `contain`: foto completa siempre visible, con
+                        // el fondo relleno a los lados si no es
+                        // cuadrada. Igualado acá.
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => const SizedBox.shrink(),
+                        errorWidget: (_, __, ___) => Center(
                           child: Icon(
                             Icons.restaurant,
                             size: 48,
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
-                        )
-                      : null,
-                ),
-                // Overlay "Agotado" cuando no se puede agregar más por stock.
-                // Se monta sobre la imagen para que sea evidente a primera vista.
-                if (isOutOfStock)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(12),
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 48,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: Container(
+              ),
+              // Overlay "Agotado" cuando no se puede agregar más por stock.
+              // Se monta sobre la imagen para que sea evidente a primera vista.
+              if (isOutOfStock)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Agotado',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Status badges
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (!isAvailable && !isOutOfStock)
+                      Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                          horizontal: 8,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.red,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
-                          'Agotado',
+                          'No disponible',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                // Status badges
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (!isAvailable && !isOutOfStock)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'No disponible',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    if (product.isLowStock && isAvailable)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Poco stock',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      if (product.isLowStock && isAvailable)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'Poco stock',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: responsive.spacing),
-
-          // Product Info
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: responsive.spacing / 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  product.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  product.description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (stockBadge != null) ...[
-                  const SizedBox(height: 6),
-                  stockBadge,
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      CurrencyFormatter.format(product.basePrice),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    _buildAddControl(context, product, isAvailable,
-                        compact: false),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ];
+        ),
+      ),
+      // Product Info. El grid (`_buildProductsGrid`) ya calcula el alto
+      // reservado para este bloque — la descripción va
+      // en `Expanded` para que SIEMPRE quepa sin scroll ni overflow:
+      // si es muy larga se trunca con "…" y el nombre completo/foto
+      // se ve tocando la card (abre `_showProductDetails`, el mismo
+      // diálogo con scroll propio que ya existe para el "+").
+      Expanded(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: responsive.spacing / 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product.name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              if (product.description.isNotEmpty)
+                Expanded(
+                  child: Text(
+                    product.description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                const Spacer(),
+              if (stockBadge != null) ...[
+                const SizedBox(height: 6),
+                stockBadge,
+              ],
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    CurrencyFormatter.format(product.basePrice),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  _buildAddControl(
+                    context,
+                    product,
+                    isAvailable,
+                    compact: false,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
   }
 
   /// Construye el badge de stock que se renderea sobre el card. Devuelve
@@ -694,8 +805,8 @@ class ProductSelectorWidget extends StatelessWidget {
           Text(
             'Intenta ajustar los filtros de búsqueda',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -729,8 +840,8 @@ class ProductSelectorWidget extends StatelessWidget {
               Text(
                 message,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -770,13 +881,12 @@ class ProductSelectorWidget extends StatelessWidget {
     if (hasOptions || qty == 0) {
       return IconButton.filledTonal(
         icon: Icon(hasOptions ? Icons.tune : Icons.add, size: iconSize),
-        onPressed:
-            isAvailable ? () => _addToCart(context, product) : null,
+        onPressed: isAvailable ? () => _addToCart(context, product) : null,
         tooltip: !isAvailable
             ? 'Agotado'
             : hasOptions
-                ? 'Elegir opciones'
-                : 'Agregar',
+            ? 'Elegir opciones'
+            : 'Agregar',
         padding: EdgeInsets.zero,
         constraints: BoxConstraints(minWidth: dim, minHeight: dim),
       );
@@ -906,10 +1016,7 @@ class ProductSelectorWidget extends StatelessWidget {
     );
   }
 
-  void _showFilterDialog(
-    BuildContext context,
-    ProductsController controller,
-  ) {
+  void _showFilterDialog(BuildContext context, ProductsController controller) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -917,11 +1024,13 @@ class ProductSelectorWidget extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Obx(() => SwitchListTile(
-                  title: const Text('Solo disponibles'),
-                  value: controller.showOnlyAvailable.value,
-                  onChanged: (_) => controller.toggleAvailableFilter(),
-                )),
+            Obx(
+              () => SwitchListTile(
+                title: const Text('Solo disponibles'),
+                value: controller.showOnlyAvailable.value,
+                onChanged: (_) => controller.toggleAvailableFilter(),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -971,6 +1080,7 @@ class _CartItemEntry {
 class _ProductDetailsSheet extends StatefulWidget {
   final Product product;
   final void Function(List<_CartItemEntry> items) onAddItems;
+
   /// Quick notes y flavor label vienen de la categoría del producto.
   final List<String> categoryQuickNotes;
   final String? categoryFlavorLabel;
@@ -1022,9 +1132,18 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   int get _scoopCount => _selectedVariant?.scoopCount ?? 0;
 
   static const _defaultQuickTags = [
-    'Sin cebolla', 'Sin tomate', 'Sin salsas', 'Sin sal',
-    'Sin mayonesa', 'Bien hecho', 'A punto', 'Extra queso',
-    'Sin ají', 'Sin pepinillo', 'Poco picante', 'Muy picante',
+    'Sin cebolla',
+    'Sin tomate',
+    'Sin salsas',
+    'Sin sal',
+    'Sin mayonesa',
+    'Bien hecho',
+    'A punto',
+    'Extra queso',
+    'Sin ají',
+    'Sin pepinillo',
+    'Poco picante',
+    'Muy picante',
   ];
 
   List<String> get _quickTags => widget.categoryQuickNotes.isNotEmpty
@@ -1056,8 +1175,9 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
 
     setState(() => _flavorsLoading = !paintedFromCache);
     try {
-      final list = await sl<FlavorRemoteDataSource>()
-          .getFlavors(categoryId: widget.product.categoryId);
+      final list = await sl<FlavorRemoteDataSource>().getFlavors(
+        categoryId: widget.product.categoryId,
+      );
       if (!mounted) return;
       setState(() {
         _flavors = list.where((f) => f.isAvailable).toList();
@@ -1090,7 +1210,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     }
     final label = widget.categoryFlavorLabel ?? 'Cremas';
     if (_selectedFlavors.any((f) => f == null)) {
-      AppSnackbar.show('Elegí las $label', 'Selecciona todas las $label del combo.');
+      AppSnackbar.show(
+        'Elegí las $label',
+        'Selecciona todas las $label del combo.',
+      );
       return;
     }
     final flavorIds = <String>[];
@@ -1103,21 +1226,24 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     final note = _singleNoteCtrl.text.trim();
     final modifiers = _modifierKey.currentState?.getSelectedModifiers();
     setState(() {
-      _pendingCombos.add(_CartItemEntry(
-        quantity: _quantity,
-        variant: _selectedVariant,
-        modifiers: modifiers,
-        note: note.isEmpty ? null : note,
-        flavorIds: flavorIds,
-        flavorNames: flavorNames,
-      ));
+      _pendingCombos.add(
+        _CartItemEntry(
+          quantity: _quantity,
+          variant: _selectedVariant,
+          modifiers: modifiers,
+          note: note.isEmpty ? null : note,
+          flavorIds: flavorIds,
+          flavorNames: flavorNames,
+        ),
+      );
       _selectedFlavors = List<String?>.filled(_scoopCount, null);
       _quantity = 1;
       _singleNoteCtrl.clear();
     });
   }
 
-  void _removeCombo(int index) => setState(() => _pendingCombos.removeAt(index));
+  void _removeCombo(int index) =>
+      setState(() => _pendingCombos.removeAt(index));
 
   void _setQty(int v) {
     setState(() {
@@ -1200,23 +1326,42 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
           // Scrollable content
           Flexible(
             child: SingleChildScrollView(
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header: imagen + nombre + precio
+                  // Header: imagen + nombre + precio. Bug real reportado:
+                  // `BoxFit.cover` recortaba fotos verticales/cuadradas
+                  // (lo más común, no se fuerza ningún crop al subirlas)
+                  // — este diálogo no tiene límite de alto (vive en un
+                  // `SingleChildScrollView`), así que no hay motivo para
+                  // recortar: usamos `BoxFit.contain` con fondo neutro,
+                  // igual que el banner de `product_detail_page.dart` —
+                  // la foto completa, siempre visible.
                   if (product.imageUrl != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: CachedNetworkImage(
-                        imageUrl: product.imageUrl!,
-                        height: 160,
+                      child: Container(
+                        height: 200,
                         width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(height: 160, color: Colors.grey[100]),
-                        errorWidget: (_, __, ___) => Container(height: 160, color: Colors.grey[100]),
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: CachedNetworkImage(
+                          imageUrl: product.imageUrl!,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              size: 40,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1305,7 +1450,7 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                       onChanged: () => setState(() {
                         _selectedModifiers =
                             _modifierKey.currentState?.getSelectedModifiers() ??
-                                [];
+                            [];
                       }),
                     ),
                     const SizedBox(height: 16),
@@ -1340,7 +1485,8 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
             addLabel: _pendingCombos.isEmpty
                 ? null
                 : () {
-                    final n = _pendingCombos.length +
+                    final n =
+                        _pendingCombos.length +
                         (_currentFlavorsComplete ? 1 : 0);
                     return 'Agregar $n combo${n == 1 ? '' : 's'} al carrito';
                   }(),
@@ -1363,7 +1509,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       }
       if (_currentFlavorsComplete) {
         if (widget.product.hasVariants && _selectedVariant == null) {
-          AppSnackbar.show('Variante requerida', 'Selecciona la variante del combo actual.');
+          AppSnackbar.show(
+            'Variante requerida',
+            'Selecciona la variante del combo actual.',
+          );
           return;
         }
         final flavorIds = <String>[];
@@ -1397,8 +1546,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
     if (widget.product.hasVariants) {
       final ok = _variantKey.currentState?.validate() ?? true;
       if (!ok || _selectedVariant == null) {
-        AppSnackbar.show('Variante requerida',
-            'Selecciona una variante del producto');
+        AppSnackbar.show(
+          'Variante requerida',
+          'Selecciona una variante del producto',
+        );
         return;
       }
     }
@@ -1406,20 +1557,26 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
       final ok = _modifierKey.currentState?.validateAllGroups() ?? true;
       if (!ok) {
         AppSnackbar.show(
-            'Selecciones requeridas', 'Completa las opciones requeridas');
+          'Selecciones requeridas',
+          'Completa las opciones requeridas',
+        );
         return;
       }
     }
     if (_scoopCount > 0) {
       final label = widget.categoryFlavorLabel ?? 'Cremas';
       if (_flavors.isEmpty) {
-        AppSnackbar.show('Faltan $label',
-            'Cargá las $label en Productos → Cremas / Sabores.');
+        AppSnackbar.show(
+          'Faltan $label',
+          'Cargá las $label en Productos → Cremas / Sabores.',
+        );
         return;
       }
       if (_selectedFlavors.any((f) => f == null)) {
-        AppSnackbar.show('Elegí las $label',
-            'Selecciona ${_scoopCount > 1 ? 'las $_scoopCount' : 'la'} $label.');
+        AppSnackbar.show(
+          'Elegí las $label',
+          'Selecciona ${_scoopCount > 1 ? 'las $_scoopCount' : 'la'} $label.',
+        );
         return;
       }
     }
@@ -1439,14 +1596,16 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
           unitFlavorIds.add(id);
           unitFlavorNames.add(_flavors.firstWhere((f) => f.id == id).name);
         }
-        entries.add(_CartItemEntry(
-          quantity: 1,
-          variant: _selectedVariant,
-          modifiers: modifiers,
-          note: note.isEmpty ? null : note,
-          flavorIds: unitFlavorIds,
-          flavorNames: unitFlavorNames,
-        ));
+        entries.add(
+          _CartItemEntry(
+            quantity: 1,
+            variant: _selectedVariant,
+            modifiers: modifiers,
+            note: note.isEmpty ? null : note,
+            flavorIds: unitFlavorIds,
+            flavorNames: unitFlavorNames,
+          ),
+        );
       }
       widget.onAddItems(entries);
       return;
@@ -1515,9 +1674,12 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
           children: [
             Icon(Icons.icecream, size: 16, color: theme.colorScheme.primary),
             const SizedBox(width: 6),
-            Text('$label ($_scoopCount selección${_scoopCount == 1 ? '' : 'es'})',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              '$label ($_scoopCount selección${_scoopCount == 1 ? '' : 'es'})',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -1528,9 +1690,12 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
               children: [
                 SizedBox(
                   width: 58,
-                  child: Text('Bola ${i + 1}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    'Bola ${i + 1}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 Expanded(
                   child: DropdownButtonFormField<String>(
@@ -1539,10 +1704,13 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                     decoration: InputDecoration(
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       hintText: 'Elegí…',
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     items: [
                       for (final f in _flavors)
@@ -1565,8 +1733,10 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                 label: const Text('Añadir y pedir otro'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 ),
               ),
             ),
@@ -1587,8 +1757,9 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
             const SizedBox(width: 6),
             Text(
               '$label por unidad',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -1622,8 +1793,9 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                           width: 60,
                           child: Text(
                             _scoopCount > 1 ? 'Bola ${s + 1}' : label,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         Expanded(
@@ -1634,18 +1806,25 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                             decoration: InputDecoration(
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                               hintText: 'Elegí…',
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                             items: [
                               for (final f in _flavors)
                                 DropdownMenuItem(
-                                    value: f.id, child: Text(f.name)),
+                                  value: f.id,
+                                  child: Text(f.name),
+                                ),
                             ],
-                            onChanged: (v) => setState(() =>
-                                _selectedFlavors[unit * _scoopCount + s] = v),
+                            onChanged: (v) => setState(
+                              () =>
+                                  _selectedFlavors[unit * _scoopCount + s] = v,
+                            ),
                           ),
                         ),
                       ],
@@ -1665,14 +1844,19 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
         const Divider(height: 20),
         Row(
           children: [
-            Icon(Icons.shopping_cart_checkout,
-                size: 15, color: theme.colorScheme.primary),
+            Icon(
+              Icons.shopping_cart_checkout,
+              size: 15,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(width: 6),
-            Text('Combos a agregar (${_pendingCombos.length})',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                )),
+            Text(
+              'Combos a agregar (${_pendingCombos.length})',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -1682,23 +1866,27 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
           final flavorsText = entry.flavorNames.join(', ');
           final unitPrice =
               entry.variant?.calculateFinalPrice(widget.product.basePrice) ??
-                  widget.product.basePrice;
+              widget.product.basePrice;
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('${entry.quantity}×',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                      )),
+                  child: Text(
+                    '${entry.quantity}×',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1707,32 +1895,44 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (variantName.isNotEmpty)
-                        Text(variantName,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1),
+                        Text(
+                          variantName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       if (flavorsText.isNotEmpty)
-                        Text(flavorsText,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1),
+                        Text(
+                          flavorsText,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                     ],
                   ),
                 ),
                 Text(
                   CurrencyFormatter.format(unitPrice * entry.quantity),
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close,
-                      size: 16, color: theme.colorScheme.error),
+                  icon: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: theme.colorScheme.error,
+                  ),
                   onPressed: () => _removeCombo(i),
                   padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -1765,9 +1965,12 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -1805,23 +2008,27 @@ class _NotesSection extends StatelessWidget {
         // Header row
         Row(
           children: [
-            Icon(Icons.sticky_note_2_outlined,
-                size: 16, color: theme.colorScheme.primary),
+            Icon(
+              Icons.sticky_note_2_outlined,
+              size: 16,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(width: 6),
             Text(
-              splitMode
-                  ? 'Nota por ítem ($quantity)'
-                  : 'Nota para el cocinero',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              splitMode ? 'Nota por ítem ($quantity)' : 'Nota para el cocinero',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             if (onToggleSplit != null) ...[
               const Spacer(),
               GestureDetector(
                 onTap: () => onToggleSplit!(!splitMode),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: splitMode
                         ? theme.colorScheme.primaryContainer
@@ -1874,10 +2081,13 @@ class _NotesSection extends StatelessWidget {
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               hintText: 'Ej. sin cebolla, bien hecho, sin sal…',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               counterText: '',
             ),
           ),
@@ -1914,15 +2124,14 @@ class _QuickTagsRow extends StatelessWidget {
           return GestureDetector(
             onTap: () => onTap(tags[i]),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer
-                    .withValues(alpha: 0.7),
+                color: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.7,
+                ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color:
-                      theme.colorScheme.primary.withValues(alpha: 0.3),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
                 ),
               ),
               child: Text(
@@ -1988,9 +2197,12 @@ class _ItemNoteCard extends StatelessWidget {
               isDense: true,
               hintText: 'Nota (opcional)…',
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 8),
+                horizontal: 10,
+                vertical: 8,
+              ),
             ),
           ),
         ],
@@ -2046,10 +2258,7 @@ class _AddFooter extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _QtyBtn(
-                  icon: Icons.remove,
-                  onTap: onDecrement,
-                ),
+                _QtyBtn(icon: Icons.remove, onTap: onDecrement),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Text(
@@ -2075,9 +2284,11 @@ class _AddFooter extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(addLabel ?? 'Agregar al carrito',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center),
+                  Text(
+                    addLabel ?? 'Agregar al carrito',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
                   if (addLabel == null)
                     Text(
                       CurrencyFormatter.format(total),
@@ -2122,4 +2333,3 @@ class _QtyBtn extends StatelessWidget {
 }
 
 // ─────── Flavor selector helper (kept from old code, now separate) ──
-

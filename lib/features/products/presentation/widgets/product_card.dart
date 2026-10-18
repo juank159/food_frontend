@@ -50,42 +50,54 @@ class ProductCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Bloque superior: nombre + descripción. Flexible
-                      // alrededor de la descripción la deja achicarse
-                      // (ellipsis) cuando el card está apretado.
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            product.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                              height: 1.2,
-                            ),
-                          ),
-                          if (product.description.isNotEmpty) ...[
-                            const SizedBox(height: 2),
+                      // Bloque superior: nombre + descripción. Bug real
+                      // reportado: con `mainAxisSize.min` este bloque se
+                      // medía a su tamaño natural — una descripción algo
+                      // larga (incluso ya truncada a 1 línea) podía sumar
+                      // más alto que el espacio libre del card y
+                      // desbordar (overflow visible, franjas amarillas/
+                      // negras), empujando el precio/botón hacia abajo.
+                      // Envolver este bloque en `Expanded`, con la
+                      // descripción TAMBIÉN en `Expanded`, hace que
+                      // SIEMPRE quepa en el espacio disponible — si no
+                      // entra, se trunca con "…" en vez de desbordar.
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              product.description,
-                              maxLines: 1,
+                              product.name,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                                height: 1.3,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                height: 1.2,
                               ),
                             ),
+                            if (product.description.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Expanded(
+                                child: Text(
+                                  product.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                       // Bloque inferior: precio + tiempo (+ badges si aplica).
+                      // Tamaño natural, fijo — queda pegado abajo porque el
+                      // bloque de arriba ya absorbió todo el espacio extra.
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/widgets/modern_card.dart';
@@ -47,9 +48,7 @@ class CartWidget extends StatelessWidget {
         ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
         : theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold);
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: responsive.isMobile ? 8 : 0,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: responsive.isMobile ? 8 : 0),
       child: Row(
         children: [
           Icon(
@@ -104,10 +103,7 @@ class CartWidget extends StatelessWidget {
             color: theme.colorScheme.outline,
           ),
           const SizedBox(height: 16),
-          Text(
-            'Carrito vacío',
-            style: theme.textTheme.titleLarge,
-          ),
+          Text('Carrito vacío', style: theme.textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             'Agrega productos para comenzar',
@@ -129,17 +125,20 @@ class CartWidget extends StatelessWidget {
         child: Column(
           children: [
             // Cart Items
-            Obx(() => ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.only(bottom: responsive.spacing),
-                  itemCount: controller.cartItems.length,
-                  separatorBuilder: (context, index) => SizedBox(height: responsive.spacing),
-                  itemBuilder: (context, index) {
-                    final item = controller.cartItems[index];
-                    return _buildCartItem(context, item, index);
-                  },
-                )),
+            Obx(
+              () => ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.only(bottom: responsive.spacing),
+                itemCount: controller.cartItems.length,
+                separatorBuilder: (context, index) =>
+                    SizedBox(height: responsive.spacing),
+                itemBuilder: (context, index) {
+                  final item = controller.cartItems[index];
+                  return _buildCartItem(context, item, index);
+                },
+              ),
+            ),
             // Summary Section
             _buildSummary(context),
           ],
@@ -152,15 +151,17 @@ class CartWidget extends StatelessWidget {
       children: [
         // Cart Items List
         Expanded(
-          child: Obx(() => ListView.separated(
-                padding: const EdgeInsets.only(bottom: 16),
-                itemCount: controller.cartItems.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final item = controller.cartItems[index];
-                  return _buildCartItem(context, item, index);
-                },
-              )),
+          child: Obx(
+            () => ListView.separated(
+              padding: const EdgeInsets.only(bottom: 16),
+              itemCount: controller.cartItems.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = controller.cartItems[index];
+                return _buildCartItem(context, item, index);
+              },
+            ),
+          ),
         ),
 
         // Summary Section
@@ -169,11 +170,7 @@ class CartWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildCartItem(
-    BuildContext context,
-    CartItem item,
-    int index,
-  ) {
+  Widget _buildCartItem(BuildContext context, CartItem item, int index) {
     final theme = Theme.of(context);
     final responsive = ResponsiveConfig(context);
 
@@ -183,7 +180,9 @@ class CartWidget extends StatelessWidget {
     // (combinación de id + index) para que Flutter no se confunda con el
     // reorder cuando hay dos líneas del mismo producto con notas distintas.
     return Dismissible(
-      key: ValueKey('cart-${item.product.id}-$index-${item.specialInstructions ?? ''}'),
+      key: ValueKey(
+        'cart-${item.product.id}-$index-${item.specialInstructions ?? ''}',
+      ),
       direction: DismissDirection.endToStart,
       background: Container(
         margin: EdgeInsets.only(bottom: responsive.isMobile ? 0 : 0),
@@ -212,218 +211,252 @@ class CartWidget extends StatelessWidget {
       child: ModernCard(
         child: Padding(
           padding: EdgeInsets.all(responsive.isMobile ? 8 : 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Product Image
-            Container(
-              width: responsive.isMobile ? 50 : 60,
-              height: responsive.isMobile ? 50 : 60,
-              decoration: BoxDecoration(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Product Image. Mismo patrón que el resto de la app
+              // (`CachedNetworkImage` con placeholder/error) en vez del
+              // `NetworkImage` crudo que tenía antes — evita el parpadeo al
+              // recargar sin caché y el ícono roto genérico si la imagen
+              // falla.
+              ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                image: item.product.imageUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(item.product.imageUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                color: item.product.imageUrl == null
-                    ? theme.colorScheme.surfaceContainerHighest
-                    : null,
-              ),
-              child: item.product.imageUrl == null
-                  ? Icon(
-                      Icons.restaurant,
-                      size: responsive.isMobile ? 20 : 24,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    )
-                  : null,
-            ),
-            SizedBox(width: responsive.isMobile ? 8 : 12),
-
-            // Product Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.product.name,
-                    style: (responsive.isMobile
-                        ? theme.textTheme.bodyMedium
-                        : theme.textTheme.titleSmall)?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: responsive.isMobile ? 1 : 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: responsive.isMobile ? 2 : 4),
-                  Text(
-                    '${CurrencyFormatter.format(item.unitPrice)} c/u',
-                    style: (responsive.isMobile
-                        ? theme.textTheme.bodySmall?.copyWith(fontSize: 11)
-                        : theme.textTheme.bodySmall)?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-
-                  // Variant (if selected)
-                  if (item.selectedVariant != null) ...[
-                    SizedBox(height: responsive.isMobile ? 2 : 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.tune,
-                          size: responsive.isMobile ? 12 : 14,
-                          color: theme.colorScheme.primary,
-                        ),
-                        SizedBox(width: 4),
-                        // El nombre de variante puede ser largo ("Doble queso
-                        // con extra panceta XL"). Flexible + ellipsis evita
-                        // que empuje al pricetag de la derecha y rompa el row.
-                        Flexible(
-                          child: Text(
-                            'Variante: ${item.selectedVariant!.name}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: (responsive.isMobile
-                                ? theme.textTheme.bodySmall
-                                : theme.textTheme.bodyMedium)?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
+                child: Container(
+                  width: responsive.isMobile ? 50 : 60,
+                  height: responsive.isMobile ? 50 : 60,
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child:
+                      item.product.imageUrl != null &&
+                          item.product.imageUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: item.product.imageUrl!,
+                          // `contain`, no `cover`: igual que en
+                          // `product_card.dart` (admin) — una foto
+                          // vertical (botella, etc.) se recortaba
+                          // arriba/abajo con `cover`.
+                          fit: BoxFit.contain,
+                          width: responsive.isMobile ? 50 : 60,
+                          height: responsive.isMobile ? 50 : 60,
+                          placeholder: (_, __) => const SizedBox.shrink(),
+                          errorWidget: (_, __, ___) => Center(
+                            child: Icon(
+                              Icons.restaurant,
+                              size: responsive.isMobile ? 20 : 24,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                        )
+                      : Center(
+                          child: Icon(
+                            Icons.restaurant,
+                            size: responsive.isMobile ? 20 : 24,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                        if (item.selectedVariant!.priceModifier != 0) ...[
+                ),
+              ),
+              SizedBox(width: responsive.isMobile ? 8 : 12),
+
+              // Product Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.product.name,
+                      style:
+                          (responsive.isMobile
+                                  ? theme.textTheme.bodyMedium
+                                  : theme.textTheme.titleSmall)
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: responsive.isMobile ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: responsive.isMobile ? 2 : 4),
+                    Text(
+                      '${CurrencyFormatter.format(item.unitPrice)} c/u',
+                      style:
+                          (responsive.isMobile
+                                  ? theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                    )
+                                  : theme.textTheme.bodySmall)
+                              ?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                    ),
+
+                    // Variant (if selected)
+                    if (item.selectedVariant != null) ...[
+                      SizedBox(height: responsive.isMobile ? 2 : 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.tune,
+                            size: responsive.isMobile ? 12 : 14,
+                            color: theme.colorScheme.primary,
+                          ),
                           SizedBox(width: 4),
-                          Text(
-                            item.selectedVariant!.hasAdditionalCost
-                                ? '(+${CurrencyFormatter.format(item.selectedVariant!.priceModifier)})'
-                                : '(${CurrencyFormatter.format(item.selectedVariant!.priceModifier)})',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: item.selectedVariant!.hasAdditionalCost
-                                  ? theme.colorScheme.error
-                                  : theme.colorScheme.tertiary,
-                              fontWeight: FontWeight.w500,
+                          // El nombre de variante puede ser largo ("Doble queso
+                          // con extra panceta XL"). Flexible + ellipsis evita
+                          // que empuje al pricetag de la derecha y rompa el row.
+                          Flexible(
+                            child: Text(
+                              'Variante: ${item.selectedVariant!.name}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  (responsive.isMobile
+                                          ? theme.textTheme.bodySmall
+                                          : theme.textTheme.bodyMedium)
+                                      ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                            ),
+                          ),
+                          if (item.selectedVariant!.priceModifier != 0) ...[
+                            SizedBox(width: 4),
+                            Text(
+                              item.selectedVariant!.hasAdditionalCost
+                                  ? '(+${CurrencyFormatter.format(item.selectedVariant!.priceModifier)})'
+                                  : '(${CurrencyFormatter.format(item.selectedVariant!.priceModifier)})',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: item.selectedVariant!.hasAdditionalCost
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.tertiary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+
+                    // Cremas/sabores (heladería)
+                    if (item.flavorNames.isNotEmpty) ...[
+                      SizedBox(height: responsive.isMobile ? 2 : 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.icecream,
+                            size: responsive.isMobile ? 12 : 14,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              item.flavorNames.join(', '),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  (responsive.isMobile
+                                          ? theme.textTheme.bodySmall
+                                          : theme.textTheme.bodyMedium)
+                                      ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
 
-                  // Cremas/sabores (heladería)
-                  if (item.flavorNames.isNotEmpty) ...[
-                    SizedBox(height: responsive.isMobile ? 2 : 4),
+                    // Modifiers (if any)
+                    if (item.hasModifiers) ...[
+                      SizedBox(height: responsive.isMobile ? 4 : 6),
+                      _buildModifiersList(context, item, responsive),
+                    ],
+
+                    // Special instructions del item (texto libre tipo "sin
+                    // cebolla", "bien cocido"). Si ya hay texto, lo mostramos
+                    // como chip con icono — tap para editar. Si no hay texto,
+                    // botón inline "+ Agregar nota".
+                    SizedBox(height: responsive.isMobile ? 4 : 6),
+                    _buildItemNoteRow(context, item, index),
+
+                    SizedBox(height: responsive.isMobile ? 4 : 8),
+
+                    // Quantity Controls
                     Row(
                       children: [
-                        Icon(
-                          Icons.icecream,
-                          size: responsive.isMobile ? 12 : 14,
-                          color: theme.colorScheme.primary,
+                        _buildQuantityButton(
+                          context,
+                          Icons.remove,
+                          () => controller.updateQuantity(
+                            index,
+                            item.quantity - 1,
+                          ),
                         ),
-                        const SizedBox(width: 4),
-                        Flexible(
+                        Container(
+                          margin: EdgeInsets.symmetric(
+                            horizontal: responsive.isMobile ? 4 : 8,
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: responsive.isMobile ? 8 : 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           child: Text(
-                            item.flavorNames.join(', '),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: (responsive.isMobile
-                                    ? theme.textTheme.bodySmall
-                                    : theme.textTheme.bodyMedium)
-                                ?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
+                            item.quantity.toString(),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onPrimaryContainer,
                             ),
                           ),
                         ),
+                        _buildQuantityButton(
+                          context,
+                          Icons.add,
+                          () => controller.updateQuantity(
+                            index,
+                            item.quantity + 1,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // El subtotal puede ser largo ($1.234.567,89). Usamos
+                        // Expanded + ellipsis para que nunca empuje a los
+                        // botones de cantidad y rompa el row.
+                        Expanded(
+                          child: Text(
+                            CurrencyFormatter.format(item.subtotal),
+                            textAlign: TextAlign.end,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                (responsive.isMobile
+                                        ? theme.textTheme.titleSmall
+                                        : theme.textTheme.titleMedium)
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
-
-                  // Modifiers (if any)
-                  if (item.hasModifiers) ...[
-                    SizedBox(height: responsive.isMobile ? 4 : 6),
-                    _buildModifiersList(context, item, responsive),
-                  ],
-
-                  // Special instructions del item (texto libre tipo "sin
-                  // cebolla", "bien cocido"). Si ya hay texto, lo mostramos
-                  // como chip con icono — tap para editar. Si no hay texto,
-                  // botón inline "+ Agregar nota".
-                  SizedBox(height: responsive.isMobile ? 4 : 6),
-                  _buildItemNoteRow(context, item, index),
-
-                  SizedBox(height: responsive.isMobile ? 4 : 8),
-
-                  // Quantity Controls
-                  Row(
-                    children: [
-                      _buildQuantityButton(
-                        context,
-                        Icons.remove,
-                        () => controller.updateQuantity(index, item.quantity - 1),
-                      ),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: responsive.isMobile ? 4 : 8),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: responsive.isMobile ? 8 : 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          item.quantity.toString(),
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ),
-                      _buildQuantityButton(
-                        context,
-                        Icons.add,
-                        () => controller.updateQuantity(index, item.quantity + 1),
-                      ),
-                      const SizedBox(width: 8),
-                      // El subtotal puede ser largo ($1.234.567,89). Usamos
-                      // Expanded + ellipsis para que nunca empuje a los
-                      // botones de cantidad y rompa el row.
-                      Expanded(
-                        child: Text(
-                          CurrencyFormatter.format(item.subtotal),
-                          textAlign: TextAlign.end,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: (responsive.isMobile
-                              ? theme.textTheme.titleSmall
-                              : theme.textTheme.titleMedium)?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
-            ),
 
-            // Delete Button
-            IconButton(
-              icon: Icon(Icons.close, size: responsive.isMobile ? 18 : 20),
-              onPressed: () => _showDeleteItemDialog(context, index, item),
-              tooltip: 'Eliminar',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: BoxConstraints(
-                minWidth: responsive.isMobile ? 32 : 40,
-                minHeight: responsive.isMobile ? 32 : 40,
+              // Delete Button
+              IconButton(
+                icon: Icon(Icons.close, size: responsive.isMobile ? 18 : 20),
+                onPressed: () => _showDeleteItemDialog(context, index, item),
+                tooltip: 'Eliminar',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(
+                  minWidth: responsive.isMobile ? 32 : 40,
+                  minHeight: responsive.isMobile ? 32 : 40,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -458,18 +491,22 @@ class CartWidget extends StatelessWidget {
               SizedBox(width: responsive.isMobile ? 2 : 4),
               Text(
                 'Modificadores:',
-                style: (responsive.isMobile
-                    ? theme.textTheme.bodySmall?.copyWith(fontSize: 10)
-                    : theme.textTheme.bodySmall)?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
+                style:
+                    (responsive.isMobile
+                            ? theme.textTheme.bodySmall?.copyWith(fontSize: 10)
+                            : theme.textTheme.bodySmall)
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
               ),
             ],
           ),
           SizedBox(height: responsive.isMobile ? 2 : 4),
           ...item.selectedModifiers.map((modifier) {
-            final quantityText = modifier.quantity > 1 ? '${modifier.quantity}x ' : '';
+            final quantityText = modifier.quantity > 1
+                ? '${modifier.quantity}x '
+                : '';
             final priceText = modifier.hasCost
                 ? ' (+${CurrencyFormatter.format(modifier.subtotal)})'
                 : ' (Gratis)';
@@ -492,11 +529,15 @@ class CartWidget extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '$quantityText${modifier.name}$priceText',
-                      style: (responsive.isMobile
-                          ? theme.textTheme.bodySmall?.copyWith(fontSize: 10)
-                          : theme.textTheme.bodySmall)?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                      style:
+                          (responsive.isMobile
+                                  ? theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 10,
+                                    )
+                                  : theme.textTheme.bodySmall)
+                              ?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -546,21 +587,25 @@ class CartWidget extends StatelessWidget {
         child: Column(
           children: [
             // Items Count
-            Obx(() => _buildSummaryRow(
-                  context,
-                  'Items',
-                  '${controller.totalItems}',
-                  isHighlight: false,
-                )),
+            Obx(
+              () => _buildSummaryRow(
+                context,
+                'Items',
+                '${controller.totalItems}',
+                isHighlight: false,
+              ),
+            ),
             SizedBox(height: responsive.isMobile ? 3 : 6),
 
             // Subtotal
-            Obx(() => _buildSummaryRow(
-                  context,
-                  'Subtotal',
-                  CurrencyFormatter.format(controller.subtotal),
-                  isHighlight: false,
-                )),
+            Obx(
+              () => _buildSummaryRow(
+                context,
+                'Subtotal',
+                CurrencyFormatter.format(controller.subtotal),
+                isHighlight: false,
+              ),
+            ),
 
             // Discount
             Obx(() {
@@ -582,12 +627,14 @@ class CartWidget extends StatelessWidget {
             // Tax — solo se muestra si el tenant cobra IVA. El nombre y el
             // sufijo "(incluido)" reflejan la configuración real del tenant.
             Obx(() {
-              if (!controller.taxEnabled.value || controller.taxRate.value <= 0) {
+              if (!controller.taxEnabled.value ||
+                  controller.taxRate.value <= 0) {
                 return const SizedBox.shrink();
               }
               final pct = (controller.taxRate.value * 100);
-              final pctTxt =
-                  pct % 1 == 0 ? pct.toStringAsFixed(0) : pct.toStringAsFixed(2);
+              final pctTxt = pct % 1 == 0
+                  ? pct.toStringAsFixed(0)
+                  : pct.toStringAsFixed(2);
               final included = controller.taxIncludedInPrice.value;
               return Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -635,12 +682,14 @@ class CartWidget extends StatelessWidget {
             Divider(height: responsive.isMobile ? 14 : 24),
 
             // Total
-            Obx(() => _buildSummaryRow(
-                  context,
-                  'Total',
-                  CurrencyFormatter.format(controller.total),
-                  isHighlight: true,
-                )),
+            Obx(
+              () => _buildSummaryRow(
+                context,
+                'Total',
+                CurrencyFormatter.format(controller.total),
+                isHighlight: true,
+              ),
+            ),
 
             SizedBox(height: responsive.isMobile ? 10 : 16),
 
@@ -705,16 +754,16 @@ class CartWidget extends StatelessWidget {
 
     final textStyle = isHighlight
         ? (responsive.isMobile
-            ? theme.textTheme.titleMedium
-            : theme.textTheme.titleLarge)?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onPrimaryContainer,
-          )
+                  ? theme.textTheme.titleMedium
+                  : theme.textTheme.titleLarge)
+              ?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onPrimaryContainer,
+              )
         : (responsive.isMobile
-            ? theme.textTheme.bodyMedium
-            : theme.textTheme.bodyLarge)?.copyWith(
-            color: color ?? theme.colorScheme.onPrimaryContainer,
-          );
+                  ? theme.textTheme.bodyMedium
+                  : theme.textTheme.bodyLarge)
+              ?.copyWith(color: color ?? theme.colorScheme.onPrimaryContainer);
 
     // Usamos `Expanded` en el label para que en pantallas chicas (320-360px)
     // el texto largo (ej: "IVA (10.5%) · incluido") haga ellipsis en lugar
@@ -763,8 +812,9 @@ class CartWidget extends StatelessWidget {
               ),
               onPressed: () => _showDiscountDialog(context),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                    Theme.of(context).colorScheme.onPrimaryContainer,
+                foregroundColor: Theme.of(
+                  context,
+                ).colorScheme.onPrimaryContainer,
                 padding: EdgeInsets.symmetric(
                   horizontal: responsive.isMobile ? 8 : 12,
                   vertical: responsive.isMobile ? 8 : 12,
@@ -785,8 +835,9 @@ class CartWidget extends StatelessWidget {
                 ),
                 onPressed: () => _showTipDialog(context),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor:
-                      Theme.of(context).colorScheme.onPrimaryContainer,
+                  foregroundColor: Theme.of(
+                    context,
+                  ).colorScheme.onPrimaryContainer,
                   padding: EdgeInsets.symmetric(
                     horizontal: responsive.isMobile ? 8 : 12,
                     vertical: responsive.isMobile ? 8 : 12,
@@ -800,11 +851,7 @@ class CartWidget extends StatelessWidget {
     });
   }
 
-  void _showDeleteItemDialog(
-    BuildContext context,
-    int index,
-    CartItem item,
-  ) {
+  void _showDeleteItemDialog(BuildContext context, int index, CartItem item) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -890,10 +937,10 @@ class CartWidget extends StatelessWidget {
                     prefixText: '\$',
                     border: OutlineInputBorder(),
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    AppInputFormatters.priceFormatter(),
-                  ],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [AppInputFormatters.priceFormatter()],
                 )
               else
                 TextField(
@@ -903,10 +950,10 @@ class CartWidget extends StatelessWidget {
                     suffixText: '%',
                     border: OutlineInputBorder(),
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    AppInputFormatters.priceFormatter(),
-                  ],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [AppInputFormatters.priceFormatter()],
                 ),
             ],
           ),
@@ -925,7 +972,8 @@ class CartWidget extends StatelessWidget {
                   final amount = double.tryParse(amountController.text) ?? 0;
                   controller.applyDiscountAmount(amount);
                 } else {
-                  final percentage = double.tryParse(percentageController.text) ?? 0;
+                  final percentage =
+                      double.tryParse(percentageController.text) ?? 0;
                   controller.applyDiscountPercentage(percentage);
                 }
                 Navigator.pop(context);
@@ -961,9 +1009,10 @@ class CartWidget extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final pct in (controller.tipSuggestedPercentages.isEmpty
-                    ? <double>[0.10, 0.15, 0.20]
-                    : controller.tipSuggestedPercentages))
+                for (final pct
+                    in (controller.tipSuggestedPercentages.isEmpty
+                        ? <double>[0.10, 0.15, 0.20]
+                        : controller.tipSuggestedPercentages))
                   _buildQuickTipButton(
                     context,
                     pct % 1 == 0
@@ -987,11 +1036,10 @@ class CartWidget extends StatelessWidget {
                       : null,
                   border: const OutlineInputBorder(),
                 ),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  AppInputFormatters.priceFormatter(),
-                ],
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [AppInputFormatters.priceFormatter()],
               ),
             ] else ...[
               const SizedBox(height: 12),
@@ -1064,10 +1112,9 @@ class CartWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: hasNote
               ? Colors.amber.shade50
-              : Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.4),
+              : Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: hasNote
@@ -1078,9 +1125,7 @@ class CartWidget extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              hasNote
-                  ? Icons.sticky_note_2
-                  : Icons.sticky_note_2_outlined,
+              hasNote ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
               size: 14,
               color: hasNote
                   ? Colors.amber.shade800
@@ -1130,18 +1175,16 @@ class CartWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: hasNote
                 ? Colors.amber.shade50
-                : Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.4),
+                : Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasNote
                   ? Colors.amber.shade300
-                  : Theme.of(context)
-                      .colorScheme
-                      .outline
-                      .withValues(alpha: 0.25),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.25),
             ),
           ),
           child: Row(
@@ -1190,9 +1233,7 @@ class CartWidget extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           fontStyle: FontStyle.italic,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
