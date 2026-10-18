@@ -16,6 +16,7 @@ import '../../../cash_sessions/presentation/controllers/cash_session_controller.
 import '../../../cash_sessions/presentation/controllers/cash_session_guard.dart';
 import '../../../cash_sessions/presentation/widgets/open_cash_dialog.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
+import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../controllers/home_controller.dart';
 
 /// Dashboard — pantalla de inicio.
@@ -237,7 +238,21 @@ class DashboardTab extends GetView<HomeController> {
                     title: 'Cuentas\nabiertas',
                     subtitle: 'Mesas y tickets vivos',
                     accent: AppColors.success,
-                    onTap: () => Get.toNamed(AppRoutes.tabSessions),
+                    // Bug real reportado: "Cuentas abiertas" se
+                    // empujaba como ruta aparte (`OpenTabsPage`),
+                    // dejando la pantalla sin la barra de navegación
+                    // de abajo — igual que pasaba con Órdenes/
+                    // Productos. Ya existe el mismo contenido embebido
+                    // como segmento dentro de la pestaña Órdenes
+                    // (`OrdersController.mainView == 1`, ver
+                    // `_ViewToggle` en `orders_page.dart`) — cambiar de
+                    // pestaña + segmento mantiene la barra visible.
+                    onTap: () {
+                      controller.changeIndex(1);
+                      if (Get.isRegistered<OrdersController>()) {
+                        Get.find<OrdersController>().switchMainView(1);
+                      }
+                    },
                   ),
                 ),
               ),

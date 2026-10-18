@@ -10,10 +10,12 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
+import '../../../home/presentation/controllers/home_controller.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/process_payment_dialog.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
 import '../controllers/order_form_controller.dart';
+import '../controllers/orders_controller.dart';
 import '../models/sell_mode.dart';
 import '../widgets/cart_widget.dart';
 import '../widgets/product_selector_widget.dart';
@@ -670,8 +672,23 @@ class _BottomBar extends StatelessWidget {
       // Mesa o cuenta abierta: el ticket ya se sumó. Volver siempre
       // al listado de cuentas abiertas para que el cajero pueda
       // atender al siguiente cliente sin pasos extras.
+      //
+      // Bug real reportado: esto empujaba/reemplazaba con la pantalla
+      // aparte `OpenTabsPage` (`AppRoutes.tabSessions`), que no tiene
+      // la barra de navegación de abajo — además iba quedando un nivel
+      // de stack sobre Home según desde dónde se abrió `SellPage`. En
+      // vez de eso, colapsamos todo el stack a Home y seleccionamos el
+      // segmento "Cuentas abiertas" ya embebido en la pestaña Órdenes
+      // (mismo contenido, misma `OpenTabsView`, con la barra siempre
+      // visible y sin acumular pantallas en el stack).
       controller.resetForm();
-      await Get.offNamed<dynamic>(AppRoutes.tabSessions);
+      await Get.offAllNamed<dynamic>(AppRoutes.home);
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().changeIndex(1);
+      }
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().switchMainView(1);
+      }
     }
   }
 }
