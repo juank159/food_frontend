@@ -341,6 +341,17 @@ class AuthController extends GetxController {
   Future<void> logout() async {
     _isLoading.value = true;
 
+    // Bug real encontrado (revisando logs de producción): esto se
+    // llamaba DESPUÉS de `logoutUseCase()` (dentro de
+    // `_clearAuthState`) — pero ese use case pone el access_token
+    // actual en la blacklist del servidor. El DELETE de abajo usa ESE
+    // mismo token (vía el interceptor de Dio), así que SIEMPRE
+    // fallaba con 401 — el token FCM quedaba huérfano en la base
+    // hasta que un push fallido lo borrara de rebote. Desregistrar
+    // ANTES de invalidar el token es lo que hace que el DELETE
+    // funcione.
+    await PushNotificationService.unregisterToken(sl<Dio>());
+
     final result = await logoutUseCase();
 
     result.fold(
@@ -388,8 +399,8 @@ class AuthController extends GetxController {
   void _clearAuthState() {
     _isAuthenticated.value = false;
     _currentUser.value = null;
-    // Desregistrar token FCM antes de limpiar el estado (fire-and-forget).
-    PushNotificationService.unregisterToken(sl<Dio>()).ignore();
+    // El desregistro del token FCM ya se hizo en `logout()`, ANTES de
+    // invalidar el token (ver comentario ahí) — acá ya es tarde.
     // Detener los servicios globales cuando el usuario cierra sesión —
     // sin esto seguirían poleando sin auth válida y generando 401.
     try {
