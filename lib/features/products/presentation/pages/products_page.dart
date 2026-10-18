@@ -81,6 +81,26 @@ class _ProductsHeader extends StatelessWidget {
         children: [
           Row(
             children: [
+              // Bug real reportado: esta pantalla no tenía ningún
+              // botón de volver propio — como pestaña del home está
+              // bien (la barra de abajo es la forma de salir), pero
+              // también se llega acá empujada como ruta aparte (ej.
+              // accesos directos del dashboard para roles sin esta
+              // pestaña) — ahí el usuario quedaba sin forma de volver.
+              // Mismo criterio que `OrdersPage`: solo se muestra
+              // cuando `Navigator.canPop` es `true`.
+              if (Navigator.canPop(context))
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

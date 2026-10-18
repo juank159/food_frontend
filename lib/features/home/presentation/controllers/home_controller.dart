@@ -288,8 +288,6 @@ class HomeController extends GetxController {
   // Estos métodos delegan a `NavigationService` para mantener una única
   // fuente de verdad sobre los nombres de rutas. Cualquier nueva ruta del
   // dashboard debe agregarse al `NavigationService`, no acá.
-  void goToOrders() => NavigationService.toOrders();
-  void goToProducts() => NavigationService.toProducts();
   void goToTables() => NavigationService.toTables();
   void goToCustomers() => NavigationService.toCustomers();
   void createNewOrder() => NavigationService.toCreateOrder();

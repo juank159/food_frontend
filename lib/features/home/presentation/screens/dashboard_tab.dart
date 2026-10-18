@@ -147,7 +147,16 @@ class DashboardTab extends GetView<HomeController> {
                     value: controller.isLoadingStats
                         ? '—'
                         : controller.activeOrders.toString(),
-                    onTap: () => NavigationService.toOrders(),
+                    // Bug real reportado: "Órdenes" SIEMPRE es una
+                    // pestaña del home (índice 1, para admin/manager/
+                    // waiter/cashier) — empujarla como ruta aparte
+                    // (`NavigationService.toOrders`) la dejaba sin
+                    // barra de navegación de abajo NI botón de volver
+                    // visible, atascando al usuario ahí. Cambiar de
+                    // pestaña es lo correcto cuando el destino YA es
+                    // una pestaña del home — mismo criterio que
+                    // `BottomNavigationBar.onTap` (`controller.changeIndex`).
+                    onTap: () => controller.changeIndex(1),
                   )),
               Obx(() => AppKpiChip(
                     icon: Icons.chair,
@@ -253,7 +262,15 @@ class DashboardTab extends GetView<HomeController> {
           title: 'Estado de mesas',
           subtitle: 'Ver ocupación y servicio en vivo',
           accent: AppColors.info,
-          onTap: controller.goToTables,
+          // Bug real reportado: para mesero/cajero "Mesas" ES su
+          // pestaña 2 del home (ver `HomeScreen._buildTabsForRole`) —
+          // empujarla como ruta aparte la dejaba sin barra de abajo
+          // visible. Para admin/manager esa pestaña es "Productos"
+          // (no tienen pestaña "Mesas"), ahí sí corresponde empujar
+          // una ruta — por eso la decisión depende del rol.
+          onTap: access.isAdminOrManager
+              ? controller.goToTables
+              : () => controller.changeIndex(2),
         ),
       // Caja: la abre/cierra el cajero (responsable del efectivo) y
       // admin/manager para supervisión. El mesero NO — su rol no
@@ -286,7 +303,11 @@ class DashboardTab extends GetView<HomeController> {
           title: 'Productos',
           subtitle: 'Catálogo, categorías y modificadores',
           accent: AppColors.secondary,
-          onTap: controller.goToProducts,
+          // Esta tile solo se ve con `access.isAdminOrManager` (arriba)
+          // y para ese rol "Productos" SIEMPRE es la pestaña 2 del home
+          // — mismo bug que "Mesas"/"Órdenes", cambiar de pestaña en
+          // vez de empujar una ruta aparte sin barra de navegación.
+          onTap: () => controller.changeIndex(2),
         ),
         _QuickActionTile(
           icon: FontAwesomeIcons.qrcode,

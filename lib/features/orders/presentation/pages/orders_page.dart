@@ -245,6 +245,30 @@ class _Header extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Bug real reportado: esta pantalla no tenía NINGÚN botón
+              // de volver propio — cuando se llega acá normalmente
+              // (como pestaña del home) está bien, porque la barra de
+              // navegación de abajo YA es la forma de salir. Pero
+              // también se llega acá empujada como ruta independiente
+              // (ej. accesos directos del dashboard, `NavigationService
+              // .toOrders`/`toOrdersList`) — ahí no hay pestañas abajo
+              // y el usuario quedaba sin ninguna forma de volver.
+              // `Navigator.canPop` es `false` cuando esta pantalla es
+              // la pestaña del home (no hay nada debajo en el stack de
+              // ESTA ruta) y `true` cuando sí la empujaron — así el
+              // botón solo aparece cuando realmente hace falta.
+              if (Navigator.canPop(context))
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
               const Text(
                 'Órdenes',
                 style: TextStyle(
