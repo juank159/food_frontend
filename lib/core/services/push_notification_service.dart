@@ -15,16 +15,26 @@ import '../routes/app_routes.dart';
 import '../utils/api_response_utils.dart';
 import '../../features/payments/presentation/controllers/breb_payment_controller.dart';
 
-/// Canal v6: IMPORTANCE_HIGH con sonido del sistema (sin URI custom).
-/// Creado por MainApplication.setupQrChannel() — solo si no existe, para que
-/// Android no degrade la importancia al borrar/recrear con el mismo ID.
+/// Canal v7: IMPORTANCE_HIGH con sonido custom (`res/raw/qr_alert.mp3`) y
+/// vibración. Creado de verdad por `MainApplication.setupQrChannel()` (Kotlin
+/// nativo, corre en `Application.onCreate()` antes de que exista el engine
+/// de Flutter) — este objeto solo mantiene el `id` sincronizado para que las
+/// notificaciones mostradas en foreground (`_localNotifs.show`) usen el
+/// mismo canal. Bug real reportado: el canal v6 sonaba con el tono default
+/// de Android y no vibraba estando bloqueado — Android fija sonido/vibración
+/// la PRIMERA vez que un canal se crea en el dispositivo y nunca los
+/// actualiza después aunque el código cambie, así que cualquier ajuste de
+/// sonido/vibración necesita subir el ID del canal (ver el comentario largo
+/// en `MainApplication.kt` para la causa real de por qué el intento anterior
+/// de sonido custom quedaba mudo).
 final _kQrChannel = AndroidNotificationChannel(
-  'qr_orders_v6',
+  'qr_orders_v7',
   'Pedidos QR',
   description: 'Alertas de nuevos pedidos enviados por clientes desde el menú QR.',
   importance: Importance.max,
   enableVibration: true,
   vibrationPattern: Int64List.fromList([0, 800, 200, 800, 200, 800]),
+  sound: const RawResourceAndroidNotificationSound('qr_alert'),
 );
 
 final FlutterLocalNotificationsPlugin _localNotifs =
