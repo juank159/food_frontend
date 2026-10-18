@@ -4,6 +4,7 @@ import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../controllers/tab_session_detail_controller.dart';
 
 /// Card de un ticket dentro de una cuenta abierta.
 ///
@@ -46,9 +47,18 @@ class TabTicketCard extends StatelessWidget {
       color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: () => Get.toNamed(
-          AppRoutes.orderDetail.replaceAll(':id', id),
-        ),
+        // Bug real reportado: pagar un ticket desde su detalle refresca
+        // bien ESA pantalla, pero al volver a la cuenta (que muestra
+        // saldo/pagado/pendiente sumando TODOS sus tickets) esos
+        // totales quedaban viejos hasta refrescar a mano — mismo
+        // patrón que ya usa `_onAddTicket` (abajo) al volver de crear
+        // un ticket nuevo.
+        onTap: () =>
+            Get.toNamed(AppRoutes.orderDetail.replaceAll(':id', id))?.then((_) {
+              if (Get.isRegistered<TabSessionDetailController>()) {
+                Get.find<TabSessionDetailController>().load();
+              }
+            }),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.all(12),

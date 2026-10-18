@@ -27,6 +27,7 @@ class CartItem {
   String? specialInstructions;
   ProductVariant? selectedVariant;
   List<SelectedModifier> selectedModifiers;
+
   /// Cremas/sabores elegidos (uno por bola; pueden repetirse). `flavorIds`
   /// viaja al backend; `flavorNames` es para mostrar en el carrito.
   List<String> flavorIds;
@@ -41,10 +42,10 @@ class CartItem {
     List<SelectedModifier>? selectedModifiers,
     List<String>? flavorIds,
     List<String>? flavorNames,
-  })  : unitPrice = unitPrice ?? product.basePrice,
-        selectedModifiers = selectedModifiers ?? [],
-        flavorIds = flavorIds ?? [],
-        flavorNames = flavorNames ?? [];
+  }) : unitPrice = unitPrice ?? product.basePrice,
+       selectedModifiers = selectedModifiers ?? [],
+       flavorIds = flavorIds ?? [],
+       flavorNames = flavorNames ?? [];
 
   /// Calcula el precio base considerando variante
   double get effectiveBasePrice {
@@ -80,7 +81,8 @@ class CartItem {
     return {
       'product_id': product.id,
       'quantity': quantity,
-      'unit_price': effectiveBasePrice, // Enviar precio con variante ya calculado
+      'unit_price':
+          effectiveBasePrice, // Enviar precio con variante ya calculado
       'special_instructions': specialInstructions,
       if (selectedVariant != null) 'variant_id': selectedVariant!.id,
       if (selectedVariant != null) 'variant_name': selectedVariant!.name,
@@ -214,8 +216,7 @@ class OrderFormController extends GetxController {
   // Base: subtotal | subtotal_with_tax | subtotal_after_discount.
   final RxString tipCalculationBase = 'subtotal_after_discount'.obs;
   final RxBool tipAllowCustomAmount = true.obs;
-  final RxList<double> tipSuggestedPercentages =
-      <double>[0.10, 0.15, 0.20].obs;
+  final RxList<double> tipSuggestedPercentages = <double>[0.10, 0.15, 0.20].obs;
   final RxDouble tipDefaultPercentage = 0.10.obs;
   final RxDouble tipMaxPercentage = 0.0.obs; // 0 = sin tope
   final RxList<String> tipAppliesToOrderTypes = <String>[].obs;
@@ -250,8 +251,7 @@ class OrderFormController extends GetxController {
           (tip['allow_custom_amount'] as bool?) ?? true;
 
       final defPct = tip['default_percentage'];
-      tipDefaultPercentage.value =
-          defPct is num ? defPct.toDouble() : 0.10;
+      tipDefaultPercentage.value = defPct is num ? defPct.toDouble() : 0.10;
 
       final suggested = tip['suggested_percentages'];
       tipSuggestedPercentages.clear();
@@ -350,9 +350,8 @@ class OrderFormController extends GetxController {
   }
 
   double get total {
-    final base = !taxEnabled.value ||
-            taxRate.value <= 0 ||
-            taxIncludedInPrice.value
+    final base =
+        !taxEnabled.value || taxRate.value <= 0 || taxIncludedInPrice.value
         ? _taxableAmount
         : _taxableAmount + (_taxableAmount * taxRate.value);
     return base + deliveryFee.value + tipAmount.value;
@@ -383,9 +382,7 @@ class OrderFormController extends GetxController {
     // takeaway: nombre obligatorio SOLO cuando es ticket suelto. En
     // una cuenta abierta o en Venta Express, no se exige (la mesa /
     // mostrador identifica al cliente).
-    if (orderType.value == OrderType.takeaway &&
-        !inTab &&
-        !isQuickSale.value) {
+    if (orderType.value == OrderType.takeaway && !inTab && !isQuickSale.value) {
       final name = customerName.value?.trim() ?? '';
       if (name.isEmpty) return false;
     }
@@ -419,9 +416,7 @@ class OrderFormController extends GetxController {
         selectedTableElementId.value == null) {
       return 'Seleccioná una mesa';
     }
-    if (orderType.value == OrderType.takeaway &&
-        !inTab &&
-        !isQuickSale.value) {
+    if (orderType.value == OrderType.takeaway && !inTab && !isQuickSale.value) {
       final name = customerName.value?.trim() ?? '';
       if (name.isEmpty) return 'Falta nombre del cliente';
     }
@@ -484,11 +479,7 @@ class OrderFormController extends GetxController {
   /// Verifica si podemos agregar `qty` unidades del producto al carrito sin
   /// superar el stock. Se invoca desde `addToCart` y desde la grilla para
   /// decidir si habilitar/deshabilitar el botón.
-  bool canAddToCart(
-    Product product, {
-    int qty = 1,
-    ProductVariant? variant,
-  }) {
+  bool canAddToCart(Product product, {int qty = 1, ProductVariant? variant}) {
     if (qty <= 0) return false;
     // Variante explícitamente marcada como no disponible: bloquea sin importar
     // el inventario del producto.
@@ -537,15 +528,17 @@ class OrderFormController extends GetxController {
         (modifiers != null && modifiers.isNotEmpty) ||
         hasFlavors ||
         hasNotes) {
-      cartItems.add(CartItem(
-        product: product,
-        quantity: quantity,
-        selectedVariant: variant,
-        selectedModifiers: modifiers ?? [],
-        specialInstructions: hasNotes ? notes : null,
-        flavorIds: flavorIds,
-        flavorNames: flavorNames,
-      ));
+      cartItems.add(
+        CartItem(
+          product: product,
+          quantity: quantity,
+          selectedVariant: variant,
+          selectedModifiers: modifiers ?? [],
+          specialInstructions: hasNotes ? notes : null,
+          flavorIds: flavorIds,
+          flavorNames: flavorNames,
+        ),
+      );
     } else {
       // Check if product already exists (sin variante ni modificadores ni nota)
       final existingIndex = cartItems.indexWhere(
@@ -591,23 +584,26 @@ class OrderFormController extends GetxController {
   /// gestionan como líneas propias desde el carrito.
   int plainCartQuantity(Product product) {
     return cartItems
-        .where((i) =>
-            i.product.id == product.id &&
-            i.selectedVariant == null &&
-            i.selectedModifiers.isEmpty &&
-            (i.specialInstructions == null ||
-                i.specialInstructions!.isEmpty))
+        .where(
+          (i) =>
+              i.product.id == product.id &&
+              i.selectedVariant == null &&
+              i.selectedModifiers.isEmpty &&
+              (i.specialInstructions == null || i.specialInstructions!.isEmpty),
+        )
         .fold(0, (sum, i) => sum + i.quantity);
   }
 
   /// Quita una unidad de la línea simple del producto (stepper rápido).
   /// Si llega a 0, `updateQuantity` elimina la línea.
   void decrementPlain(Product product) {
-    final idx = cartItems.indexWhere((i) =>
-        i.product.id == product.id &&
-        i.selectedVariant == null &&
-        i.selectedModifiers.isEmpty &&
-        (i.specialInstructions == null || i.specialInstructions!.isEmpty));
+    final idx = cartItems.indexWhere(
+      (i) =>
+          i.product.id == product.id &&
+          i.selectedVariant == null &&
+          i.selectedModifiers.isEmpty &&
+          (i.specialInstructions == null || i.specialInstructions!.isEmpty),
+    );
     if (idx == -1) return;
     updateQuantity(idx, cartItems[idx].quantity - 1);
   }
@@ -636,12 +632,9 @@ class OrderFormController extends GetxController {
         // línea, que estamos por reescribir). Si el delta supera lo que
         // queda, bloqueamos y avisamos.
         final item = cartItems[index];
-        if (item.product.trackInventory &&
-            item.product.currentStock != null) {
-          final otherInCart = _quantityInCart(
-                item.product,
-                variant: item.selectedVariant,
-              ) -
+        if (item.product.trackInventory && item.product.currentStock != null) {
+          final otherInCart =
+              _quantityInCart(item.product, variant: item.selectedVariant) -
               item.quantity;
           if (otherInCart + quantity > item.product.currentStock!) {
             AppSnackbar.show(
@@ -757,16 +750,14 @@ class OrderFormController extends GetxController {
 
   /// Set customer info. Normalizamos strings vacíos a `null` para que
   /// `canSubmit` y el JSON enviado al backend sean consistentes.
-  void setCustomerInfo({
-    String? id,
-    String? name,
-    String? phone,
-  }) {
+  void setCustomerInfo({String? id, String? name, String? phone}) {
     customerId.value = (id != null && id.trim().isEmpty) ? null : id;
-    customerName.value =
-        (name != null && name.trim().isEmpty) ? null : name?.trim();
-    customerPhone.value =
-        (phone != null && phone.trim().isEmpty) ? null : phone?.trim();
+    customerName.value = (name != null && name.trim().isEmpty)
+        ? null
+        : name?.trim();
+    customerPhone.value = (phone != null && phone.trim().isEmpty)
+        ? null
+        : phone?.trim();
   }
 
   /// Apply discount amount
@@ -807,8 +798,8 @@ class OrderFormController extends GetxController {
   void setSpecialInstructions(String? instructions) {
     specialInstructions.value =
         (instructions == null || instructions.trim().isEmpty)
-            ? null
-            : instructions.trim();
+        ? null
+        : instructions.trim();
   }
 
   /// Setea las instrucciones especiales de un item del carrito por índice.
@@ -816,30 +807,30 @@ class OrderFormController extends GetxController {
     if (index < 0 || index >= cartItems.length) return;
     cartItems[index].specialInstructions =
         (instructions == null || instructions.trim().isEmpty)
-            ? null
-            : instructions.trim();
+        ? null
+        : instructions.trim();
     cartItems.refresh();
   }
 
   /// Setea la dirección de entrega. Strings vacíos → `null`.
-  void setDeliveryAddress({
-    String? street,
-    String? city,
-    String? notes,
-  }) {
-    deliveryStreet.value =
-        (street == null || street.trim().isEmpty) ? null : street.trim();
-    deliveryCity.value =
-        (city == null || city.trim().isEmpty) ? null : city.trim();
-    deliveryNotes.value =
-        (notes == null || notes.trim().isEmpty) ? null : notes.trim();
+  void setDeliveryAddress({String? street, String? city, String? notes}) {
+    deliveryStreet.value = (street == null || street.trim().isEmpty)
+        ? null
+        : street.trim();
+    deliveryCity.value = (city == null || city.trim().isEmpty)
+        ? null
+        : city.trim();
+    deliveryNotes.value = (notes == null || notes.trim().isEmpty)
+        ? null
+        : notes.trim();
   }
 
   /// Construye el `deliveryAddress` para el JSON de la orden, o `null`
   /// si no hay datos.
   Map<String, dynamic>? get _composedDeliveryAddress {
     if (orderType.value != OrderType.delivery) return null;
-    final hasAny = (deliveryStreet.value?.isNotEmpty ?? false) ||
+    final hasAny =
+        (deliveryStreet.value?.isNotEmpty ?? false) ||
         (deliveryCity.value?.isNotEmpty ?? false) ||
         (deliveryNotes.value?.isNotEmpty ?? false);
     if (!hasAny) return null;
@@ -872,8 +863,8 @@ class OrderFormController extends GetxController {
       // En Venta Express, si el operario no puso nombre, asignamos uno
       // genérico para que el backend tenga algo en `customer_name`
       // (algunos reportes y prints lo esperan no-vacío).
-      final effectiveCustomerName = isQuickSale.value &&
-              (customerName.value?.trim().isEmpty ?? true)
+      final effectiveCustomerName =
+          isQuickSale.value && (customerName.value?.trim().isEmpty ?? true)
           ? 'Mostrador'
           : customerName.value;
 
@@ -887,9 +878,10 @@ class OrderFormController extends GetxController {
       final mode = currentMode.value;
       final isNoTableQuickSale =
           mode.tableElementId == null &&
-              mode.tabSessionId == null &&
-              mode.orderType != OrderType.dineIn;
-      final assignTicketNumber = mode.assignsTicketNumber ||
+          mode.tabSessionId == null &&
+          mode.orderType != OrderType.dineIn;
+      final assignTicketNumber =
+          mode.assignsTicketNumber ||
           (isNoTableQuickSale &&
               await OperationModePreference.isCounterTicketsOnly());
 
@@ -897,9 +889,15 @@ class OrderFormController extends GetxController {
         orderType: orderType.value,
         tableId: selectedTableId.value,
         tableElementId: selectedTableElementId.value,
-        // Venta de mostrador: etiquetamos el destino como "Mostrador" para
-        // que la comanda/recibo/card NO digan "Para llevar" (no se eligió
-        // para llevar).
+        // Venta de mostrador/turno: etiquetamos el destino con el pill
+        // label del modo ("Mostrador" o "Turno") para que la comanda/
+        // recibo/card NO digan "Para llevar" (no se eligió para
+        // llevar). Bug real reportado: antes esto era el string fijo
+        // "Mostrador" sin importar el modo — una venta por "Turno de
+        // mostrador" (mode.assignsTicketNumber) quedaba etiquetada
+        // igual que una venta de mostrador normal, perdiendo la
+        // distinción en "Cuentas abiertas"/el ticket. `mode.pillLabel`
+        // ya distingue ambos casos (ver `sell_mode.dart`).
         //
         // Mesa seleccionada: el editor de planos guarda SOLO el número
         // como label ("1", "2"…, ver floor_plan_editor_controller.dart,
@@ -919,12 +917,12 @@ class OrderFormController extends GetxController {
         // si acá pusiéramos "Mesa X" igual, ese ticket puntual mostraría
         // la mesa en vez de "Domicilio"/"Para llevar" en pantalla.
         tableLabel: isQuickSale.value
-            ? 'Mostrador'
+            ? mode.pillLabel
             : (orderType.value == OrderType.dineIn &&
-                    selectedTableElementId.value != null &&
-                    (selectedTableName.value?.trim().isNotEmpty ?? false)
-                ? 'Mesa ${selectedTableName.value}'
-                : null),
+                      selectedTableElementId.value != null &&
+                      (selectedTableName.value?.trim().isNotEmpty ?? false)
+                  ? 'Mesa ${selectedTableName.value}'
+                  : null),
         tabSessionId: activeTabSessionId.value,
         customerId: customerId.value,
         customerName: effectiveCustomerName,
@@ -1064,8 +1062,7 @@ class OrderFormController extends GetxController {
     // En Venta Express mantenemos `takeaway` para que el operario siga
     // vendiendo sin re-configurar la pantalla. En el flujo normal,
     // dine-in es el default que el usuario espera al abrir "Nueva orden".
-    orderType.value =
-        isQuickSale.value ? OrderType.takeaway : OrderType.dineIn;
+    orderType.value = isQuickSale.value ? OrderType.takeaway : OrderType.dineIn;
     selectedTableId.value = null;
     selectedTableElementId.value = null;
     selectedTableName.value = null;
