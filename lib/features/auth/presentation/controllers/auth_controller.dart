@@ -7,6 +7,7 @@ import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../orders/presentation/controllers/pending_review_watcher.dart';
 import '../../../subscriptions/presentation/controllers/trial_expiry_reminder_service.dart';
+import '../../../../core/services/realtime_service.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/change_password_usecase.dart';
@@ -116,6 +117,13 @@ class AuthController extends GetxController {
     }
     try {
       Get.find<TrialExpiryReminderService>().startForUser(user);
+    } catch (_) {}
+    // Conecta el socket de "aviso en vivo" (ver `RealtimeService`) —
+    // cubre tanto login explícito como sesión restaurada al abrir la
+    // app. Fire-and-forget: si falla (sin red, token vencido) no
+    // bloquea nada, el `ConnectivityService` reintenta al reconectar.
+    try {
+      Get.find<RealtimeService>().connect().ignore();
     } catch (_) {}
   }
 
@@ -370,13 +378,10 @@ class AuthController extends GetxController {
       lastName: lastName,
       phoneNumber: phoneNumber,
     );
-    return result.fold(
-      (failure) => failure.message,
-      (user) {
-        _currentUser.value = user;
-        return null;
-      },
-    );
+    return result.fold((failure) => failure.message, (user) {
+      _currentUser.value = user;
+      return null;
+    });
   }
 
   /// Clear authentication state
@@ -392,6 +397,9 @@ class AuthController extends GetxController {
     } catch (_) {}
     try {
       Get.find<TrialExpiryReminderService>().stop();
+    } catch (_) {}
+    try {
+      Get.find<RealtimeService>().disconnect();
     } catch (_) {}
   }
 }

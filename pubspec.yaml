@@ -37,6 +37,10 @@ dependencies:
   # HTTP Client
   dio: ^5.4.0
 
+  # Tiempo real: aviso "algo cambió" entre dispositivos del mismo
+  # tenant — ver `core/services/realtime_service.dart`.
+  socket_io_client: ^3.1.2
+
   # Secure Storage
   flutter_secure_storage: ^9.0.0
 

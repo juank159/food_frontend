@@ -163,6 +163,7 @@ import '../config/constants/api_constants.dart';
 import '../network/network_info.dart';
 import '../services/app_sync_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/realtime_service.dart';
 import '../services/local_cache_service.dart';
 import '../services/offline_queue_service.dart';
 import '../services/sync_handlers.dart';
@@ -210,10 +211,7 @@ Future<void> init() async {
   );
 
   sl.registerLazySingleton<AuthLocalDataSource>(
-    () => AuthLocalDataSourceImpl(
-      secureStorage: sl(),
-      sharedPreferences: sl(),
-    ),
+    () => AuthLocalDataSourceImpl(secureStorage: sl(), sharedPreferences: sl()),
   );
 
   // ========================================
@@ -384,18 +382,10 @@ Future<void> init() async {
   // repository abstracto — son data layers contenidas con datasource
   // directo desde el controller. Simplifica el setup y no compromete
   // testabilidad (los datasources son mockeables).
-  sl.registerLazySingleton(
-    () => QrTokensRemoteDataSource(dio: sl()),
-  );
-  sl.registerLazySingleton(
-    () => ThermalPrintService(dio: sl()),
-  );
-  sl.registerLazySingleton(
-    () => MenuSchedulesRemoteDataSource(dio: sl()),
-  );
-  sl.registerLazySingleton(
-    () => PrinterConfigsRemoteDataSource(dio: sl()),
-  );
+  sl.registerLazySingleton(() => QrTokensRemoteDataSource(dio: sl()));
+  sl.registerLazySingleton(() => ThermalPrintService(dio: sl()));
+  sl.registerLazySingleton(() => MenuSchedulesRemoteDataSource(dio: sl()));
+  sl.registerLazySingleton(() => PrinterConfigsRemoteDataSource(dio: sl()));
 
   // ========================================
   // Features - Tables
@@ -553,10 +543,7 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<ReportsRepository>(
-    () => ReportsRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ReportsRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
 
   // Data Source
@@ -606,10 +593,7 @@ Future<void> init() async {
 
   // Repository
   sl.registerLazySingleton<ReservationRepository>(
-    () => ReservationRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-    ),
+    () => ReservationRepositoryImpl(remoteDataSource: sl(), networkInfo: sl()),
   );
 
   // Data Source
@@ -638,6 +622,12 @@ Future<void> init() async {
 
   // Connectivity service — permanent stream of online/offline state
   Get.put<ConnectivityService>(ConnectivityService(), permanent: true);
+
+  // Aviso en vivo entre dispositivos (ver `RealtimeService`) — se
+  // conecta de verdad recién tras login/sesión restaurada
+  // (`AuthController._startBackgroundServices`); acá solo se registra
+  // el singleton.
+  Get.put<RealtimeService>(RealtimeService(), permanent: true);
 
   // ========================================
   // Local datasources (require LocalCacheService / OfflineQueueService)
@@ -686,9 +676,7 @@ Future<void> init() async {
         connectTimeout: ApiConstants.connectTimeout,
         receiveTimeout: ApiConstants.receiveTimeout,
         sendTimeout: ApiConstants.sendTimeout,
-        headers: {
-          ApiConstants.contentTypeHeader: 'application/json',
-        },
+        headers: {ApiConstants.contentTypeHeader: 'application/json'},
       ),
     );
 
@@ -699,9 +687,7 @@ Future<void> init() async {
         baseUrl: ApiConstants.baseUrl,
         connectTimeout: ApiConstants.connectTimeout,
         receiveTimeout: ApiConstants.receiveTimeout,
-        headers: {
-          ApiConstants.contentTypeHeader: 'application/json',
-        },
+        headers: {ApiConstants.contentTypeHeader: 'application/json'},
       ),
     );
 
@@ -748,15 +734,17 @@ Future<void> init() async {
           final path = options.path;
 
           // Don't add auth token to login/register endpoints
-          final isAuthEndpoint = path.contains('/auth/login') ||
-                                 path.contains('/auth/register') ||
-                                 path.contains('/auth/refresh') ||
-                                 path.contains('/tenants');
+          final isAuthEndpoint =
+              path.contains('/auth/login') ||
+              path.contains('/auth/register') ||
+              path.contains('/auth/refresh') ||
+              path.contains('/tenants');
 
           if (!isAuthEndpoint) {
             final token = await sl<AuthLocalDataSource>().getAccessToken();
             if (token != null) {
-              options.headers[ApiConstants.authorizationHeader] = 'Bearer $token';
+              options.headers[ApiConstants.authorizationHeader] =
+                  'Bearer $token';
             }
 
             if (!options.headers.containsKey(ApiConstants.tenantHeader)) {
@@ -775,11 +763,11 @@ Future<void> init() async {
           final originalPath = error.requestOptions.path;
           // Skip retry for auth endpoints to avoid loops, and for requests
           // we've already retried once.
-          final isAuthEndpoint = originalPath.contains('/auth/login') ||
-                                 originalPath.contains('/auth/register') ||
-                                 originalPath.contains('/auth/refresh');
-          final alreadyRetried =
-              error.requestOptions.extra['_retried'] == true;
+          final isAuthEndpoint =
+              originalPath.contains('/auth/login') ||
+              originalPath.contains('/auth/register') ||
+              originalPath.contains('/auth/refresh');
+          final alreadyRetried = error.requestOptions.extra['_retried'] == true;
 
           // 403 con el mensaje "Token sin información de rol" significa
           // que la app está usando un access_token emitido por una build
@@ -789,8 +777,7 @@ Future<void> init() async {
           // user a /login para que emita tokens frescos.
           if (status == 403 && !isAuthEndpoint) {
             final body = error.response?.data;
-            final msg =
-                body is Map ? body['message']?.toString() ?? '' : '';
+            final msg = body is Map ? body['message']?.toString() ?? '' : '';
             if (msg.contains('Token sin información de rol')) {
               await sl<AuthLocalDataSource>().clearAll();
               // Mandamos al user a /login para emitir tokens frescos.
@@ -811,8 +798,7 @@ Future<void> init() async {
           // polls lo traga; una acción puntual mostrará error, raro tras
           // subir los límites por rol en el backend).
           if (status == 429 && !alreadyRetried && !isAuthEndpoint) {
-            final retryAfterRaw =
-                error.response?.headers.value('retry-after');
+            final retryAfterRaw = error.response?.headers.value('retry-after');
             final retryAfter = int.tryParse(retryAfterRaw ?? '');
             if (retryAfter != null && retryAfter > 0 && retryAfter <= 2) {
               await Future.delayed(Duration(seconds: retryAfter));
@@ -841,7 +827,8 @@ Future<void> init() async {
 
           // Retry the original request once with the new token.
           final retryOptions = error.requestOptions
-            ..headers[ApiConstants.authorizationHeader] = 'Bearer $newAccessToken'
+            ..headers[ApiConstants.authorizationHeader] =
+                'Bearer $newAccessToken'
             ..extra['_retried'] = true;
 
           try {
@@ -855,12 +842,7 @@ Future<void> init() async {
     );
 
     // Add logging in debug mode
-    dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-      ),
-    );
+    dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
 
     return dio;
   });
@@ -868,9 +850,7 @@ Future<void> init() async {
   // Flutter Secure Storage
   sl.registerLazySingleton<FlutterSecureStorage>(
     () => const FlutterSecureStorage(
-      aOptions: AndroidOptions(
-        encryptedSharedPreferences: true,
-      ),
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
     ),
   );
 

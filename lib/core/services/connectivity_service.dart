@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
+import 'realtime_service.dart';
+
 /// Servicio singleton que expone el estado de conectividad como stream reactivo.
 ///
 /// Se registra en DI como `Get.put(ConnectivityService(), permanent: true)`.
@@ -59,6 +61,13 @@ class ConnectivityService extends GetxController {
     // Disparar sync si el servicio está registrado
     if (Get.isRegistered<SyncService>()) {
       Get.find<SyncService>().processQueue();
+    }
+    // Reconectar el socket de "aviso en vivo" — si se cayó junto con
+    // la red, socket.io ya reintenta solo, pero esto cubre el caso
+    // donde nunca llegó a conectar (ej. arrancó sin red) y ahora sí
+    // hay sesión + red.
+    if (Get.isRegistered<RealtimeService>()) {
+      Get.find<RealtimeService>().connect().ignore();
     }
   }
 
