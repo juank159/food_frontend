@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
+import '../../../../core/utils/jwt_utils.dart';
 import '../../domain/entities/auth_response.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -305,6 +306,23 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, User>> getCurrentUser() async {
     try {
+      // Bug real reportado: "la sesión nunca se cierra" — este método
+      // devolvía el usuario cacheado sin revisar nunca si el
+      // `refresh_token` (el que de verdad define cuánto dura la
+      // sesión; el access_token se renueva solo cada vez que vence,
+      // ver el interceptor de Dio) ya expiró. Con uso diario eso casi
+      // nunca pasaba — pero si el dispositivo estuvo apagado o sin
+      // red más tiempo del que dura el refresh_token (7 días por
+      // defecto), al volver a abrir la app debía cerrar sesión sola,
+      // CON O SIN INTERNET. El claim `exp` de un JWT se lee local, sin
+      // ningún request (ver `JwtUtils`), así que esta revisión corre
+      // siempre, incluso offline — justo lo que se pidió.
+      final refreshToken = await localDataSource.getRefreshToken();
+      if (refreshToken == null || JwtUtils.isExpired(refreshToken)) {
+        await localDataSource.clearAll();
+        return const Left(TokenExpiredFailure());
+      }
+
       // Try to get user from cache first
       final cachedUser = await localDataSource.getUser();
       if (cachedUser != null) {
