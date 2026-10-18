@@ -112,37 +112,52 @@ class _CustomerInfoWidgetState extends State<CustomerInfoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Form(
-        key: _formKey,
-        // SingleChildScrollView para que en mobile chico con teclado
-        // abierto el contenido siga siendo accesible.
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
-              ..._buildCustomerFields(),
-              if (widget._isDelivery) ...[
-                const SizedBox(height: 18),
-                _buildSectionDivider('Dirección de entrega'),
+    // Bug real reportado: en celular, con el teclado abierto, este
+    // form (sobre todo la variante de delivery — nombre, teléfono,
+    // calle, barrio, notas, costo de envío: 6 campos) no tenía ningún
+    // tope de alto — dependía de que el `Dialog`/sheet que lo
+    // contuviera lo acotara solo, y el botón "Continuar" terminaba
+    // exigiendo un scroll nada obvio, sintiéndose como "no veo el
+    // botón". Mismo criterio que `_ExpenseForm` (pantalla de gastos):
+    // tope explícito al 90% del alto de pantalla y padding inferior
+    // que suma el inset del teclado — así el contenido SIEMPRE cabe y
+    // scrollea de forma predecible, sea que este widget se muestre en
+    // un `Dialog` (desktop) o en un bottom sheet (móvil).
+    final mq = MediaQuery.of(context);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: mq.size.height * 0.9),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + mq.viewInsets.bottom),
+        child: Form(
+          key: _formKey,
+          // SingleChildScrollView para que en mobile chico con teclado
+          // abierto el contenido siga siendo accesible.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 16),
+                ..._buildCustomerFields(),
+                if (widget._isDelivery) ...[
+                  const SizedBox(height: 18),
+                  _buildSectionDivider('Dirección de entrega'),
+                  const SizedBox(height: 12),
+                  ..._buildDeliveryFields(),
+                ],
                 const SizedBox(height: 12),
-                ..._buildDeliveryFields(),
-              ],
-              const SizedBox(height: 12),
-              const Text(
-                '* Campo requerido',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textHint,
+                const Text(
+                  '* Campo requerido',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textHint,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              _buildActions(),
-            ],
+                const SizedBox(height: 18),
+                _buildActions(),
+              ],
+            ),
           ),
         ),
       ),

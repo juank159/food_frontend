@@ -5,6 +5,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/services/operation_mode_preference.dart';
+import '../../../../core/utils/app_dialog.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../tab_sessions/domain/entities/tab_session.dart';
 import '../../../tab_sessions/domain/usecases/tab_session_usecases.dart';
@@ -538,41 +539,42 @@ class _SellModeSheetState extends State<SellModeSheet> {
   Future<void> _openCustomerInfoForm(OrderType orderType) async {
     final controller = Get.find<OrderFormController>();
     final isDelivery = orderType == OrderType.delivery;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: CustomerInfoWidget(
-            orderType: orderType,
-            initialName: controller.customerName.value,
-            initialPhone: controller.customerPhone.value,
-            initialDeliveryStreet:
-                isDelivery ? controller.deliveryStreet.value : null,
-            initialDeliveryCity:
-                isDelivery ? controller.deliveryCity.value : null,
-            initialDeliveryNotes:
-                isDelivery ? controller.deliveryNotes.value : null,
-            initialDeliveryFee:
-                isDelivery ? controller.deliveryFee.value : null,
-            onCancel: () => Navigator.of(dialogCtx).pop(false),
-            onSave: (info) {
-              controller.setCustomerInfo(name: info.name, phone: info.phone);
-              if (isDelivery) {
-                controller.setDeliveryAddress(
-                  street: info.deliveryStreet,
-                  city: info.deliveryCity,
-                  notes: info.deliveryNotes,
-                );
-                if (info.deliveryFee != null) {
-                  controller.setDeliveryFee(info.deliveryFee!);
-                }
-              }
-              Navigator.of(dialogCtx).pop(true);
-            },
-          ),
-        ),
+    // Bug real reportado: en celular esto se mostraba como `Dialog`
+    // centrado (pensado para escritorio) — en una pantalla chica, con
+    // el teclado abierto para escribir nombre/teléfono/dirección, el
+    // diálogo quedaba apretado y el botón "Continuar" no se apreciaba
+    // bien. `AppDialog.showFormSheet` muestra esto como bottom sheet
+    // en móvil (gesto nativo, ancho completo) y como diálogo centrado
+    // en desktop — mismo patrón que el formulario de gastos.
+    final confirmed = await AppDialog.showFormSheet<bool>(
+      CustomerInfoWidget(
+        orderType: orderType,
+        initialName: controller.customerName.value,
+        initialPhone: controller.customerPhone.value,
+        initialDeliveryStreet:
+            isDelivery ? controller.deliveryStreet.value : null,
+        initialDeliveryCity:
+            isDelivery ? controller.deliveryCity.value : null,
+        initialDeliveryNotes:
+            isDelivery ? controller.deliveryNotes.value : null,
+        initialDeliveryFee: isDelivery ? controller.deliveryFee.value : null,
+        onCancel: () => Navigator.of(context).pop(false),
+        onSave: (info) {
+          controller.setCustomerInfo(name: info.name, phone: info.phone);
+          if (isDelivery) {
+            controller.setDeliveryAddress(
+              street: info.deliveryStreet,
+              city: info.deliveryCity,
+              notes: info.deliveryNotes,
+            );
+            if (info.deliveryFee != null) {
+              controller.setDeliveryFee(info.deliveryFee!);
+            }
+          }
+          Navigator.of(context).pop(true);
+        },
       ),
+      context: context,
     );
     if (!mounted) return;
     if (confirmed == true) {
