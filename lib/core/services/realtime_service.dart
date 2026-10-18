@@ -1,5 +1,4 @@
-import 'dart:developer' as developer;
-
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -55,13 +54,15 @@ class RealtimeService extends GetxController {
     }
     if (token == null || token.isEmpty) return;
 
+    final socketBaseUrl = ApiConstants.baseUrl.replaceFirst('/api/v1', '');
+    debugPrint('[RealtimeService] conectando a $socketBaseUrl/realtime...');
+
     // Reconstruir de cero en vez de reusar: el token pudo haber
     // cambiado (refresh) desde la última conexión, y socket.io no
     // relee `auth` solo porque se lo pida — hay que recrear el socket
     // con el valor nuevo.
     _socket?.dispose();
 
-    final socketBaseUrl = ApiConstants.baseUrl.replaceFirst('/api/v1', '');
     _socket = io.io(
       '$socketBaseUrl/realtime',
       io.OptionBuilder()
@@ -73,14 +74,15 @@ class RealtimeService extends GetxController {
 
     _socket!.onConnect((_) {
       isConnected.value = true;
-      developer.log('conectado', name: 'RealtimeService');
+      debugPrint('[RealtimeService] conectado');
     });
     _socket!.onDisconnect((_) {
       isConnected.value = false;
+      debugPrint('[RealtimeService] desconectado');
     });
     _socket!.onConnectError((error) {
       isConnected.value = false;
-      developer.log('error de conexión: $error', name: 'RealtimeService');
+      debugPrint('[RealtimeService] error de conexión: $error');
     });
     _socket!.on('change', _handleChange);
   }
@@ -95,6 +97,7 @@ class RealtimeService extends GetxController {
     try {
       final map = data as Map;
       final entity = map['entity'] as String?;
+      debugPrint('[RealtimeService] change recibido: $data');
       switch (entity) {
         case 'orders':
           if (Get.isRegistered<OrdersController>()) {
@@ -113,10 +116,7 @@ class RealtimeService extends GetxController {
           break;
       }
     } catch (error) {
-      developer.log(
-        'error procesando evento change: $error',
-        name: 'RealtimeService',
-      );
+      debugPrint('[RealtimeService] error procesando evento change: $error');
     }
   }
 
