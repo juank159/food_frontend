@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -28,6 +29,11 @@ const _kRingingPlayerId = 'qr_alert_ring';
 /// foreground — repetir el mismo patrón es intencional, es la MISMA
 /// alerta, solo que esta corre con la app cerrada/bloqueada.
 const _kRingingVibrationPattern = [0, 800, 200, 800, 200, 800, 200, 800];
+
+/// El audio de `qr_alert.mp3` es corto — sonar UNA sola vez no se nota
+/// lo suficiente. Se repite esta cantidad de veces (NO infinito, a
+/// diferencia de la vibración) si el pedido no se revisa antes.
+const _kRingingSoundRepeats = 3;
 
 /// Canal v7: IMPORTANCE_HIGH con sonido custom (`res/raw/qr_alert.mp3`) y
 /// vibración. Creado de verdad por `MainApplication.setupQrChannel()` (Kotlin
@@ -303,19 +309,58 @@ class PushNotificationService {
     }
   }
 
+  /// Bug real reportado: con la app TOTALMENTE cerrada, tocar la
+  /// notificación la abría pero mandaba a Home en vez de ir directo a
+  /// la bandeja de pedidos QR. Causa: en ese caso (`getInitialMessage`,
+  /// ver `init()`) este método corre DENTRO de `main()`, ANTES de
+  /// `runApp()` — el Navigator de GetX todavía no existe, así que el
+  /// `Get.toNamed` de abajo no tiene dónde navegar y se pierde; después,
+  /// el `SplashController` decide la ruta normal (Home) sin saber que
+  /// hay un pedido pendiente por mostrar.
+  ///
+  /// Fix: además del intento directo (que SÍ funciona cuando la app ya
+  /// estaba corriendo en background — `onMessageOpenedApp`, no
+  /// `getInitialMessage`), se deja una bandera que `SplashController`
+  /// consume después de decidir Home, para completar la navegación en
+  /// el momento correcto del ciclo de vida.
   static void _handleMessageOpen(RemoteMessage message) {
     if (message.data['type'] == 'qr_order') {
       stopRingingAlert().ignore();
+      _pendingQrOrderLaunch = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Get.toNamed(AppRoutes.pendingReviewOrders);
       });
     }
   }
 
+  static bool _pendingQrOrderLaunch = false;
+
+  /// Lee y limpia la bandera de "la app se abrió tocando una
+  /// notificación de pedido QR". `SplashController` la consume una sola
+  /// vez, justo después de decidir que el destino es Home.
+  static bool consumePendingQrOrderLaunch() {
+    final value = _pendingQrOrderLaunch;
+    _pendingQrOrderLaunch = false;
+    return value;
+  }
+
   // ───────────────────── Alerta en loop (ver más arriba) ─────────────────────
 
-  /// Arranca el loop de sonido+vibración desde `firebaseBackgroundMessageHandler`.
-  /// Nunca debe tumbar el handler — cualquier falla queda en silencio.
+  static AudioPlayer? _ringPlayer;
+  static StreamSubscription<void>? _ringSoundSub;
+
+  /// Arranca la alerta desde `firebaseBackgroundMessageHandler`. Nunca
+  /// debe tumbar el handler — cualquier falla queda en silencio.
+  ///
+  /// Vibración: en loop infinito de verdad (`repeat: 0` en el patrón) —
+  /// una vez que el sistema operativo arranca ese patrón queda a su
+  /// cargo, sigue sonando aunque el isolate de Dart en background
+  /// termine, hasta `Vibration.cancel()` o que [stopRingingAlert] lo
+  /// pare.
+  ///
+  /// Sonido: el audio (`qr_alert.mp3`) es corto — sonar una sola vez no
+  /// se nota. Se repite [_kRingingSoundRepeats] veces (NO infinito,
+  /// a diferencia de la vibración) si no se revisa antes.
   static Future<void> startRingingAlert() async {
     try {
       final hasVibrator = (await Vibration.hasVibrator()) == true;
@@ -329,8 +374,18 @@ class PushNotificationService {
     } catch (_) {}
 
     try {
+      await _ringSoundSub?.cancel();
       final player = AudioPlayer(playerId: _kRingingPlayerId);
-      await player.setReleaseMode(ReleaseMode.loop);
+      _ringPlayer = player;
+      await player.setReleaseMode(ReleaseMode.stop);
+
+      var remainingPlays = _kRingingSoundRepeats - 1; // esta primera cuenta.
+      _ringSoundSub = player.onPlayerComplete.listen((_) {
+        if (remainingPlays <= 0) return;
+        remainingPlays--;
+        player.play(AssetSource('sounds/qr_alert.mp3')).ignore();
+      });
+
       await player.play(AssetSource('sounds/qr_alert.mp3'));
     } catch (_) {
       // Sin archivo de sonido o sin soporte de audio en background — al
@@ -339,18 +394,23 @@ class PushNotificationService {
     }
   }
 
-  /// Apaga el loop — se llama al abrir el pedido/la bandeja de pedidos QR,
-  /// al tocar la notificación, o cuando llega la señal de que otro
+  /// Apaga la alerta — se llama al abrir el pedido/la bandeja de pedidos
+  /// QR, al tocar la notificación, o cuando llega la señal de que otro
   /// dispositivo ya atendió el pedido. Idempotente: no hace nada si no
-  /// había ningún loop corriendo.
+  /// había ninguna alerta corriendo.
   static Future<void> stopRingingAlert() async {
     try {
       await Vibration.cancel();
     } catch (_) {}
     try {
-      final player = AudioPlayer(playerId: _kRingingPlayerId);
+      await _ringSoundSub?.cancel();
+      _ringSoundSub = null;
+    } catch (_) {}
+    try {
+      final player = _ringPlayer ?? AudioPlayer(playerId: _kRingingPlayerId);
       await player.stop();
       await player.release();
     } catch (_) {}
+    _ringPlayer = null;
   }
 }

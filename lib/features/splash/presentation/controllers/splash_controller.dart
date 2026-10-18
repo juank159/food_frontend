@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../auth/domain/usecases/get_current_user_usecase.dart';
 
@@ -53,7 +55,17 @@ class SplashController extends GetxController {
 
     switch (route) {
       case _InitialRoute.home:
-        NavigationService.toHome(clearStack: true);
+        await NavigationService.toHome(clearStack: true);
+        // Bug real reportado: con la app totalmente cerrada, tocar la
+        // notificación de pedido QR abría la app pero mandaba a Home
+        // en vez de a la bandeja de pedidos — el intento de navegar
+        // directo (ver `PushNotificationService._handleMessageOpen`)
+        // corre ANTES de que exista este Navigator y se pierde. Esta
+        // bandera es la segunda vía, consumida ya con el Navigator
+        // listo y Home como destino resuelto.
+        if (PushNotificationService.consumePendingQrOrderLaunch()) {
+          Get.toNamed(AppRoutes.pendingReviewOrders);
+        }
         break;
       case _InitialRoute.login:
         NavigationService.toLogin();
