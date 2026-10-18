@@ -102,7 +102,16 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     // Si no tiene customerName → el título es la 1ra línea de notes, tap abre notas/etiqueta.
     VoidCallback? onTitleTap;
     if (!s.hasTable) {
-      final hasCustomer = s.customerName != null && s.customerName!.isNotEmpty;
+      // Mismo criterio que `_buildCustomerCard`: un nombre sintético
+      // ('Mostrador'/'Turno', default de venta rápida sin nombre
+      // tipeado) no cuenta como "tiene cliente" — si no, tocar el
+      // título (que ya muestra "Turno 1" vía `displayLabel`) abría el
+      // editor de NOMBRE precargado con el texto "Turno", confuso.
+      final rawName = s.customerName?.trim();
+      final hasCustomer =
+          rawName != null &&
+          rawName.isNotEmpty &&
+          !_syntheticNames.contains(rawName);
       onTitleTap = hasCustomer
           ? () => _showEditCustomerSheet(s)
           : () => _showEditNotesSheet(s);
@@ -308,8 +317,22 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
     return parts.join(' · ');
   }
 
+  /// `customer_name` puede venir con el default sintético que pone
+  /// `OrderFormController.submitOrder` para ventas rápidas sin nombre
+  /// tipeado ('Mostrador' o 'Turno' — ver `mode.pillLabel` ahí). Bug
+  /// real reportado: esta tarjeta los mostraba como si fueran un
+  /// nombre de cliente real ("Mostrador" en el detalle de una cuenta
+  /// que el título de arriba ya identifica correctamente como "Turno
+  /// 1" — confuso, dos textos distintos para la misma cuenta). No son
+  /// nombres reales — se tratan como "sin cliente".
+  static const _syntheticNames = {'Mostrador', 'Turno'};
+
   Widget _buildCustomerCard(TabSession s) {
-    final hasCustomer = s.customerName != null && s.customerName!.isNotEmpty;
+    final rawName = s.customerName?.trim();
+    final hasCustomer =
+        rawName != null &&
+        rawName.isNotEmpty &&
+        !_syntheticNames.contains(rawName);
     final extra = _extraContactInfo(s);
     return GestureDetector(
       onTap: () => _showEditCustomerSheet(s),
@@ -432,13 +455,20 @@ class _TabSessionDetailPageState extends State<TabSessionDetailPage> {
   }
 
   void _showEditCustomerSheet(TabSession s) {
+    // No precargar el editor con el nombre sintético ('Mostrador'/
+    // 'Turno') — el cajero vería "Turno" como si fuera lo que él
+    // escribió y lo editaría a medias en vez de poner un nombre real.
+    final rawName = s.customerName?.trim();
+    final prefill = (rawName != null && !_syntheticNames.contains(rawName))
+        ? rawName
+        : '';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => EditCustomerSheet(
-        currentName: s.customerName ?? '',
+        currentName: prefill,
         onSave: (name) => controller.updateCustomerName(name),
       ),
     );

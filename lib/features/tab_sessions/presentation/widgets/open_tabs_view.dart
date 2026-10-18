@@ -607,13 +607,16 @@ class _StatTile extends StatelessWidget {
 /// motico) — así que Para llevar y Mostrador también mostraban motico,
 /// igual que Domicilio, en vez de su propio ícono.
 ///
-/// Limitación real de los datos: el backend solo guarda 3 valores de
-/// `order_type` (`dine_in`/`takeaway`/`delivery`) — Mostrador, Turno de
-/// mostrador y Para llevar comparten el mismo `takeaway` ahí, no hay
-/// forma de diferenciar "Mostrador" de "Para llevar" con los datos que
-/// se persisten hoy. Sí hay una señal extra: `ticket_number` solo se
-/// asigna cuando el ticket es un turno de mostrador — la usamos para
-/// distinguir Turno del resto.
+/// `order_type` solo tiene 3 valores en el backend (`dine_in`/
+/// `takeaway`/`delivery`) — Mostrador, Turno de mostrador y Para
+/// llevar comparten el mismo `takeaway` ahí, así que NO alcanza para
+/// diferenciarlos. Por eso usamos 2 señales extra, ambas puestas por
+/// `OrderFormController.submitOrder` al crear la orden:
+///   - `ticket_number`: solo se asigna en un turno de mostrador.
+///   - `table_label == 'Mostrador'`: lo pone explícito una venta de
+///     mostrador real (antes esto UNDEFINED, "limitación real de los
+///     datos" — ya no: ahora SÍ se puede diferenciar Mostrador de un
+///     Para llevar genuino).
 class _DestinationVisual {
   final IconData icon;
   final Color color;
@@ -638,12 +641,15 @@ class _DestinationVisual {
         AppColors.accent,
       );
     }
+    final hasMostrador = orders.any((o) => o['table_label'] == 'Mostrador');
+    if (hasMostrador) {
+      return const _DestinationVisual(Icons.point_of_sale, AppColors.accent);
+    }
     if (s.notes != null && s.notes!.trim().isNotEmpty) {
       return const _DestinationVisual(Icons.chair_outlined, AppColors.success);
     }
-    // Sin mesa, sin delivery, sin turno, sin etiqueta de cuenta libre:
-    // lo que queda (Mostrador o Para llevar genuino) se muestra como
-    // "Para llevar" — ver limitación de datos arriba.
+    // Sin mesa, sin delivery, sin turno, sin "Mostrador", sin etiqueta
+    // de cuenta libre: lo que queda es un Para llevar genuino.
     return const _DestinationVisual(
       Icons.shopping_bag_outlined,
       AppColors.warning,
