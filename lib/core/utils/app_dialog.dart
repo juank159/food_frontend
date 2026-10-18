@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../config/responsive_config.dart';
+
 /// AppDialog — wrappers safe para reemplazar `Get.dialog` y
 /// `Get.bottomSheet`.
 ///
@@ -81,6 +83,68 @@ class AppDialog {
       enableDrag: enableDrag,
       shape: shape,
       clipBehavior: clipBehavior,
+    );
+  }
+
+  /// Bug real reportado: formularios abiertos con `showModalBottomSheet`
+  /// (pensados para el gesto táctil "deslizar desde abajo" en celular)
+  /// se ven mal en pantallas de laptop/escritorio (ej. Windows a
+  /// 1920x1080) — ocupan todo el ancho de la ventana, estirando los
+  /// campos de forma poco natural, y los botones de acción quedan
+  /// pegados al borde inferior de la ventana en vez de centrados como
+  /// un diálogo. En Mac con pantalla Retina esto se disimula porque la
+  /// escala de DPI da más píxeles lógicos de alto; en una laptop con
+  /// escalado de Windows típico (125%-150%) el canvas lógico es más
+  /// bajo y la misma hoja se siente desproporcionada.
+  ///
+  /// `showFormSheet` elige automáticamente, según
+  /// `ResponsiveConfig.isDesktop` (ancho >= 900 — ver
+  /// `responsive_config.dart`):
+  ///   - Móvil/tablet angosto: `bottomSheet` de siempre (gesto nativo).
+  ///   - Desktop/laptop: diálogo centrado con ancho acotado
+  ///     (`desktopWidth`), igual que cualquier diálogo de escritorio.
+  ///
+  /// El `child` debe construirse igual en ambos casos — ver
+  /// `_ExpenseForm` en `expenses_screen.dart` para el patrón de uso
+  /// (oculta su manija de "arrastrar" cuando `isDesktopDialog` es
+  /// `true`, ya que ese afordance no aplica dentro de un diálogo).
+  static Future<T?> showFormSheet<T>(
+    Widget child, {
+    BuildContext? context,
+    double desktopWidth = 480,
+    Color? backgroundColor,
+    bool isDismissible = true,
+  }) async {
+    final ctx = context ?? Get.context;
+    if (ctx == null || !ctx.mounted) {
+      debugPrint('[AppDialog.showFormSheet suppressed — no context]');
+      return null;
+    }
+    if (ResponsiveConfig(ctx).isDesktop) {
+      return showDialog<T>(
+        context: ctx,
+        barrierDismissible: isDismissible,
+        builder: (_) => Dialog(
+          backgroundColor: backgroundColor ?? Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: desktopWidth),
+            child: child,
+          ),
+        ),
+      );
+    }
+    return showModalBottomSheet<T>(
+      context: ctx,
+      isScrollControlled: true,
+      isDismissible: isDismissible,
+      backgroundColor: backgroundColor ?? Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => child,
     );
   }
 }

@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/responsive_config.dart';
+import '../../../../core/utils/app_dialog.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/utils/date_period.dart';
@@ -235,14 +237,20 @@ class ExpensesScreen extends StatelessWidget {
 
   void _openForm(BuildContext context, ExpensesController c,
       {Expense? expense}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    // Bug real reportado: en laptop/escritorio (ej. Windows a
+    // 1920x1080) este formulario como bottom sheet de ancho completo
+    // se veía desproporcionado y los botones de abajo no se
+    // apreciaban bien — `AppDialog.showFormSheet` lo muestra como
+    // diálogo centrado y acotado en desktop, y como sheet normal en
+    // móvil (ver su doc en `app_dialog.dart`).
+    final isDesktop = ResponsiveConfig(context).isDesktop;
+    AppDialog.showFormSheet(
+      _ExpenseForm(
+        controller: c,
+        expense: expense,
+        isDesktopDialog: isDesktop,
       ),
-      builder: (sheetCtx) => _ExpenseForm(controller: c, expense: expense),
+      context: context,
     );
   }
 
@@ -254,7 +262,12 @@ class ExpensesScreen extends StatelessWidget {
 class _ExpenseForm extends StatefulWidget {
   final ExpensesController controller;
   final Expense? expense;
-  const _ExpenseForm({required this.controller, this.expense});
+  final bool isDesktopDialog;
+  const _ExpenseForm({
+    required this.controller,
+    this.expense,
+    this.isDesktopDialog = false,
+  });
 
   @override
   State<_ExpenseForm> createState() => _ExpenseFormState();
@@ -344,17 +357,21 @@ class _ExpenseFormState extends State<_ExpenseForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
+              // La manija de "deslizar para cerrar" solo tiene sentido
+              // en el bottom sheet móvil — en el diálogo de desktop no
+              // hay gesto de arrastre, así que se omite.
+              if (!widget.isDesktopDialog)
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
               Text(
                 widget.expense == null ? 'Nuevo gasto' : 'Editar gasto',
                 style: const TextStyle(
