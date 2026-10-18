@@ -182,10 +182,15 @@ class TabTicketCard extends StatelessWidget {
     );
   }
 
-  /// Destino visible del ticket: la etiqueta propia (`table_label`, ej.
-  /// "mama" / "Mesa 5") si existe; si no, el tipo coloquial. Así una
-  /// cuenta libre no muestra "Para llevar".
+  /// Destino visible del ticket: si tiene número de turno asignado
+  /// ("Turno N" — bug real reportado: "Mostrador" y "Turno de
+  /// mostrador" son destinos muy distintos, antes esto podía caer en
+  /// "Mostrador" por el `table_label` genérico), la etiqueta propia
+  /// (`table_label`, ej. "mama" / "Mesa 5") si existe, o si no, el
+  /// tipo coloquial. Así una cuenta libre no muestra "Para llevar".
   String _destination(String typeLabel) {
+    final ticketNumber = rawOrder['ticket_number'];
+    if (ticketNumber != null) return 'Turno $ticketNumber';
     final label = (rawOrder['table_label'] as String?)?.trim();
     if (label != null && label.isNotEmpty) return label;
     return typeLabel;

@@ -860,14 +860,6 @@ class OrderFormController extends GetxController {
     try {
       final items = cartItems.map((item) => item.toJson()).toList();
 
-      // En Venta Express, si el operario no puso nombre, asignamos uno
-      // genérico para que el backend tenga algo en `customer_name`
-      // (algunos reportes y prints lo esperan no-vacío).
-      final effectiveCustomerName =
-          isQuickSale.value && (customerName.value?.trim().isEmpty ?? true)
-          ? 'Mostrador'
-          : customerName.value;
-
       // Turno: siempre en el modo explícito "Turno de mostrador". Además,
       // si el negocio declaró "Turnos de mostrador" como su ÚNICO modo de
       // operación (Ajustes → Modo de operación), TODA venta sin mesa ni
@@ -885,19 +877,35 @@ class OrderFormController extends GetxController {
           (isNoTableQuickSale &&
               await OperationModePreference.isCounterTicketsOnly());
 
+      // En Venta Express, si el operario no puso nombre, asignamos uno
+      // genérico para que el backend tenga algo en `customer_name`
+      // (algunos reportes y prints lo esperan no-vacío). Usamos
+      // `mode.pillLabel` ('Mostrador' o 'Turno') en vez del string fijo
+      // 'Mostrador' — bug real reportado: "Mostrador" y "Turno de
+      // mostrador" son destinos MUY distintos, y antes una venta por
+      // turno heredaba el nombre "Mostrador" igual que una venta de
+      // mostrador real. El NÚMERO de turno específico ("Turno 3") no
+      // se conoce todavía acá (el backend lo asigna) — las pantallas
+      // (`TabSession.displayLabel`, `TabTicketCard._destination`) lo
+      // derivan directo de `ticket_number` cuando está presente, sin
+      // importar lo que diga este campo; y el recibo/comanda ya
+      // imprimen el número grande en su propia línea ("TURNO: N",
+      // ver `esc_pos_generator.dart`) — este texto queda solo como
+      // categoría ("Mostrador"/"Turno"), no como el identificador único.
+      final effectiveCustomerName =
+          isQuickSale.value && (customerName.value?.trim().isEmpty ?? true)
+          ? mode.pillLabel
+          : customerName.value;
+
       final result = await createOrderUseCase(
         orderType: orderType.value,
         tableId: selectedTableId.value,
         tableElementId: selectedTableElementId.value,
-        // Venta de mostrador/turno: etiquetamos el destino con el pill
-        // label del modo ("Mostrador" o "Turno") para que la comanda/
-        // recibo/card NO digan "Para llevar" (no se eligió para
-        // llevar). Bug real reportado: antes esto era el string fijo
-        // "Mostrador" sin importar el modo — una venta por "Turno de
-        // mostrador" (mode.assignsTicketNumber) quedaba etiquetada
-        // igual que una venta de mostrador normal, perdiendo la
-        // distinción en "Cuentas abiertas"/el ticket. `mode.pillLabel`
-        // ya distingue ambos casos (ver `sell_mode.dart`).
+        // Venta de mostrador/turno: mismo criterio que
+        // `effectiveCustomerName` arriba — `mode.pillLabel` distingue
+        // 'Mostrador' de 'Turno' para que la comanda/recibo/card NO
+        // digan "Para llevar" (no se eligió para llevar) ni confundan
+        // los dos destinos entre sí.
         //
         // Mesa seleccionada: el editor de planos guarda SOLO el número
         // como label ("1", "2"…, ver floor_plan_editor_controller.dart,

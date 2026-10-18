@@ -96,8 +96,8 @@ class PrintingOrchestrator {
       final info = _TenantInfo(
         businessName:
             (tenant['business_name'] as String?)?.trim().isNotEmpty == true
-                ? tenant['business_name'] as String
-                : 'Mi Restaurante',
+            ? tenant['business_name'] as String
+            : 'Mi Restaurante',
         address: (contact['address'] as String?)?.trim(),
         phone: (contact['phone'] as String?)?.trim(),
         taxId: (contact['tax_id'] as String?)?.trim(),
@@ -187,8 +187,7 @@ class PrintingOrchestrator {
     if (exact.isNotEmpty) return exact.first;
 
     final both = configs.where(
-      (p) =>
-          p.isActive && p.isDefault && p.purpose == PrinterPurpose.both,
+      (p) => p.isActive && p.isDefault && p.purpose == PrinterPurpose.both,
     );
     if (both.isNotEmpty) return both.first;
 
@@ -434,8 +433,7 @@ class PrintingOrchestrator {
     );
     final tenant = await _getTenantInfo();
 
-    final byMethod =
-        (data['by_method'] as Map?)?.cast<String, dynamic>() ?? {};
+    final byMethod = (data['by_method'] as Map?)?.cast<String, dynamic>() ?? {};
     final brebByLlave =
         (data['breb_by_llave'] as Map?)?.cast<String, dynamic>() ?? {};
 
@@ -455,15 +453,18 @@ class PrintingOrchestrator {
     }).toList();
 
     final otherMethods = byMethod.entries
-        .where((e) => e.key != 'cash' && !(e.key == 'breb' && llaves.isNotEmpty))
+        .where(
+          (e) => e.key != 'cash' && !(e.key == 'breb' && llaves.isNotEmpty),
+        )
         .map((e) {
-      final m = (e.value as Map).cast<String, dynamic>();
-      return CashSessionMethodLine(
-        method: e.key,
-        count: intOf(m['count']),
-        total: numOf(m['total']),
-      );
-    }).toList();
+          final m = (e.value as Map).cast<String, dynamic>();
+          return CashSessionMethodLine(
+            method: e.key,
+            count: intOf(m['count']),
+            total: numOf(m['total']),
+          );
+        })
+        .toList();
 
     return CashSessionReportData(
       businessName: tenant.businessName,
@@ -471,8 +472,9 @@ class PrintingOrchestrator {
       phone: tenant.phone,
       cashierName: session.closedByName ?? session.openedByName,
       openedAt: DateTime.parse(session.openedAt),
-      closedAt:
-          session.closedAt != null ? DateTime.parse(session.closedAt!) : null,
+      closedAt: session.closedAt != null
+          ? DateTime.parse(session.closedAt!)
+          : null,
       isOpen: session.status == 'open',
       openingAmount: session.openingAmount,
       cashCollected: numOf((byMethod['cash'] as Map?)?['total']),
@@ -494,8 +496,7 @@ class PrintingOrchestrator {
     required bool silent,
     String? subtitle,
   }) async {
-    final docLabel =
-        kind == PrintJobKind.receipt ? 'Recibo' : 'Comanda';
+    final docLabel = kind == PrintJobKind.receipt ? 'Recibo' : 'Comanda';
     try {
       final bool ok;
       switch (printer.connectionType) {
@@ -573,15 +574,9 @@ class PrintingOrchestrator {
               ? ThermalPaperWidth.mm58
               : ThermalPaperWidth.mm80,
         );
-        return PrinterDispatcher.printPdf(
-          pdfBytes: pdf,
-          jobName: 'QR ticket',
-        );
+        return PrinterDispatcher.printPdf(pdfBytes: pdf, jobName: 'QR ticket');
     }
-    return PrinterDispatcher.printRawBytes(
-      bytes: bytes,
-      printer: printer,
-    );
+    return PrinterDispatcher.printRawBytes(bytes: bytes, printer: printer);
   }
 
   /// Para impresoras del SO: pedimos el PDF al backend y dejamos que
@@ -847,13 +842,18 @@ class PrintingOrchestrator {
       orElse: () => orders.first,
     );
     final effectiveOrderType = deliveryOrTakeaway.orderType;
-    final effectiveTableLabel =
-        session.tableName != null ? 'Mesa ${session.tableName}' : null;
+    // Bug real reportado: para una cuenta SIN mesa (mostrador/turno/
+    // para llevar/domicilio sueltos) esto quedaba siempre null,
+    // ignorando el `table_label` real de la orden ("Mostrador" o
+    // "Turno" — ver `OrderFormController.submitOrder`) — mismo
+    // criterio que ya se usa abajo para `customerName`/`customerPhone`
+    // (preferir el dato de la orden real sobre un default genérico).
+    final effectiveTableLabel = session.tableName != null
+        ? 'Mesa ${session.tableName}'
+        : deliveryOrTakeaway.tableLabel;
 
     // Unir ítems de todos los tickets activos
-    final allItems = orders
-        .expand((o) => o.items.map(_toTicketItem))
-        .toList();
+    final allItems = orders.expand((o) => o.items.map(_toTicketItem)).toList();
 
     // Bug real reportado: acá el campo "Orden:" mostraba "Cuenta ·
     // Ingrid" (mezclando la etiqueta de la cuenta con el identificador),
@@ -868,8 +868,10 @@ class PrintingOrchestrator {
     // identificador principal, con el conteo de los demás si hay más.
     DateTime parseCreatedAt(String s) => DateTime.tryParse(s) ?? DateTime.now();
     final sortedOrders = [...orders]
-      ..sort((a, b) =>
-          parseCreatedAt(a.createdAt).compareTo(parseCreatedAt(b.createdAt)));
+      ..sort(
+        (a, b) =>
+            parseCreatedAt(a.createdAt).compareTo(parseCreatedAt(b.createdAt)),
+      );
     final primaryOrderNumber = sortedOrders.first.orderNumber;
     final orderNumberLabel = sortedOrders.length > 1
         ? '$primaryOrderNumber (+${sortedOrders.length - 1})'
@@ -882,6 +884,12 @@ class PrintingOrchestrator {
       taxId: tenant.taxId,
       logoBytes: logoBytes,
       orderNumber: orderNumberLabel,
+      // Mismo criterio que `_buildTicketData` para un ticket puntual:
+      // si el ticket que define el destino de esta cuenta tiene turno
+      // asignado, se imprime siempre (bug real reportado: esta
+      // consolidada de cuenta nunca lo pasaba, así que una cuenta de
+      // Mostrador/Turno nunca mostraba la línea grande "TURNO: N").
+      ticketNumber: deliveryOrTakeaway.ticketNumber,
       createdAt: session.openedAt,
       tableLabel: effectiveTableLabel,
       orderType: effectiveOrderType,
@@ -964,16 +972,13 @@ class PrintingOrchestrator {
     );
   }
 
-  static void _snackError(
-    String document,
-    PrinterConfigModel p,
-    Object err,
-  ) {
+  static void _snackError(String document, PrinterConfigModel p, Object err) {
     final isNetwork = p.connectionType == PrinterConnectionType.network;
     // Distinguir error de red (socket) de error en generación del ticket
     // (ej. emoji en notas que el encoder ESC/POS no puede representar).
     final errStr = err.toString().toLowerCase();
-    final isConnErr = errStr.contains('socket') ||
+    final isConnErr =
+        errStr.contains('socket') ||
         errStr.contains('connection') ||
         errStr.contains('timeout') ||
         errStr.contains('refused');
@@ -999,8 +1004,7 @@ class PrintingOrchestrator {
   }
 
   static void _snackNoDefault(String document, PrinterPurpose purpose) {
-    final purposeLabel =
-        purpose == PrinterPurpose.kitchen ? 'Cocina' : 'Caja';
+    final purposeLabel = purpose == PrinterPurpose.kitchen ? 'Cocina' : 'Caja';
     AppSnackbar.show(
       'Sin impresora para $document',
       'Configurá una en Settings → Impresoras → $purposeLabel.',

@@ -140,11 +140,38 @@ class TabSession extends Equatable {
   /// Cuenta lista para cerrarse: open, balance pagado.
   bool get canClose => isOpen && !hasPendingBalance;
 
-  /// Label visible para el listado: "Mesa 7", "Domicilio", "Pickup", o
-  /// la etiqueta libre que el cajero puso al abrir la cuenta sin mesa
-  /// (ej. "Césped #3", "Silla zona verde").
+  /// Número de turno de mostrador asignado a algún ticket de esta
+  /// cuenta, si lo hay. `orders` llega como JSON crudo del backend
+  /// (`ticket_number`, snake_case) — no se parsea a entidades acá
+  /// para no acoplar este feature al de orders (mismo criterio que
+  /// ya documentaba el campo `orders` más abajo).
+  int? get _ticketNumber {
+    for (final o in orders) {
+      if (o is Map) {
+        final v = o['ticket_number'];
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+      }
+    }
+    return null;
+  }
+
+  /// Label visible para el listado: "Mesa 7", "Turno 3", "Domicilio",
+  /// "Pickup", o la etiqueta libre que el cajero puso al abrir la
+  /// cuenta sin mesa (ej. "Césped #3", "Silla zona verde").
+  ///
+  /// Bug real reportado: "Mostrador" y "Turno de mostrador" son
+  /// destinos MUY distintos para el usuario — antes una venta por
+  /// turno podía heredar `customer_name: 'Mostrador'` (default
+  /// genérico cuando no se tipeaba nombre) y esta pantalla terminaba
+  /// mostrando "Mostrador" para una cuenta que en realidad era un
+  /// turno. El identificador real y único de una venta por turno es
+  /// el NÚMERO asignado (`ticket_number`) — se prioriza sobre
+  /// cualquier nombre de cliente, igual que una mesa real.
   String displayLabel({String fallback = 'Sin mesa'}) {
     if (tableName != null && tableName!.isNotEmpty) return 'Mesa $tableName';
+    final ticketNumber = _ticketNumber;
+    if (ticketNumber != null) return 'Turno $ticketNumber';
     if (customerName != null && customerName!.isNotEmpty) return customerName!;
     // Cuenta libre: sin mesa ni cliente vinculado → usamos la primera
     // línea de `notes` como etiqueta (es donde se guarda al abrir desde
@@ -164,29 +191,29 @@ class TabSession extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        tableId,
-        tableElementId,
-        tableName,
-        customerId,
-        customerName,
-        openedBy,
-        openedByName,
-        openedAt,
-        closedBy,
-        closedByName,
-        closedAt,
-        status,
-        partySize,
-        notes,
-        totalOrders,
-        subtotal,
-        taxAmount,
-        discountAmount,
-        tipAmount,
-        deliveryFee,
-        totalAmount,
-        paidAmount,
-        balance,
-      ];
+    id,
+    tableId,
+    tableElementId,
+    tableName,
+    customerId,
+    customerName,
+    openedBy,
+    openedByName,
+    openedAt,
+    closedBy,
+    closedByName,
+    closedAt,
+    status,
+    partySize,
+    notes,
+    totalOrders,
+    subtotal,
+    taxAmount,
+    discountAmount,
+    tipAmount,
+    deliveryFee,
+    totalAmount,
+    paidAmount,
+    balance,
+  ];
 }
