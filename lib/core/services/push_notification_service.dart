@@ -174,7 +174,9 @@ class PushNotificationService {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
 
     final initial = await FirebaseMessaging.instance.getInitialMessage();
-    if (initial != null) _handleMessageOpen(initial);
+    if (initial != null) {
+      _handleMessageOpen(initial, attemptImmediateNav: false);
+    }
   }
 
   static Future<void> registerToken(Dio dio) async {
@@ -321,27 +323,40 @@ class PushNotificationService {
     }
   }
 
-  /// Bug real reportado: con la app TOTALMENTE cerrada, tocar la
-  /// notificación la abría pero mandaba a Home en vez de ir directo a
-  /// la bandeja de pedidos QR. Causa: en ese caso (`getInitialMessage`,
-  /// ver `init()`) este método corre DENTRO de `main()`, ANTES de
-  /// `runApp()` — el Navigator de GetX todavía no existe, así que el
-  /// `Get.toNamed` de abajo no tiene dónde navegar y se pierde; después,
-  /// el `SplashController` decide la ruta normal (Home) sin saber que
-  /// hay un pedido pendiente por mostrar.
+  /// Bug real reportado (y arreglado a medias — ver 2do bug abajo): con
+  /// la app TOTALMENTE cerrada, tocar la notificación la abría pero
+  /// mandaba a Home en vez de ir directo a la bandeja de pedidos QR.
+  /// Causa: en ese caso (`getInitialMessage`, ver `init()`) este método
+  /// corre DENTRO de `main()`, ANTES de `runApp()` — el Navigator de
+  /// GetX todavía no existe, así que el `Get.toNamed` de abajo no tiene
+  /// dónde navegar y se pierde; después, el `SplashController` decide
+  /// la ruta normal (Home) sin saber que hay un pedido pendiente por
+  /// mostrar. Fix original: dejar una bandera que `SplashController`
+  /// consume después de decidir Home.
   ///
-  /// Fix: además del intento directo (que SÍ funciona cuando la app ya
-  /// estaba corriendo en background — `onMessageOpenedApp`, no
-  /// `getInitialMessage`), se deja una bandera que `SplashController`
-  /// consume después de decidir Home, para completar la navegación en
-  /// el momento correcto del ciclo de vida.
-  static void _handleMessageOpen(RemoteMessage message) {
+  /// 2do bug real reportado: con ese fix, el Navigator SÍ llega a
+  /// existir para cuando corre el `addPostFrameCallback` (justo después
+  /// del primer frame, mucho antes de los 3.5s del splash) — pero la
+  /// sesión/el token todavía no estaban confirmados en ese instante, así
+  /// que ese `Get.toNamed` TEMPRANO sí navegaba, pisaba el guard de auth
+  /// y mostraba Login un instante, antes de que la navegación correcta
+  /// (la de la bandera, ya con la sesión confirmada) corrigiera a
+  /// pedidos QR. Por eso [attemptImmediateNav] — en el caso de
+  /// `getInitialMessage` (app cerrada de verdad) NO hay que intentar
+  /// navegar ahora mismo, solo dejar la bandera y confiar en que
+  /// `SplashController` haga la ÚNICA navegación, ya con todo listo.
+  static void _handleMessageOpen(
+    RemoteMessage message, {
+    bool attemptImmediateNav = true,
+  }) {
     if (message.data['type'] == 'qr_order') {
       stopRingingAlert().ignore();
       _pendingQrOrderLaunch = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Get.toNamed(AppRoutes.pendingReviewOrders);
-      });
+      if (attemptImmediateNav) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.toNamed(AppRoutes.pendingReviewOrders);
+        });
+      }
     }
   }
 
