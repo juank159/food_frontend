@@ -174,6 +174,7 @@ class PushNotificationService {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
 
     final initial = await FirebaseMessaging.instance.getInitialMessage();
+    debugPrint('[FCM] getInitialMessage: ${initial?.data}');
     if (initial != null) {
       _handleMessageOpen(initial, attemptImmediateNav: false);
     }

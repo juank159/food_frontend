@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/app_routes.dart';
@@ -63,7 +64,9 @@ class SplashController extends GetxController {
         // corre ANTES de que exista este Navigator y se pierde. Esta
         // bandera es la segunda vía, consumida ya con el Navigator
         // listo y Home como destino resuelto.
-        if (PushNotificationService.consumePendingQrOrderLaunch()) {
+        final pending = PushNotificationService.consumePendingQrOrderLaunch();
+        debugPrint('[Splash] consumePendingQrOrderLaunch: $pending');
+        if (pending) {
           Get.toNamed(AppRoutes.pendingReviewOrders);
         }
         break;
