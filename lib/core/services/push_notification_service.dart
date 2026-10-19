@@ -384,18 +384,38 @@ class PushNotificationService {
       }
     } catch (_) {}
 
+    // Bug real reportado: seguía sonando una sola vez. Causa probable
+    // encontrada al revisar esto a fondo otra vez — se creaba un
+    // `AudioPlayer` NUEVO en CADA repetición, con el mismo `playerId`
+    // que el anterior (que nunca se liberaba entre uno y otro). Eso
+    // deja dos objetos Dart distintos reclamando el mismo reproductor
+    // nativo al mismo tiempo — comportamiento no garantizado por el
+    // plugin, y el `catch` de abajo tragaba cualquier falla ahí SIN
+    // dejar rastro, cortando los repeats que faltaban en silencio
+    // total. Fix: un solo `AudioPlayer`, reusado para las 3
+    // repeticiones (el patrón normal para repetir un clip con este
+    // plugin), con `debugPrint` en cada paso para que si vuelve a
+    // fallar, quede evidencia real en `adb logcat` en vez de adivinar.
+    AudioPlayer? player;
+    try {
+      player = AudioPlayer(playerId: _kRingingPlayerId);
+      _ringPlayer = player;
+      await player.setReleaseMode(ReleaseMode.stop);
+    } catch (e) {
+      debugPrint('[RingingAlert] no se pudo preparar el reproductor: $e');
+      return;
+    }
+
     for (var i = 0; i < _kRingingSoundRepeats; i++) {
       try {
         await _ringSoundSub?.cancel();
-        final player = AudioPlayer(playerId: _kRingingPlayerId);
-        _ringPlayer = player;
-        await player.setReleaseMode(ReleaseMode.stop);
-
         final completer = Completer<void>();
         _ringSoundSub = player.onPlayerComplete.listen((_) {
+          debugPrint('[RingingAlert] repeat ${i + 1} completó solo');
           if (!completer.isCompleted) completer.complete();
         });
 
+        debugPrint('[RingingAlert] arrancando repeat ${i + 1}/$_kRingingSoundRepeats');
         await player.play(AssetSource('sounds/qr_alert.mp3'));
         // Red de seguridad: si por lo que sea nunca llega el evento
         // de "terminó de sonar" (archivo raro, plugin sin soporte en
@@ -403,13 +423,15 @@ class PushNotificationService {
         // sin esto, un solo repeat trabado tumbaría los que faltan.
         await completer.future.timeout(
           const Duration(seconds: 5),
-          onTimeout: () {},
+          onTimeout: () {
+            debugPrint('[RingingAlert] repeat ${i + 1} agotó el timeout de 5s');
+          },
         );
-      } catch (_) {
-        // Sin archivo de sonido o sin soporte de audio en background
-        // — al menos la vibración (confiable a nivel de sistema) ya
+      } catch (e) {
+        // Al menos la vibración (confiable a nivel de sistema) ya
         // quedó andando arriba. Cortamos los repeats restantes: si
         // esta falló, las siguientes van a fallar igual.
+        debugPrint('[RingingAlert] repeat ${i + 1} falló, corto el resto: $e');
         break;
       }
     }
