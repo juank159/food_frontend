@@ -121,7 +121,19 @@ class PendingReviewWatcher extends GetxService {
       }
 
       final fresh = newIds.difference(_knownIds);
-      if (fresh.isNotEmpty) {
+      // Bug real reportado (oct 2026): este watcher sigue poleando cada
+      // 15s aunque la app esté en segundo plano (Android no la mata de
+      // inmediato al salir). Si dispara `_notifyArrivals` ahí, su
+      // AlertDialog no tiene dónde mostrarse (sin Overlay) y el código
+      // sigue de largo hasta `stopAll()` → `Vibration.cancel()` — que es
+      // a nivel de sistema operativo, NO por isolate, así que apaga en
+      // seco la vibración infinita que `startRingingAlert` (el handler
+      // de background del push) acababa de arrancar. Por eso "vibra
+      // una sola vez": no es el push fallando, es este watcher
+      // cancelándolo casi al instante. Con la app en foreground de
+      // verdad, sí hay Overlay y el diálogo cumple su función normal.
+      if (fresh.isNotEmpty &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
         _notifyArrivals(fresh.length);
       }
 
