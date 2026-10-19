@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 
 import '../config/constants/api_constants.dart';
@@ -31,24 +30,22 @@ const _kRingingPlayerId = 'qr_alert_ring';
 /// alerta, solo que esta corre con la app cerrada/bloqueada.
 const _kRingingVibrationPattern = [0, 800, 200, 800, 200, 800, 200, 800];
 
-/// El audio de `qr_alert.mp3` es corto — sonar UNA sola vez no se nota
-/// lo suficiente. Se repite esta cantidad de veces (NO infinito, a
-/// diferencia de la vibración) si el pedido no se revisa antes.
-const _kRingingSoundRepeats = 3;
-
-/// Bug real reportado (oct 2026, confirmado con `adb logcat`): tocar la
-/// notificación mientras el loop de abajo todavía está sonando hacía
-/// que `stopRingingAlert` (que corre en el isolate PRINCIPAL) llamara
-/// `.stop()` sobre un `AudioPlayer` "sombra" (mismo `playerId`, pero
-/// un objeto Dart distinto al que el isolate de BACKGROUND está usando
-/// de verdad) — eso choca con el reproductor nativo en pleno
-/// `prepareAsync()` y tira `IllegalStateException`, dejándolo roto
-/// para el resto de repeticiones (de ahí "solo sonó una vez"). Esta
-/// clave en `SharedPreferences` (sí visible entre isolates, a
-/// diferencia de un campo estático) es la señal real de cancelación:
-/// el loop la revisa antes de cada repetición en vez de confiar en que
-/// alguien le pare el reproductor desde afuera.
-const _kRingSessionKey = 'qr_ring_session';
+/// Historia real (oct 2026): primero se intentó repetir `qr_alert.mp3`
+/// (2s) tres veces llamando `play()` en loop desde Dart, esperando entre
+/// cada repetición. Falló en dos capas distintas, confirmado con
+/// `adb logcat` real en dispositivo: (1) el evento `onPlayerComplete`
+/// del plugin `audioplayers` nunca se disparaba con la app cerrada, y
+/// (2) tocar la notificación a mitad del loop hacía que `stopRingingAlert`
+/// (isolate PRINCIPAL) llamara `.stop()` sobre el mismo `playerId` que el
+/// isolate de BACKGROUND estaba usando en pleno `prepareAsync()` →
+/// `IllegalStateException`, rompiendo el reproductor para el resto de
+/// repeticiones ("sonó solo una vez"). La solución real: en vez de pelear
+/// con reintentar play() en background, el audio YA viene repetido
+/// adentro del archivo (`qr_alert_long.m4a` = el ding corto × 3, con
+/// silencio entre medio) — un solo `play()`, sin loop, sin medir
+/// duración, sin ventana para que un `.stop()` concurrente choque contra
+/// un `prepareAsync()` de una repetición siguiente.
+const _kRingingSoundAsset = 'sounds/qr_alert_long.m4a';
 
 /// Canal v7: IMPORTANCE_HIGH con sonido custom (`res/raw/qr_alert.mp3`) y
 /// vibración. Creado de verdad por `MainApplication.setupQrChannel()` (Kotlin
@@ -372,18 +369,10 @@ class PushNotificationService {
   /// termine, hasta `Vibration.cancel()` o que [stopRingingAlert] lo
   /// pare. Por eso la vibración sí sobrevive con la app cerrada.
   ///
-  /// Sonido: Android le da a este handler una ventana de ejecución que
-  /// se cierra en cuanto la función async RETORNA — por eso cada
-  /// repetición se `await`ea de verdad, una por una, antes de
-  /// retornar. Pero el evento `onPlayerComplete` ("ya terminó de
-  /// sonar") de este plugin de audio NO llega de forma confiable con
-  /// la app cerrada — confirmado con `adb logcat` real, nunca disparó
-  /// ni para el primer repeat. En vez de esperar ese aviso (que
-  /// obligaba a un timeout ciego de 5s por repetición, demasiado
-  /// lento y sin garantía), se mide la duración REAL del clip una
-  /// sola vez (`getDuration()`, una llamada simple de método que SÍ
-  /// es confiable — no es un stream) y se espera esa duración exacta
-  /// entre cada repetición.
+  /// Sonido: un solo `play()` del clip largo (ver `_kRingingSoundAsset`
+  /// más arriba) — nada que loopear, nada que cancelar a mitad de
+  /// camino. Si no se llega a revisar el pedido, simplemente termina de
+  /// sonar sola (unos 6-7s) y queda la vibración infinita como aviso.
   static Future<void> startRingingAlert() async {
     try {
       final hasVibrator = (await Vibration.hasVibrator()) == true;
@@ -396,60 +385,13 @@ class PushNotificationService {
       }
     } catch (_) {}
 
-    // Token de esta "sesión" de ring — ver comentario en
-    // `_kRingSessionKey`. Se guarda ANTES de arrancar para que
-    // `stopRingingAlert` pueda invalidarlo aunque corra en otro isolate.
-    final sessionToken = DateTime.now().microsecondsSinceEpoch;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kRingSessionKey, sessionToken);
-
-    // Un solo `AudioPlayer`, reusado para las 3 repeticiones (crear
-    // uno nuevo por repetición, con el mismo `playerId` sin liberar
-    // el anterior, deja dos objetos Dart reclamando el mismo
-    // reproductor nativo a la vez — comportamiento no garantizado).
-    AudioPlayer? player;
     try {
-      player = AudioPlayer(playerId: _kRingingPlayerId);
+      final player = AudioPlayer(playerId: _kRingingPlayerId);
       _ringPlayer = player;
       await player.setReleaseMode(ReleaseMode.stop);
+      await player.play(AssetSource(_kRingingSoundAsset));
     } catch (e) {
-      debugPrint('[RingingAlert] no se pudo preparar el reproductor: $e');
-      return;
-    }
-
-    Duration? clipDuration;
-    for (var i = 0; i < _kRingingSoundRepeats; i++) {
-      // `reload()` es necesario: cada isolate cachea `SharedPreferences`
-      // en memoria desde que llamó `getInstance()` — sin esto, nunca
-      // vería el `setInt`/`remove` que `stopRingingAlert` hace desde
-      // el isolate principal.
-      await prefs.reload();
-      if (prefs.getInt(_kRingSessionKey) != sessionToken) {
-        debugPrint('[RingingAlert] cancelado (revisado) antes del repeat ${i + 1}, corto el loop');
-        break;
-      }
-      try {
-        debugPrint('[RingingAlert] arrancando repeat ${i + 1}/$_kRingingSoundRepeats');
-        await player.play(AssetSource('sounds/qr_alert.mp3'));
-
-        // Solo se mide una vez — ya con el source cargado, la duración
-        // es la misma en cada repetición.
-        clipDuration ??= await player.getDuration();
-        final wait =
-            (clipDuration ?? const Duration(seconds: 2)) +
-            const Duration(milliseconds: 300);
-        debugPrint(
-          '[RingingAlert] repeat ${i + 1} esperando ${wait.inMilliseconds}ms '
-          '(duración real del clip: ${clipDuration?.inMilliseconds}ms)',
-        );
-        await Future.delayed(wait);
-      } catch (e) {
-        // Al menos la vibración (confiable a nivel de sistema) ya
-        // quedó andando arriba. Cortamos los repeats restantes: si
-        // esta falló, las siguientes van a fallar igual.
-        debugPrint('[RingingAlert] repeat ${i + 1} falló, corto el resto: $e');
-        break;
-      }
+      debugPrint('[RingingAlert] no se pudo reproducir el sonido: $e');
     }
   }
 
@@ -458,22 +400,20 @@ class PushNotificationService {
   /// dispositivo ya atendió el pedido. Idempotente: no hace nada si no
   /// había ninguna alerta corriendo.
   ///
-  /// Invalida primero la sesión guardada en `SharedPreferences` — así el
-  /// loop de `startRingingAlert` (que puede estar corriendo en el OTRO
-  /// isolate, el de background) se frena solo antes de su próxima
-  /// repetición. Solo se llama `.stop()`/`.release()` sobre el
-  /// `AudioPlayer` nativo cuando `_ringPlayer` es una referencia real de
-  /// ESTE mismo isolate (p. ej. la señal de `dismiss_notification`,
-  /// manejada dentro del propio handler de background) — nunca se crea
-  /// un `AudioPlayer` "sombra" con el mismo `playerId` para forzar el
-  /// stop desde otro isolate, porque eso es justo lo que rompía el
-  /// reproductor nativo a mitad de una repetición (`IllegalStateException`
-  /// en `prepareAsync`, confirmado con logs reales).
+  /// Solo se llama `.stop()`/`.release()` sobre el `AudioPlayer` nativo
+  /// cuando `_ringPlayer` es una referencia real de ESTE mismo isolate
+  /// (p. ej. la señal de `dismiss_notification`, manejada dentro del
+  /// propio handler de background) — nunca se crea un `AudioPlayer`
+  /// "sombra" con el mismo `playerId` para forzar el stop desde OTRO
+  /// isolate (p. ej. al tocar la notificación, que corre en el isolate
+  /// principal): eso fue justo lo que rompía el reproductor nativo a
+  /// mitad de la reproducción (`IllegalStateException` en
+  /// `prepareAsync`, confirmado con logs reales) cuando todavía se
+  /// intentaba repetir el sonido en loop. Con un solo `play()` del clip
+  /// largo ya no hay una "próxima repetición" que proteger — si no se
+  /// llega a tiempo de pararlo desde este mismo isolate, simplemente
+  /// termina de sonar solo.
   static Future<void> stopRingingAlert() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_kRingSessionKey);
-    } catch (_) {}
     try {
       await Vibration.cancel();
     } catch (_) {}
