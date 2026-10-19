@@ -347,7 +347,6 @@ class PushNotificationService {
   // ───────────────────── Alerta en loop (ver más arriba) ─────────────────────
 
   static AudioPlayer? _ringPlayer;
-  static StreamSubscription<void>? _ringSoundSub;
 
   /// Arranca la alerta desde `firebaseBackgroundMessageHandler`. Nunca
   /// debe tumbar el handler — cualquier falla queda en silencio.
@@ -358,20 +357,18 @@ class PushNotificationService {
   /// termine, hasta `Vibration.cancel()` o que [stopRingingAlert] lo
   /// pare. Por eso la vibración sí sobrevive con la app cerrada.
   ///
-  /// Sonido: bug real reportado — sonaba UNA sola vez a pesar de pedir
-  /// varias repeticiones. Causa: Android le da a este handler una
-  /// ventana de ejecución que se cierra en cuanto la función async
-  /// RETORNA — la vibración sobrevive porque, una vez arrancado el
-  /// patrón, lo maneja el sistema operativo por su cuenta (no depende
-  /// de que nuestro proceso siga vivo); el sonido en cambio corre
-  /// DENTRO de nuestro proceso (`MediaPlayer`), así que si la función
-  /// retorna antes de que termine de sonar, Android cierra la ventana
-  /// y las repeticiones restantes nunca llegan a pasar. La versión
-  /// anterior disparaba cada repetición en un listener de "ya sonó"
-  /// SIN esperarlo — la función retornaba apenas arrancaba el primer
-  /// sonido. Fix: esperar (`await`) cada repetición de verdad, una por
-  /// una, antes de retornar — así la ventana de ejecución se mantiene
-  /// abierta hasta terminar las [_kRingingSoundRepeats].
+  /// Sonido: Android le da a este handler una ventana de ejecución que
+  /// se cierra en cuanto la función async RETORNA — por eso cada
+  /// repetición se `await`ea de verdad, una por una, antes de
+  /// retornar. Pero el evento `onPlayerComplete` ("ya terminó de
+  /// sonar") de este plugin de audio NO llega de forma confiable con
+  /// la app cerrada — confirmado con `adb logcat` real, nunca disparó
+  /// ni para el primer repeat. En vez de esperar ese aviso (que
+  /// obligaba a un timeout ciego de 5s por repetición, demasiado
+  /// lento y sin garantía), se mide la duración REAL del clip una
+  /// sola vez (`getDuration()`, una llamada simple de método que SÍ
+  /// es confiable — no es un stream) y se espera esa duración exacta
+  /// entre cada repetición.
   static Future<void> startRingingAlert() async {
     try {
       final hasVibrator = (await Vibration.hasVibrator()) == true;
@@ -384,18 +381,10 @@ class PushNotificationService {
       }
     } catch (_) {}
 
-    // Bug real reportado: seguía sonando una sola vez. Causa probable
-    // encontrada al revisar esto a fondo otra vez — se creaba un
-    // `AudioPlayer` NUEVO en CADA repetición, con el mismo `playerId`
-    // que el anterior (que nunca se liberaba entre uno y otro). Eso
-    // deja dos objetos Dart distintos reclamando el mismo reproductor
-    // nativo al mismo tiempo — comportamiento no garantizado por el
-    // plugin, y el `catch` de abajo tragaba cualquier falla ahí SIN
-    // dejar rastro, cortando los repeats que faltaban en silencio
-    // total. Fix: un solo `AudioPlayer`, reusado para las 3
-    // repeticiones (el patrón normal para repetir un clip con este
-    // plugin), con `debugPrint` en cada paso para que si vuelve a
-    // fallar, quede evidencia real en `adb logcat` en vez de adivinar.
+    // Un solo `AudioPlayer`, reusado para las 3 repeticiones (crear
+    // uno nuevo por repetición, con el mismo `playerId` sin liberar
+    // el anterior, deja dos objetos Dart reclamando el mismo
+    // reproductor nativo a la vez — comportamiento no garantizado).
     AudioPlayer? player;
     try {
       player = AudioPlayer(playerId: _kRingingPlayerId);
@@ -406,27 +395,23 @@ class PushNotificationService {
       return;
     }
 
+    Duration? clipDuration;
     for (var i = 0; i < _kRingingSoundRepeats; i++) {
       try {
-        await _ringSoundSub?.cancel();
-        final completer = Completer<void>();
-        _ringSoundSub = player.onPlayerComplete.listen((_) {
-          debugPrint('[RingingAlert] repeat ${i + 1} completó solo');
-          if (!completer.isCompleted) completer.complete();
-        });
-
         debugPrint('[RingingAlert] arrancando repeat ${i + 1}/$_kRingingSoundRepeats');
         await player.play(AssetSource('sounds/qr_alert.mp3'));
-        // Red de seguridad: si por lo que sea nunca llega el evento
-        // de "terminó de sonar" (archivo raro, plugin sin soporte en
-        // background), no nos quedamos esperando para siempre — y
-        // sin esto, un solo repeat trabado tumbaría los que faltan.
-        await completer.future.timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            debugPrint('[RingingAlert] repeat ${i + 1} agotó el timeout de 5s');
-          },
+
+        // Solo se mide una vez — ya con el source cargado, la duración
+        // es la misma en cada repetición.
+        clipDuration ??= await player.getDuration();
+        final wait =
+            (clipDuration ?? const Duration(seconds: 2)) +
+            const Duration(milliseconds: 300);
+        debugPrint(
+          '[RingingAlert] repeat ${i + 1} esperando ${wait.inMilliseconds}ms '
+          '(duración real del clip: ${clipDuration?.inMilliseconds}ms)',
         );
+        await Future.delayed(wait);
       } catch (e) {
         // Al menos la vibración (confiable a nivel de sistema) ya
         // quedó andando arriba. Cortamos los repeats restantes: si
@@ -444,10 +429,6 @@ class PushNotificationService {
   static Future<void> stopRingingAlert() async {
     try {
       await Vibration.cancel();
-    } catch (_) {}
-    try {
-      await _ringSoundSub?.cancel();
-      _ringSoundSub = null;
     } catch (_) {}
     try {
       final player = _ringPlayer ?? AudioPlayer(playerId: _kRingingPlayerId);
