@@ -356,11 +356,22 @@ class PushNotificationService {
   /// una vez que el sistema operativo arranca ese patrón queda a su
   /// cargo, sigue sonando aunque el isolate de Dart en background
   /// termine, hasta `Vibration.cancel()` o que [stopRingingAlert] lo
-  /// pare.
+  /// pare. Por eso la vibración sí sobrevive con la app cerrada.
   ///
-  /// Sonido: el audio (`qr_alert.mp3`) es corto — sonar una sola vez no
-  /// se nota. Se repite [_kRingingSoundRepeats] veces (NO infinito,
-  /// a diferencia de la vibración) si no se revisa antes.
+  /// Sonido: bug real reportado — sonaba UNA sola vez a pesar de pedir
+  /// varias repeticiones. Causa: Android le da a este handler una
+  /// ventana de ejecución que se cierra en cuanto la función async
+  /// RETORNA — la vibración sobrevive porque, una vez arrancado el
+  /// patrón, lo maneja el sistema operativo por su cuenta (no depende
+  /// de que nuestro proceso siga vivo); el sonido en cambio corre
+  /// DENTRO de nuestro proceso (`MediaPlayer`), así que si la función
+  /// retorna antes de que termine de sonar, Android cierra la ventana
+  /// y las repeticiones restantes nunca llegan a pasar. La versión
+  /// anterior disparaba cada repetición en un listener de "ya sonó"
+  /// SIN esperarlo — la función retornaba apenas arrancaba el primer
+  /// sonido. Fix: esperar (`await`) cada repetición de verdad, una por
+  /// una, antes de retornar — así la ventana de ejecución se mantiene
+  /// abierta hasta terminar las [_kRingingSoundRepeats].
   static Future<void> startRingingAlert() async {
     try {
       final hasVibrator = (await Vibration.hasVibrator()) == true;
@@ -373,24 +384,34 @@ class PushNotificationService {
       }
     } catch (_) {}
 
-    try {
-      await _ringSoundSub?.cancel();
-      final player = AudioPlayer(playerId: _kRingingPlayerId);
-      _ringPlayer = player;
-      await player.setReleaseMode(ReleaseMode.stop);
+    for (var i = 0; i < _kRingingSoundRepeats; i++) {
+      try {
+        await _ringSoundSub?.cancel();
+        final player = AudioPlayer(playerId: _kRingingPlayerId);
+        _ringPlayer = player;
+        await player.setReleaseMode(ReleaseMode.stop);
 
-      var remainingPlays = _kRingingSoundRepeats - 1; // esta primera cuenta.
-      _ringSoundSub = player.onPlayerComplete.listen((_) {
-        if (remainingPlays <= 0) return;
-        remainingPlays--;
-        player.play(AssetSource('sounds/qr_alert.mp3')).ignore();
-      });
+        final completer = Completer<void>();
+        _ringSoundSub = player.onPlayerComplete.listen((_) {
+          if (!completer.isCompleted) completer.complete();
+        });
 
-      await player.play(AssetSource('sounds/qr_alert.mp3'));
-    } catch (_) {
-      // Sin archivo de sonido o sin soporte de audio en background — al
-      // menos la vibración (que sí es confiablemente a nivel de sistema)
-      // ya quedó andando arriba.
+        await player.play(AssetSource('sounds/qr_alert.mp3'));
+        // Red de seguridad: si por lo que sea nunca llega el evento
+        // de "terminó de sonar" (archivo raro, plugin sin soporte en
+        // background), no nos quedamos esperando para siempre — y
+        // sin esto, un solo repeat trabado tumbaría los que faltan.
+        await completer.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {},
+        );
+      } catch (_) {
+        // Sin archivo de sonido o sin soporte de audio en background
+        // — al menos la vibración (confiable a nivel de sistema) ya
+        // quedó andando arriba. Cortamos los repeats restantes: si
+        // esta falló, las siguientes van a fallar igual.
+        break;
+      }
     }
   }
 
