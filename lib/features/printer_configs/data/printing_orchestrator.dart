@@ -129,7 +129,8 @@ class PrintingOrchestrator {
         final cached = sl<LocalCacheService>().getObject(_tenantCacheKey);
         if (cached != null) {
           return _TenantInfo(
-            businessName: (cached['business_name'] as String?)?.trim().isNotEmpty == true
+            businessName:
+                (cached['business_name'] as String?)?.trim().isNotEmpty == true
                 ? cached['business_name'] as String
                 : 'Mi Restaurante',
             address: cached['address'] as String?,
@@ -606,7 +607,8 @@ class PrintingOrchestrator {
             orderId: orderId,
             printer: printer,
           );
-          ok = viaRaw ??
+          ok =
+              viaRaw ??
               await _printSystemPdf(
                 kind: kind,
                 orderId: orderId,
@@ -824,9 +826,7 @@ class PrintingOrchestrator {
     try {
       final local = sl<OrderLocalDataSource>();
       final cached = await local.peekCachedOrders();
-      return cached
-              ?.where((o) => o.tabSessionId == tabSessionId)
-              .toList() ??
+      return cached?.where((o) => o.tabSessionId == tabSessionId).toList() ??
           const [];
     } catch (_) {
       return const [];
@@ -1065,7 +1065,7 @@ class PrintingOrchestrator {
     // `customerPhone: null` sin mirar las órdenes reales de la cuenta
     // — una cuenta de domicilio sin mesa (auto-abierta por
     // `ensureSessionForOrder` en el backend) terminaba imprimiendo
-    // "Cuenta · Sin mesa" / "Atención: EN EL SALÓN", mientras que
+    // "Cuenta · Sin mesa" / "Atención: EN EL SALON", mientras que
     // imprimir la MISMA información desde el detalle de una orden
     // puntual (que sí lee `order.orderType`/`customerPhone`/
     // `deliveryAddress` reales) mostraba domicilio correctamente — dos

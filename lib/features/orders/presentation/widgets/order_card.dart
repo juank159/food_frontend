@@ -236,10 +236,10 @@ class OrderCard extends StatelessWidget {
   ///   - delivery → "Domicilio"
   ///   - dine-in sin mesa → "Sin mesa"
   _InfoChip _originChip(bool isCompact) => _InfoChip(
-        icon: _originIcon(),
-        label: _destinationText(),
-        isCompact: isCompact,
-      );
+    icon: _originIcon(),
+    label: _destinationText(),
+    isCompact: isCompact,
+  );
 
   /// `true` si la orden tiene una etiqueta propia: una mesa o una cuenta
   /// libre con nombre (`tableLabel`, ej. "papa"). Las cuentas libres NO
@@ -367,7 +367,7 @@ class OrderCard extends StatelessWidget {
     switch (status) {
       case OrderStatus.pendingReview:
         // Self-order esperando aprobación — naranja vibrante distinto
-        // del warning normal para que se vea como "necesita atención".
+        // del warning normal para que se vea como "necesita atencion".
         return Colors.deepOrange;
       case OrderStatus.pending:
         return AppColors.warning;
@@ -412,7 +412,9 @@ class OrderCard extends StatelessWidget {
     // "ayer" por día calendario de Bogotá, no por horas transcurridas
     // (antes `diff.inDays == 1` podía fallar cerca de medianoche).
     if (DateTimeFormatter.isSameBogotaDay(
-        date, now.subtract(const Duration(days: 1)))) {
+      date,
+      now.subtract(const Duration(days: 1)),
+    )) {
       return 'ayer';
     }
     if (diff.inDays < 7) return 'hace ${diff.inDays} días';
@@ -522,7 +524,11 @@ class _InfoChip extends StatelessWidget {
           ),
           if (onTap != null) ...[
             const SizedBox(width: 2),
-            Icon(Icons.chevron_right, size: isCompact ? 12 : 14, color: iconColor),
+            Icon(
+              Icons.chevron_right,
+              size: isCompact ? 12 : 14,
+              color: iconColor,
+            ),
           ],
         ],
       ),

@@ -169,9 +169,7 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
           _InfoRow(
             icon: Icons.qr_code_2,
             label: 'SKU',
-            value: (item.sku == null || item.sku!.isEmpty)
-                ? '—'
-                : item.sku!,
+            value: (item.sku == null || item.sku!.isEmpty) ? '—' : item.sku!,
           ),
           const Divider(height: 16, color: AppColors.divider),
           _InfoRow(
@@ -195,11 +193,8 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
                 ? Icons.check_circle_outline
                 : Icons.do_not_disturb_on_outlined,
             label: 'Disponibilidad',
-            value: item.isAvailable
-                ? 'Disponible para venta'
-                : 'No disponible',
-            valueColor:
-                item.isAvailable ? AppColors.success : AppColors.error,
+            value: item.isAvailable ? 'Disponible para venta' : 'No disponible',
+            valueColor: item.isAvailable ? AppColors.success : AppColors.error,
           ),
         ],
       ),
@@ -290,9 +285,7 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
             label: const Text('Editar en Productos'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
-              side: BorderSide(
-                color: AppColors.primary.withValues(alpha: 0.4),
-              ),
+              side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -340,9 +333,7 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
         );
       } else {
         child = Column(
-          children: [
-            for (final m in movements) _MovementRow(movement: m),
-          ],
+          children: [for (final m in movements) _MovementRow(movement: m)],
         );
       }
 
@@ -365,9 +356,7 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
     // un `Product` completo, mandamos sólo el id — el form del producto se
     // encarga de hidratar lo que falte. Si el backend devuelve un producto
     // editado, recargamos para ver los cambios.
-    final result = await Get.toNamed(
-      AppRoutes.buildEditProduct(item.id),
-    );
+    final result = await Get.toNamed(AppRoutes.buildEditProduct(item.id));
     if (result != null) {
       await controller.refresh();
     }
@@ -415,7 +404,7 @@ class InventoryDetailPage extends GetView<InventoryDetailController> {
     }
     final pct = (ratio * 100).clamp(0, 999).round();
     if (ratio < 0.5) return 'Crítico — $pct% del mínimo';
-    if (ratio < 1.5) return 'Atención — $pct% del mínimo';
+    if (ratio < 1.5) return 'Atencion — $pct% del mínimo';
     return 'Saludable — $pct% del mínimo';
   }
 }
@@ -434,11 +423,7 @@ class _BackButton extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
-          Icons.arrow_back,
-          color: Colors.white,
-          size: 20,
-        ),
+        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
       ),
     );
   }
@@ -695,10 +680,7 @@ class _StockProgressBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           child: Stack(
             children: [
-              Container(
-                height: 10,
-                color: AppColors.background,
-              ),
+              Container(height: 10, color: AppColors.background),
               FractionallySizedBox(
                 widthFactor: clamped,
                 child: Container(
@@ -726,8 +708,7 @@ class _StockProgressBar extends StatelessWidget {
                         width: 2,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: AppColors.textPrimary
-                              .withValues(alpha: 0.35),
+                          color: AppColors.textPrimary.withValues(alpha: 0.35),
                           borderRadius: BorderRadius.circular(1),
                         ),
                       ),

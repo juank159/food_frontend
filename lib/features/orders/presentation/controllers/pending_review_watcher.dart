@@ -20,7 +20,7 @@ import '../../data/datasources/order_remote_datasource.dart';
 /// El `PendingReviewController` solo polea cuando la bandeja está
 /// abierta. Pero el flujo real es: cliente envía pedido → mesero está
 /// en otra pantalla (cobrando, tomando otra mesa) → **no se entera**.
-/// Sin este watcher, los pedidos se acumulan sin atención hasta que
+/// Sin este watcher, los pedidos se acumulan sin atencion hasta que
 /// alguien abre la bandeja manualmente.
 ///
 /// Este watcher se inicia en el login (si el rol del user puede
@@ -43,8 +43,8 @@ class PendingReviewWatcher extends GetxService {
   PendingReviewWatcher({
     OrderRemoteDataSource? remoteDataSource,
     Duration pollInterval = const Duration(seconds: 15),
-  })  : _remote = remoteDataSource ?? sl<OrderRemoteDataSource>(),
-        _pollInterval = pollInterval;
+  }) : _remote = remoteDataSource ?? sl<OrderRemoteDataSource>(),
+       _pollInterval = pollInterval;
 
   final OrderRemoteDataSource _remote;
   final Duration _pollInterval;
@@ -69,12 +69,7 @@ class PendingReviewWatcher extends GetxService {
   /// Roles habilitados para recibir notificaciones de pendientes.
   /// Kitchen NO está acá — la cocina ve órdenes cuando ya fueron
   /// aprobadas por el mesero, no antes.
-  static const _eligibleRoles = {
-    'admin',
-    'manager',
-    'cashier',
-    'waiter',
-  };
+  static const _eligibleRoles = {'admin', 'manager', 'cashier', 'waiter'};
 
   /// `roleCode` viene del usuario logueado. Si no está en la lista
   /// `_eligibleRoles`, no arrancamos el watcher.
@@ -189,8 +184,11 @@ class PendingReviewWatcher extends GetxService {
                 color: Colors.red.shade100,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.notifications_active,
-                  color: Colors.red.shade700, size: 28),
+              child: Icon(
+                Icons.notifications_active,
+                color: Colors.red.shade700,
+                size: 28,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -218,9 +216,7 @@ class PendingReviewWatcher extends GetxService {
           FilledButton.icon(
             icon: const Icon(Icons.arrow_forward),
             label: const Text('Ver pedidos'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
             onPressed: () {
               stopAll();
               Get.back();

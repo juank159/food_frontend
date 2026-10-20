@@ -23,6 +23,7 @@ class TicketData {
 
   // ── Orden ──
   final String orderNumber;
+
   /// Número de turno de mostrador (ej. "42"). `null` = no imprimir la
   /// línea de turno — ya sea porque la orden no tiene turno, o porque
   /// el negocio apagó `settings.operation_mode.print_ticket_number`
@@ -91,6 +92,7 @@ class TicketItem {
   final double unitPrice;
   final double subtotal;
   final String? specialInstructions;
+
   /// `true` si el producto va a cocina/barra. La comanda solo lista
   /// los items con `true`; el recibo lista TODOS. Default `true` por
   /// seguridad (productos sin flag explícito siguen yendo a cocina).
@@ -131,6 +133,7 @@ class TicketItem {
 class TicketModifierLine {
   final String name;
   final int quantity;
+
   /// Precio total de este extra (unitPrice * quantity) — 0 = gratis.
   final double subtotal;
 
@@ -334,7 +337,8 @@ class EscPosGenerator {
     // el mesero identifique al cliente de un vistazo. Para pedidos del
     // POS lo imprimimos solo si difiere del destino (evita repetir
     // "Mostrador / Mostrador").
-    final hasCustomer = data.customerName != null &&
+    final hasCustomer =
+        data.customerName != null &&
         data.customerName!.trim().isNotEmpty &&
         data.customerName!.trim() != destination;
     if (hasCustomer) {
@@ -358,8 +362,9 @@ class EscPosGenerator {
         data.tableLabel != null && data.tableLabel!.trim().isNotEmpty;
     if (hasOwnLabel &&
         (data.orderType == 'takeaway' || data.orderType == 'delivery')) {
-      final typeLabel =
-          data.orderType == 'takeaway' ? 'PARA LLEVAR' : 'DOMICILIO';
+      final typeLabel = data.orderType == 'takeaway'
+          ? 'PARA LLEVAR'
+          : 'DOMICILIO';
       bytes.addAll(
         gen.text(
           '>> $typeLabel <<',
@@ -404,10 +409,7 @@ class EscPosGenerator {
       bytes.addAll(
         gen.text(
           '${item.quantity}x ${_sanitize(item.name.toUpperCase())}',
-          styles: const PosStyles(
-            bold: true,
-            height: PosTextSize.size2,
-          ),
+          styles: const PosStyles(bold: true, height: PosTextSize.size2),
         ),
       );
       if (item.variantName != null && item.variantName!.isNotEmpty) {
@@ -456,9 +458,7 @@ class EscPosGenerator {
     // ─── Notas generales (se repiten en cada comanda) ───
     if (data.notes != null && data.notes!.isNotEmpty) {
       bytes.addAll(gen.hr());
-      bytes.addAll(
-        gen.text('NOTAS:', styles: const PosStyles(bold: true)),
-      );
+      bytes.addAll(gen.text('NOTAS:', styles: const PosStyles(bold: true)));
       // _sanitize: las notas del cliente pueden tener emojis (ej. 🧅)
       // que el encoder ESC/POS lanza excepción al no caber en Latin-1.
       bytes.addAll(gen.text(_sanitize(data.notes!)));
@@ -507,13 +507,18 @@ class EscPosGenerator {
     );
     if (data.address != null && data.address!.isNotEmpty) {
       bytes.addAll(
-        gen.text(data.address!, styles: const PosStyles(align: PosAlign.center)),
+        gen.text(
+          data.address!,
+          styles: const PosStyles(align: PosAlign.center),
+        ),
       );
     }
     if (data.phone != null && data.phone!.isNotEmpty) {
       bytes.addAll(
-        gen.text('Tel: ${data.phone}',
-            styles: const PosStyles(align: PosAlign.center)),
+        gen.text(
+          'Tel: ${data.phone}',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
       );
     }
 
@@ -529,7 +534,9 @@ class EscPosGenerator {
     if (data.cashierName != null && data.cashierName!.isNotEmpty) {
       bytes.addAll(gen.text('Cajero: ${_sanitize(data.cashierName!)}'));
     }
-    bytes.addAll(gen.text('Apertura: ${DateTimeFormatter.receiptDateTime(data.openedAt)}'));
+    bytes.addAll(
+      gen.text('Apertura: ${DateTimeFormatter.receiptDateTime(data.openedAt)}'),
+    );
     bytes.addAll(
       gen.text(
         data.closedAt != null
@@ -753,8 +760,10 @@ class EscPosGenerator {
 
     // ─── Metadata ───
     bytes.addAll(
-      gen.text('Orden: ${data.orderNumber}',
-          styles: const PosStyles(bold: true)),
+      gen.text(
+        'Orden: ${data.orderNumber}',
+        styles: const PosStyles(bold: true),
+      ),
     );
     bytes.addAll(gen.text('Fecha: ${_fullDate(data.createdAt)}'));
     final recDest = _destinationLabel(data);
@@ -771,7 +780,7 @@ class EscPosGenerator {
         bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
       }
     }
-    bytes.addAll(gen.text('Atención: $recDest'));
+    bytes.addAll(gen.text('Atencion: $recDest'));
 
     // ─── Dirección de entrega (solo domicilio) — el cliente necesita
     // ver que quedó bien la dirección que dio, y quien reparte usa el
@@ -814,10 +823,7 @@ class EscPosGenerator {
         final priceText = mod.subtotal > 0 ? _money(mod.subtotal) : 'Gratis';
         bytes.addAll(
           gen.row([
-            PosColumn(
-              text: '  + $qtyPrefix${_sanitize(mod.name)}',
-              width: 8,
-            ),
+            PosColumn(text: '  + $qtyPrefix${_sanitize(mod.name)}', width: 8),
             PosColumn(
               text: priceText,
               width: 4,
@@ -1116,7 +1122,7 @@ class EscPosGenerator {
       case 'delivery':
         return 'DOMICILIO';
       case 'dine_in':
-        return 'EN EL SALÓN';
+        return 'EN EL SALON';
       default:
         return 'PEDIDO';
     }
