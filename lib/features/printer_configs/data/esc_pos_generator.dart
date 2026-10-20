@@ -948,14 +948,18 @@ class EscPosGenerator {
   ///
   /// Reglas:
   ///   1. ASCII 0x20–0x7E: idéntico en todos los code-pages → pasa directo.
-  ///   2. Caracteres con mapping CP437 explícito → se convierten al byte.
-  ///   3. Caracteres tipográficos Unicode comunes → ASCII equivalente.
-  ///   4. Emojis y caracteres sin equivalente → se omiten silenciosamente.
-  ///   5. Espacios dobles resultantes de omisiones → se colapsan.
+  ///   2. Vocales con tilde/diéresis (á é í ó ú ä ë ï ö ü, mayúsculas
+  ///      también) → se les quita el acento (á→a). La Ñ/ñ NO se toca,
+  ///      sale bien en la impresora del cliente — ver la tabla `_cp437`.
+  ///   3. Resto de caracteres con mapping CP437 explícito → al byte CP437.
+  ///   4. Caracteres tipográficos Unicode comunes → ASCII equivalente.
+  ///   5. Emojis y caracteres sin equivalente → se omiten silenciosamente.
+  ///   6. Espacios dobles resultantes de omisiones → se colapsan.
   ///
   /// Ejemplos:
+  ///   “Dirección”.toUpperCase() → “DIRECCION” (tilde quitada, sin símbolo raro) ✓
   ///   “Perro Montañero”.toUpperCase() → “PERRO MONTA\xA5ERO”
-  ///     → impresora CP437 lee 0xA5 = Ñ → imprime “PERRO MONTAÑERO” ✓
+  ///     → impresora lee 0xA5 = Ñ → imprime “PERRO MONTAÑERO” ✓
   ///   “Sin cebolla todo🧅” → “Sin cebolla todo” (emoji omitido) ✓
   static String _sanitize(String text) {
     final buf = StringBuffer();
@@ -987,59 +991,66 @@ class EscPosGenerator {
   /// frecuentes en nombres de restaurante latinoamericano.
   /// Fuente: https://en.wikipedia.org/wiki/Code_page_437
   static const Map<int, int> _cp437 = {
-    // ── Minúsculas con acento (español) ──
-    0x00E0: 0x85, // à
-    0x00E1: 0xA0, // á ← clave español
-    0x00E2: 0x83, // â
-    0x00E4: 0x84, // ä
-    0x00E5: 0x86, // å
+    // ── Vocales con tilde/diéresis/acento → SIN acento ──
+    //
+    // Bug real reportado: los bytes altos de CP437 de abajo (0xA0, 0x82,
+    // 0xA2, 0xA3, 0x81, 0x90, 0x9A, 0x99, 0x8E...) asumían que la
+    // impresora del cliente tenía la tabla CP437 "de libro" — en la
+    // práctica, en su impresora esos bytes salen como símbolos raros
+    // (probablemente firmware clon con code page distinto). El cliente
+    // pidió explícitamente: nunca más tildes rotas, prefiere la vocal
+    // SIN tilde a un símbolo extraño — pero la Ñ/ñ sí le sale bien, así
+    // que esa se deja intacta más abajo (0xA4/0xA5).
+    0x00E0: 0x61, // à → a
+    0x00E1: 0x61, // á → a ← clave español
+    0x00E2: 0x61, // â → a
+    0x00E4: 0x61, // ä → a
+    0x00E5: 0x61, // å → a
     0x00E6: 0x91, // æ
     0x00E7: 0x87, // ç
-    0x00E8: 0x8A, // è
-    0x00E9: 0x82, // é ← clave español
-    0x00EA: 0x88, // ê
-    0x00EB: 0x89, // ë
-    0x00EC: 0x8D, // ì
-    0x00EE: 0x8C, // î
-    0x00EF: 0x8B, // ï
-    0x00F1: 0xA4, // ñ ← clave español
-    0x00F2: 0x95, // ò
-    0x00F3: 0xA2, // ó ← clave español
-    0x00F4: 0x93, // ô
-    0x00F6: 0x94, // ö
-    0x00F9: 0x97, // ù
-    0x00FA: 0xA3, // ú ← clave español
-    0x00FB: 0x96, // û
-    0x00FC: 0x81, // ü ← clave español
-    0x00FF: 0x98, // ÿ
-    // ── Mayúsculas con acento ──
-    // Nota: Á Í Ó Ú no existen en CP437 → usamos la versión sin tilde.
-    // Ñ, É, Ü, Ä, Ö sí existen en CP437 y se mapean exactamente.
+    0x00E8: 0x65, // è → e
+    0x00E9: 0x65, // é → e ← clave español
+    0x00EA: 0x65, // ê → e
+    0x00EB: 0x65, // ë → e
+    0x00EC: 0x69, // ì → i
+    0x00EE: 0x69, // î → i
+    0x00EF: 0x69, // ï → i
+    0x00F1: 0xA4, // ñ ← clave español (sale bien, se deja intacta)
+    0x00F2: 0x6F, // ò → o
+    0x00F3: 0x6F, // ó → o ← clave español
+    0x00F4: 0x6F, // ô → o
+    0x00F6: 0x6F, // ö → o
+    0x00F9: 0x75, // ù → u
+    0x00FA: 0x75, // ú → u ← clave español
+    0x00FB: 0x75, // û → u
+    0x00FC: 0x75, // ü → u ← clave español
+    0x00FF: 0x79, // ÿ → y
+    // ── Mayúsculas con tilde/diéresis/acento → SIN acento ──
     0x00C0: 0x41, // À → A
     0x00C1: 0x41, // Á → A
     0x00C2: 0x41, // Â → A
-    0x00C4: 0x8E, // Ä ✓
-    0x00C5: 0x8F, // Å ✓
-    0x00C6: 0x92, // Æ ✓
-    0x00C7: 0x80, // Ç ✓
+    0x00C4: 0x41, // Ä → A
+    0x00C5: 0x41, // Å → A
+    0x00C6: 0x92, // Æ
+    0x00C7: 0x80, // Ç
     0x00C8: 0x45, // È → E
-    0x00C9: 0x90, // É ✓ ← clave español
+    0x00C9: 0x45, // É → E ← clave español
     0x00CA: 0x45, // Ê → E
     0x00CB: 0x45, // Ë → E
     0x00CC: 0x49, // Ì → I
     0x00CD: 0x49, // Í → I
     0x00CE: 0x49, // Î → I
     0x00CF: 0x49, // Ï → I
-    0x00D1: 0xA5, // Ñ ✓ ← clave español
+    0x00D1: 0xA5, // Ñ ← clave español (sale bien, se deja intacta)
     0x00D2: 0x4F, // Ò → O
     0x00D3: 0x4F, // Ó → O
     0x00D4: 0x4F, // Ô → O
-    0x00D6: 0x99, // Ö ✓
+    0x00D6: 0x4F, // Ö → O
     0x00D8: 0x4F, // Ø → O
     0x00D9: 0x55, // Ù → U
     0x00DA: 0x55, // Ú → U
     0x00DB: 0x55, // Û → U
-    0x00DC: 0x9A, // Ü ✓
+    0x00DC: 0x55, // Ü → U
     0x00DD: 0x59, // Ý → Y
     // ── Puntuación española y símbolos comunes ──
     0x00A1: 0xAD, // ¡ ✓
