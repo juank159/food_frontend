@@ -213,7 +213,13 @@ class DashboardTab extends GetView<HomeController> {
           final rawTileWidth = (constraints.maxWidth - 12) / 2;
           final tileWidth =
               isCompact ? rawTileWidth.clamp(0.0, 220.0) : rawTileWidth;
-          final tileHeight = tileWidth.clamp(120.0, 160.0);
+          // Bug real reportado: en desktop el ancho ya se topaba en 220,
+          // pero la altura seguía clampeada 120-160 (pensada para el
+          // ancho completo de un celular) — con el ancho topado, el
+          // clamp siempre resolvía al máximo (160), dejando el botón
+          // "inmenso" igual que antes, solo que más angosto.
+          final tileHeight =
+              isCompact ? tileWidth.clamp(96.0, 112.0) : tileWidth.clamp(120.0, 160.0);
 
           final sellTile = _PrimaryActionTile(
             icon: FontAwesomeIcons.bolt,
@@ -429,6 +435,12 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final padding = isCompact ? 10.0 : 14.0;
+    final iconBoxSize = isCompact ? 34.0 : 44.0;
+    final iconSize = isCompact ? 14.0 : 18.0;
+    final titleSize = isCompact ? 12.5 : 14.0;
+    final subtitleSize = isCompact ? 11.0 : 12.0;
     return Material(
       color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(14),
@@ -436,7 +448,7 @@ class _QuickActionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border, width: 1),
@@ -451,24 +463,24 @@ class _QuickActionTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: iconBoxSize,
+                height: iconBoxSize,
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: accent),
+                child: Icon(icon, size: iconSize, color: accent),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: isCompact ? 10 : 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: TextStyle(
+                        fontSize: titleSize,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                         letterSpacing: -0.1,
@@ -477,8 +489,8 @@ class _QuickActionTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(
+                        fontSize: subtitleSize,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -488,7 +500,7 @@ class _QuickActionTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 color: AppColors.textHint,
-                size: 18,
+                size: isCompact ? 16 : 18,
               ),
             ],
           ),
@@ -518,6 +530,16 @@ class _PrimaryActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Misma lógica que `AppGradientHeader`: en desktop este tile pasó a
+    // tener menos alto (ver `_buildPrimaryActions`) — el padding/ícono/
+    // letra de adentro también se achican para que quepan sin overflow,
+    // no solo el contenedor. Mobile/tablet quedan igual que antes.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final padding = isCompact ? 10.0 : 16.0;
+    final iconBoxSize = isCompact ? 34.0 : 46.0;
+    final iconSize = isCompact ? 16.0 : 22.0;
+    final titleSize = isCompact ? 14.0 : 17.0;
+    final subtitleSize = isCompact ? 11.0 : 12.0;
     return Material(
       color: accent,
       borderRadius: BorderRadius.circular(20),
@@ -525,7 +547,7 @@ class _PrimaryActionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
@@ -541,14 +563,14 @@ class _PrimaryActionTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: iconBoxSize,
+                height: iconBoxSize,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, color: Colors.white, size: 22),
+                child: Icon(icon, color: Colors.white, size: iconSize),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,8 +578,8 @@ class _PrimaryActionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 17,
+                    style: TextStyle(
+                      fontSize: titleSize,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       height: 1.1,
@@ -565,11 +587,11 @@ class _PrimaryActionTile extends StatelessWidget {
                     ),
                   ),
                   if (subtitle != null) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: isCompact ? 2 : 4),
                     Text(
                       subtitle!,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: subtitleSize,
                         fontWeight: FontWeight.w600,
                         color: Colors.white.withValues(alpha: 0.85),
                       ),

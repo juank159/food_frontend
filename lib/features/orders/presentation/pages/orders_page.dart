@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/utils/app_dialog.dart';
@@ -228,6 +229,14 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bug real reportado: en laptop/desktop este header (medido para
+    // mobile) se veía "muy, muy grande" — mismo achique que ya se le
+    // hizo a `AppGradientHeader`, pero esta pantalla usa su propio
+    // header a mano (no ese widget compartido), así que necesita su
+    // propia versión de la misma lógica. Mobile/tablet quedan igual.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final titleSize = isCompact ? 16.0 : 19.0;
+    final salesValueSize = isCompact ? 14.0 : 18.0;
     return Container(
       decoration: const BoxDecoration(
         gradient: AppColors.primaryGradient,
@@ -236,7 +245,7 @@ class _Header extends StatelessWidget {
           bottomRight: Radius.circular(24),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, isCompact ? 8 : 10, 16, isCompact ? 8 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -269,11 +278,11 @@ class _Header extends StatelessWidget {
                     ),
                   ),
                 ),
-              const Text(
+              Text(
                 'Órdenes',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 19,
+                  fontSize: titleSize,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.3,
                 ),
@@ -289,9 +298,9 @@ class _Header extends StatelessWidget {
                       ),
                       Text(
                         CurrencyFormatter.format(controller.totalSalesToday),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: salesValueSize,
                           fontWeight: FontWeight.w800,
                           height: 1.0,
                           letterSpacing: -0.4,
@@ -324,7 +333,7 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: isCompact ? 7 : 10),
           // Stats secundarios — chips compactos sobre el gradient.
           Obx(() => Row(
                 children: [
@@ -333,6 +342,7 @@ class _Header extends StatelessWidget {
                       label: 'Activas',
                       value: controller.totalActiveOrders,
                       icon: Icons.pending_actions,
+                      isCompact: isCompact,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -341,6 +351,7 @@ class _Header extends StatelessWidget {
                       label: 'Pendientes',
                       value: controller.totalPendingOrders,
                       icon: Icons.schedule,
+                      isCompact: isCompact,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -349,6 +360,7 @@ class _Header extends StatelessWidget {
                       label: 'En prep.',
                       value: controller.totalPreparingOrders,
                       icon: Icons.restaurant,
+                      isCompact: isCompact,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -357,6 +369,7 @@ class _Header extends StatelessWidget {
                       label: 'Listas',
                       value: controller.totalReadyOrders,
                       icon: Icons.check_circle_outline,
+                      isCompact: isCompact,
                     ),
                   ),
                 ],
@@ -372,29 +385,31 @@ class _StatChip extends StatelessWidget {
   final String label;
   final int value;
   final IconData icon;
+  final bool isCompact;
   const _StatChip({
     required this.label,
     required this.value,
     required this.icon,
+    this.isCompact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: isCompact ? 5 : 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 15, color: Colors.white),
+          Icon(icon, size: isCompact ? 12 : 15, color: Colors.white),
           const SizedBox(height: 3),
           Text(
             value.toString(),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: isCompact ? 13 : 16,
               fontWeight: FontWeight.w700,
               height: 1.0,
             ),
@@ -402,9 +417,9 @@ class _StatChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white70,
-              fontSize: 10,
+              fontSize: isCompact ? 9 : 10,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

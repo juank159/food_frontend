@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
+import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/utils/app_dialog.dart';
@@ -47,7 +48,7 @@ class OpenTabsView extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
-                  _buildStatsBar(),
+                  _buildStatsBar(context),
                   const SizedBox(height: 16),
                   if (list.isEmpty)
                     Padding(
@@ -188,9 +189,14 @@ class OpenTabsView extends StatelessWidget {
     await _c.load();
   }
 
-  Widget _buildStatsBar() {
+  Widget _buildStatsBar(BuildContext context) {
+    // Bug real reportado: "cuentas tanto, tickets tanto, pendientes
+    // tanto, se ve muy, muy grande" en laptop/desktop — mismo achique
+    // que el resto del paso responsive. Mobile/tablet quedan igual.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final dividerHeight = isCompact ? 28.0 : 36.0;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(isCompact ? 10 : 14),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
@@ -203,17 +209,19 @@ class OpenTabsView extends StatelessWidget {
               label: 'Cuentas',
               value: '${_c.sessions.length}',
               accent: AppColors.primary,
+              valueSize: isCompact ? 15 : 18,
             ),
           ),
-          Container(width: 1, height: 36, color: AppColors.divider),
+          Container(width: 1, height: dividerHeight, color: AppColors.divider),
           Expanded(
             child: _StatTile(
               label: 'Tickets',
               value: '${_c.totalTickets}',
               accent: AppColors.info,
+              valueSize: isCompact ? 15 : 18,
             ),
           ),
-          Container(width: 1, height: 36, color: AppColors.divider),
+          Container(width: 1, height: dividerHeight, color: AppColors.divider),
           Expanded(
             child: _StatTile(
               label: 'Pendiente',
@@ -221,7 +229,7 @@ class OpenTabsView extends StatelessWidget {
               accent: _c.totalPendingBalance > 0
                   ? AppColors.error
                   : AppColors.success,
-              valueSize: 14,
+              valueSize: isCompact ? 12 : 14,
             ),
           ),
         ],
