@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/subscription_blocked_dialog.dart';
 import '../../features/auth/data/datasources/auth_local_datasource.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
@@ -788,6 +789,22 @@ Future<void> init() async {
               if (Get.context != null) {
                 Get.offAllNamed('/login');
               }
+              return handler.next(error);
+            }
+
+            // Pedido explícito: si un negocio deja vencer el trial sin
+            // pasarse a un plan pago, no debe poder seguir operando —
+            // y tiene que quedar CLARO por qué (diálogo bloqueante con
+            // acción directa a elegir plan), no un error genérico más.
+            final code = body is Map ? body['code']?.toString() : null;
+            if (code == 'SUBSCRIPTION_REQUIRED') {
+              showSubscriptionBlockedDialog(
+                msg.isNotEmpty
+                    ? msg
+                    : 'Tu período de prueba terminó. Elegí un plan para '
+                        'seguir creando pedidos, cobrando, y registrando '
+                        'gastos y nómina.',
+              );
               return handler.next(error);
             }
           }
