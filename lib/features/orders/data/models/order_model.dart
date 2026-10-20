@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:json_annotation/json_annotation.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../domain/entities/order.dart';
@@ -73,6 +75,9 @@ class OrderModel {
   /// columna propia — el server no la persiste; la calculamos cada vez
   /// para que la UI sepa cuánto se ha cobrado sin pedir extra requests.
   final double paidAmount;
+  /// Derivado igual que `paidAmount` — ver el comentario largo en
+  /// `fromJson`. No viaja desde el backend como campo propio.
+  final Map<String, int> paidItemQuantities;
   @JsonKey(name: 'special_instructions')
   final String? specialInstructions;
   @JsonKey(name: 'estimated_time')
@@ -122,6 +127,7 @@ class OrderModel {
     this.paymentMethod,
     required this.paymentStatus,
     this.paidAmount = 0,
+    this.paidItemQuantities = const {},
     this.specialInstructions,
     this.estimatedTime,
     this.confirmedAt,
@@ -167,6 +173,7 @@ class OrderModel {
           : null,
       paymentStatus: PaymentStatus.fromString(paymentStatus),
       paidAmount: paidAmount,
+      paidItemQuantities: paidItemQuantities,
       specialInstructions: specialInstructions,
       estimatedTime: estimatedTime,
       confirmedAt:
@@ -217,6 +224,7 @@ class OrderModel {
       paymentMethod: order.paymentMethod?.value,
       paymentStatus: order.paymentStatus.value,
       paidAmount: order.paidAmount,
+      paidItemQuantities: order.paidItemQuantities,
       specialInstructions: order.specialInstructions,
       estimatedTime: order.estimatedTime,
       confirmedAt: order.confirmedAt?.toIso8601String(),
@@ -266,11 +274,36 @@ class OrderModel {
     // pago visible en la card aunque el `payment_status` siga "pending".
     final paymentsJson = (json['payments'] as List<dynamic>?) ?? const [];
     double paid = 0;
+    // Bug real reportado: "cobrar por ítems" ya guardaba, por cada
+    // pago, qué ítem específico cubría (JSON `{"__items__": [{"id",
+    // "qty"}]}` en `payments.notes` — ver `ItemSelectionSheet`) pero
+    // esa info solo se leía al ABRIR OTRA VEZ el sheet de cobro, nunca
+    // se mostraba en el detalle normal del ticket. La derivamos acá,
+    // una sola vez, igual que `paidAmount` arriba — así cualquier
+    // pantalla que use esta `Order` puede mostrar "2/2 pagado" por
+    // ítem sin tener que re-leer `payments` a mano.
+    final paidItemQty = <String, int>{};
     for (final p in paymentsJson) {
       if (p is! Map<String, dynamic>) continue;
       final status = p['status']?.toString() ?? '';
       if (status != 'completed') continue;
       paid += parseNum(p['amount']);
+      final notesRaw = p['notes'];
+      if (notesRaw is! String || notesRaw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(notesRaw) as Map<String, dynamic>?;
+        final rawItems = decoded?['__items__'] as List?;
+        if (rawItems == null) continue;
+        for (final raw in rawItems) {
+          if (raw is! Map<String, dynamic>) continue;
+          final itemId = raw['id'] as String?;
+          final qty = (raw['qty'] as num?)?.toInt() ?? 0;
+          if (itemId == null) continue;
+          paidItemQty[itemId] = (paidItemQty[itemId] ?? 0) + qty;
+        }
+      } catch (_) {
+        // notes no es JSON (pago normal sin cobro por ítems) — ignorar.
+      }
     }
 
     return OrderModel(
@@ -307,6 +340,7 @@ class OrderModel {
       paymentMethod: json['payment_method'] as String?,
       paymentStatus: (json['payment_status'] as String?) ?? 'pending',
       paidAmount: paid,
+      paidItemQuantities: paidItemQty,
       specialInstructions: json['special_instructions'] as String?,
       estimatedTime: (json['estimated_time'] as num?)?.toInt(),
       confirmedAt: json['confirmed_at'] as String?,

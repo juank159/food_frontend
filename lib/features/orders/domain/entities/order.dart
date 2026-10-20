@@ -46,6 +46,12 @@ class Order extends Equatable {
   /// del backend en `OrderModel.fromJson`. Permite a la UI mostrar
   /// progreso de pago parcial sin pedir extras requests.
   final double paidAmount;
+  /// Cantidad ya cobrada de cada ítem, por `item.id` — solo tiene
+  /// entradas cuando algún pago se hizo con "Cobrar por ítems" (ver
+  /// `ItemSelectionSheet`/`OrderModel.fromJson`). Si la orden se pagó
+  /// completa de una (sin seleccionar ítems), queda vacío — no hay
+  /// nada que mostrar por ítem, el total ya lo dice todo.
+  final Map<String, int> paidItemQuantities;
   final String? specialInstructions;
   final int? estimatedTime;
   final DateTime? confirmedAt;
@@ -86,6 +92,7 @@ class Order extends Equatable {
     this.paymentMethod,
     required this.paymentStatus,
     this.paidAmount = 0,
+    this.paidItemQuantities = const {},
     this.specialInstructions,
     this.estimatedTime,
     this.confirmedAt,
@@ -152,6 +159,12 @@ class Order extends Equatable {
   /// `pending`.
   bool get hasPartialPayment =>
       paidAmount > 0.01 && !isPaymentCompleted;
+
+  /// Cantidad ya cobrada de un ítem puntual vía "Cobrar por ítems".
+  /// `0` si ese ítem nunca se incluyó en un pago por ítems — no
+  /// implica que esté "pendiente", solo que no hay tracking por-ítem
+  /// para él (lo normal cuando la orden se paga completa de una).
+  int paidQuantityFor(String itemId) => paidItemQuantities[itemId] ?? 0;
 
   /// Verdadero si esta orden pertenece a una cuenta abierta (TabSession).
   /// El cobro se hace consolidado desde la cuenta, no por orden.
@@ -272,6 +285,7 @@ class Order extends Equatable {
         paymentMethod,
         paymentStatus,
         paidAmount,
+        paidItemQuantities,
         specialInstructions,
         estimatedTime,
         confirmedAt,
@@ -313,6 +327,7 @@ class Order extends Equatable {
     PaymentMethod? paymentMethod,
     PaymentStatus? paymentStatus,
     double? paidAmount,
+    Map<String, int>? paidItemQuantities,
     String? specialInstructions,
     int? estimatedTime,
     DateTime? confirmedAt,
@@ -352,6 +367,7 @@ class Order extends Equatable {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paidAmount: paidAmount ?? this.paidAmount,
+      paidItemQuantities: paidItemQuantities ?? this.paidItemQuantities,
       specialInstructions: specialInstructions ?? this.specialInstructions,
       estimatedTime: estimatedTime ?? this.estimatedTime,
       confirmedAt: confirmedAt ?? this.confirmedAt,

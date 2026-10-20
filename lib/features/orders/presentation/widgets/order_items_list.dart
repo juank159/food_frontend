@@ -295,7 +295,26 @@ class OrderItemsList extends StatelessWidget {
                 ],
                 if (!isDiscount) ...[
                   const SizedBox(height: 4),
-                  _StatusBadge(visuals: status),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _StatusBadge(visuals: status),
+                      // Bug real reportado: "cobrar por ítems" ya sabía
+                      // qué ítem específico estaba pagado (se usa para
+                      // tacharlo al reabrir ese sheet), pero el detalle
+                      // normal del ticket nunca lo mostraba — solo el
+                      // total/saldo de arriba. Si nunca se pagó por
+                      // ítems, `paidQuantityFor` da 0 y no sale nada
+                      // (no cambia el look de siempre).
+                      if (order.paidQuantityFor(item.id) > 0)
+                        _PaymentItemBadge(
+                          paidQty: order.paidQuantityFor(item.id),
+                          totalQty: item.quantity,
+                        ),
+                    ],
+                  ),
                 ],
                 if (item.hasModifiers) ...[
                   const SizedBox(height: 6),
@@ -904,6 +923,52 @@ class _StatusBadge extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: visuals.color,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Badge de "ya se pagó este ítem (por ítems)" — mismo estilo visual
+/// que `_StatusBadge`, pero para la señal de cobro, no de preparación.
+/// Verde + "Pagado" si ya se cubrió toda la cantidad; ámbar + "N/M
+/// pagado" si fue parcial (ej. un calentado de los dos).
+class _PaymentItemBadge extends StatelessWidget {
+  final int paidQty;
+  final int totalQty;
+  const _PaymentItemBadge({required this.paidQty, required this.totalQty});
+
+  @override
+  Widget build(BuildContext context) {
+    final fullyPaid = paidQty >= totalQty;
+    final color = fullyPaid ? AppColors.success : AppColors.warning;
+    final label = fullyPaid ? 'Pagado' : '$paidQty/$totalQty pagado';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            fullyPaid ? Icons.check_circle : Icons.pie_chart,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
         ],

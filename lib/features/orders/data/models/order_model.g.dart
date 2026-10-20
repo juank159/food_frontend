@@ -35,6 +35,7 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'payment_method': instance.paymentMethod,
       'payment_status': instance.paymentStatus,
       'paid_amount': instance.paidAmount,
+      'paidItemQuantities': instance.paidItemQuantities,
       'special_instructions': instance.specialInstructions,
       'estimated_time': instance.estimatedTime,
       'confirmed_at': instance.confirmedAt,
