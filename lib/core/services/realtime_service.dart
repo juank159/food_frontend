@@ -8,6 +8,7 @@ import '../../features/auth/data/datasources/auth_local_datasource.dart';
 import '../../features/orders/presentation/controllers/orders_controller.dart';
 import '../../features/products/presentation/controllers/products_controller.dart';
 import '../../features/tab_sessions/presentation/controllers/open_tabs_controller.dart';
+import '../../features/tab_sessions/presentation/controllers/tab_session_detail_controller.dart';
 
 /// Aviso en vivo entre dispositivos del mismo negocio — ver el
 /// comentario largo en `realtime.gateway.ts` (backend) para el
@@ -107,6 +108,17 @@ class RealtimeService extends GetxController {
         case 'tab_sessions':
           if (Get.isRegistered<OpenTabsController>()) {
             Get.find<OpenTabsController>().load();
+          }
+          // Bug real reportado: el backend ahora SÍ avisa este evento
+          // al vender/agregar un item/aplicar un descuento/pagar (ver
+          // `TabSessionsService.recomputeRollups` — antes nunca
+          // notificaba porque no tenía `tenantSchema` a mano). Si la
+          // pantalla de detalle de UNA cuenta (con todos sus tickets)
+          // está abierta, también se refresca sola — antes solo se
+          // actualizaba el LISTADO de "Cuentas abiertas", nunca el
+          // detalle de una cuenta específica ya abierta.
+          if (Get.isRegistered<TabSessionDetailController>()) {
+            Get.find<TabSessionDetailController>().load();
           }
           break;
         case 'products':
