@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
+import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../domain/entities/order.dart' as order_entity;
 
@@ -41,6 +42,13 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor(order.status);
+    // Bug real reportado: en laptop/desktop esta card (medida para
+    // mobile, touch) es tan alta que solo entraban ~3 en pantalla sin
+    // scroll. Achicamos padding/avatar/fuentes SOLO en desktop — mobile
+    // queda exactamente igual.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final hPad = isCompact ? 12.0 : 16.0;
+    final vPad = isCompact ? 9.0 : 14.0;
     return Material(
       color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(16),
@@ -80,21 +88,21 @@ class OrderCard extends StatelessWidget {
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+                    padding: EdgeInsets.fromLTRB(hPad, vPad, hPad - 2, vPad),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildHeader(statusColor),
-                        const SizedBox(height: 10),
-                        _buildContextRow(),
-                        const SizedBox(height: 12),
+                        _buildHeader(statusColor, isCompact),
+                        SizedBox(height: isCompact ? 6 : 10),
+                        _buildContextRow(isCompact),
+                        SizedBox(height: isCompact ? 8 : 12),
                         const Divider(
                           height: 1,
                           thickness: 1,
                           color: AppColors.divider,
                         ),
-                        const SizedBox(height: 12),
-                        _buildFooter(),
+                        SizedBox(height: isCompact ? 8 : 12),
+                        _buildFooter(isCompact),
                       ],
                     ),
                   ),
@@ -109,34 +117,35 @@ class OrderCard extends StatelessWidget {
 
   // ─────────────────────────── Header ────────────────────────────
 
-  Widget _buildHeader(Color statusColor) {
+  Widget _buildHeader(Color statusColor, bool isCompact) {
+    final avatarSize = isCompact ? 30.0 : 38.0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Avatar redondo con el icono del tipo de orden — escanea más
         // rápido que un icono "pelado" al lado del número.
         Container(
-          width: 38,
-          height: 38,
+          width: avatarSize,
+          height: avatarSize,
           decoration: BoxDecoration(
             color: AppColors.primary.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             _orderTypeIcon(order.orderType),
-            size: 18,
+            size: isCompact ? 14 : 18,
             color: AppColors.primary,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isCompact ? 8 : 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 order.orderNumber,
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: isCompact ? 13.5 : 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                   height: 1.1,
@@ -147,8 +156,8 @@ class OrderCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 _destinationText(),
-                style: const TextStyle(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: isCompact ? 11 : 12,
                   color: AppColors.textSecondary,
                 ),
               ),
@@ -156,7 +165,11 @@ class OrderCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _StatusPill(status: order.status, color: statusColor),
+        _StatusPill(
+          status: order.status,
+          color: statusColor,
+          isCompact: isCompact,
+        ),
       ],
     );
   }
@@ -169,13 +182,14 @@ class OrderCard extends StatelessWidget {
   ///
   /// El primer chip siempre indica DÓNDE se entrega la orden — clave
   /// para el flujo "lista para entregar, ¿a quién?".
-  Widget _buildContextRow() {
+  Widget _buildContextRow(bool isCompact) {
+    final gap = isCompact ? 5.0 : 6.0;
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: gap,
+      runSpacing: gap,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _originChip(),
+        _originChip(isCompact),
         // Badge de cuenta abierta: deja claro que esta orden está dentro
         // de una cuenta (se cobra consolidado desde "Cuentas abiertas").
         // Sin esto, el usuario no entendía por qué la orden vivía en dos
@@ -185,6 +199,7 @@ class OrderCard extends StatelessWidget {
             icon: Icons.account_balance_wallet_outlined,
             label: 'Cuenta abierta',
             accent: AppColors.info,
+            isCompact: isCompact,
             // Tap → salta directo a la cuenta (cobro consolidado). Si el
             // card se usa sin el callback, queda como badge no-tappable.
             onTap: onOpenTabSession,
@@ -197,14 +212,20 @@ class OrderCard extends StatelessWidget {
           _InfoChip(
             icon: Icons.person_outline,
             label: order.customerName ?? 'Cliente',
+            isCompact: isCompact,
           ),
         _InfoChip(
           icon: Icons.shopping_bag_outlined,
           label:
               '${order.totalItems} ${order.totalItems == 1 ? "item" : "items"}',
+          isCompact: isCompact,
         ),
         if (order.estimatedTime != null && order.estimatedTime! > 0)
-          _InfoChip(icon: Icons.schedule, label: '${order.estimatedTime} min'),
+          _InfoChip(
+            icon: Icons.schedule,
+            label: '${order.estimatedTime} min',
+            isCompact: isCompact,
+          ),
       ],
     );
   }
@@ -214,8 +235,11 @@ class OrderCard extends StatelessWidget {
   ///   - takeaway → "Para llevar"
   ///   - delivery → "Domicilio"
   ///   - dine-in sin mesa → "Sin mesa"
-  _InfoChip _originChip() =>
-      _InfoChip(icon: _originIcon(), label: _destinationText());
+  _InfoChip _originChip(bool isCompact) => _InfoChip(
+        icon: _originIcon(),
+        label: _destinationText(),
+        isCompact: isCompact,
+      );
 
   /// `true` si la orden tiene una etiqueta propia: una mesa o una cuenta
   /// libre con nombre (`tableLabel`, ej. "papa"). Las cuentas libres NO
@@ -256,7 +280,7 @@ class OrderCard extends StatelessWidget {
 
   // ─────────────────────────── Footer ────────────────────────────
 
-  Widget _buildFooter() {
+  Widget _buildFooter(bool isCompact) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -269,14 +293,14 @@ class OrderCard extends StatelessWidget {
                 children: [
                   Text(
                     CurrencyFormatter.format(order.totalAmount),
-                    style: const TextStyle(
-                      fontSize: 20,
+                    style: TextStyle(
+                      fontSize: isCompact ? 16 : 20,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
                       height: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: isCompact ? 2 : 4),
                   // Si hay pago parcial, mostrar "Pagado X · Falta Y"
                   // antes del tiempo. Es la señal visual más fuerte que
                   // "ya cobré algo" — el badge "Parcial NN%" lo
@@ -285,8 +309,8 @@ class OrderCard extends StatelessWidget {
                     Text(
                       'Pagado ${CurrencyFormatter.format(order.paidAmount)} · '
                       'Falta ${CurrencyFormatter.format(order.balance)}',
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(
+                        fontSize: isCompact ? 11 : 12,
                         fontWeight: FontWeight.w700,
                         color: AppColors.info,
                       ),
@@ -297,14 +321,14 @@ class OrderCard extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.access_time,
-                        size: 12,
+                        size: isCompact ? 11 : 12,
                         color: AppColors.textHint,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         _relativeTime(order.createdAt),
-                        style: const TextStyle(
-                          fontSize: 12,
+                        style: TextStyle(
+                          fontSize: isCompact ? 11 : 12,
                           color: AppColors.textSecondary,
                         ),
                       ),
@@ -313,7 +337,7 @@ class OrderCard extends StatelessWidget {
                 ],
               ),
             ),
-            _PaymentBadge(order: order),
+            _PaymentBadge(order: order, isCompact: isCompact),
           ],
         ),
         // Acción de cobro contextual — solo cuando es relevante:
@@ -325,11 +349,12 @@ class OrderCard extends StatelessWidget {
         //   - Para órdenes sueltas (sin tab), abre el dialog de cobro
         //     directo de esta orden.
         if (order.isReadyToCharge) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: isCompact ? 7 : 10),
           _ChargeAction(
             order: order,
             onCharge: onCharge,
             onOpenTabSession: onOpenTabSession,
+            isCompact: isCompact,
           ),
         ],
       ],
@@ -401,12 +426,20 @@ class OrderCard extends StatelessWidget {
 class _StatusPill extends StatelessWidget {
   final OrderStatus status;
   final Color color;
-  const _StatusPill({required this.status, required this.color});
+  final bool isCompact;
+  const _StatusPill({
+    required this.status,
+    required this.color,
+    this.isCompact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 8 : 10,
+        vertical: isCompact ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -424,7 +457,7 @@ class _StatusPill extends StatelessWidget {
           Text(
             status.displayName,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isCompact ? 10 : 11,
               fontWeight: FontWeight.w700,
               color: color,
               letterSpacing: 0.2,
@@ -449,12 +482,14 @@ class _InfoChip extends StatelessWidget {
   /// Color de acento opcional (fondo tenue + texto/ícono) para destacar
   /// el chip por sobre los neutrales.
   final Color? accent;
+  final bool isCompact;
 
   const _InfoChip({
     required this.icon,
     required this.label,
     this.onTap,
     this.accent,
+    this.isCompact = false,
   });
 
   @override
@@ -462,7 +497,10 @@ class _InfoChip extends StatelessWidget {
     final fg = accent ?? AppColors.textPrimary;
     final iconColor = accent ?? AppColors.textSecondary;
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 7 : 8,
+        vertical: isCompact ? 3 : 4,
+      ),
       decoration: BoxDecoration(
         color: accent != null
             ? accent!.withValues(alpha: 0.10)
@@ -472,19 +510,19 @@ class _InfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: iconColor),
+          Icon(icon, size: isCompact ? 11 : 13, color: iconColor),
           const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: isCompact ? 11 : 12,
               color: fg,
               fontWeight: FontWeight.w500,
             ),
           ),
           if (onTap != null) ...[
             const SizedBox(width: 2),
-            Icon(Icons.chevron_right, size: 14, color: iconColor),
+            Icon(Icons.chevron_right, size: isCompact ? 12 : 14, color: iconColor),
           ],
         ],
       ),
@@ -510,7 +548,8 @@ class _InfoChip extends StatelessWidget {
 ///   - **Por cobrar** (ámbar): orden suelta con pago pendiente.
 class _PaymentBadge extends StatelessWidget {
   final order_entity.Order order;
-  const _PaymentBadge({required this.order});
+  final bool isCompact;
+  const _PaymentBadge({required this.order, this.isCompact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +582,10 @@ class _PaymentBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 8 : 10,
+        vertical: isCompact ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
@@ -551,12 +593,12 @@ class _PaymentBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: isCompact ? 12 : 14, color: color),
           const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isCompact ? 10 : 11,
               fontWeight: FontWeight.w700,
               color: color,
             ),
@@ -581,11 +623,13 @@ class _ChargeAction extends StatelessWidget {
   final order_entity.Order order;
   final VoidCallback? onCharge;
   final VoidCallback? onOpenTabSession;
+  final bool isCompact;
 
   const _ChargeAction({
     required this.order,
     required this.onCharge,
     required this.onOpenTabSession,
+    this.isCompact = false,
   });
 
   @override
@@ -605,16 +649,19 @@ class _ChargeAction extends StatelessWidget {
         onPressed: cb,
         icon: Icon(
           isTab ? Icons.receipt_long : Icons.payments_outlined,
-          size: 16,
+          size: isCompact ? 14 : 16,
         ),
         label: Text(
           cobrarLabel,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: isCompact ? 12 : 13,
+          ),
         ),
         style: FilledButton.styleFrom(
           backgroundColor: color.withValues(alpha: 0.12),
           foregroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: EdgeInsets.symmetric(vertical: isCompact ? 7 : 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),

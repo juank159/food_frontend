@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:dio/dio.dart' as dio_pkg;
 import 'package:share_plus/share_plus.dart';
+import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/navigation_service.dart';
@@ -65,8 +66,11 @@ class HomeScreen extends GetView<HomeController> {
             ),
           ],
         ),
-        bottomNavigationBar:
-            _buildBottomNavigationBar(safeIndex: safeIndex, tabs: tabs),
+        bottomNavigationBar: _buildBottomNavigationBar(
+          context: context,
+          safeIndex: safeIndex,
+          tabs: tabs,
+        ),
       );
     });
   }
@@ -159,9 +163,19 @@ class HomeScreen extends GetView<HomeController> {
   }
 
   Widget _buildBottomNavigationBar({
+    required BuildContext context,
     required int safeIndex,
     required List<_HomeTab> tabs,
   }) {
+    // Bug real reportado: "ajusta más los botones de navegación de
+    // Inicio/Órdenes/Productos" en laptop/desktop — se ven grandes para
+    // mouse. `BottomNavigationBar` tiene un alto mínimo fijo que no
+    // cambia, pero ícono/letra sí se pueden achicar. Mobile/tablet
+    // quedan exactamente igual que antes.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final iconSize = isCompact ? 17.0 : 20.0;
+    final activeIconSize = isCompact ? 18.0 : 22.0;
+    final fontSize = isCompact ? 10.5 : 12.0;
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
@@ -179,14 +193,14 @@ class HomeScreen extends GetView<HomeController> {
         backgroundColor: Colors.white,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
+        selectedFontSize: fontSize,
+        unselectedFontSize: fontSize,
         elevation: 0,
         items: [
           for (final t in tabs)
             BottomNavigationBarItem(
-              icon: Icon(t.icon, size: 20),
-              activeIcon: Icon(t.icon, size: 22),
+              icon: Icon(t.icon, size: iconSize),
+              activeIcon: Icon(t.icon, size: activeIconSize),
               label: t.label,
             ),
         ],

@@ -423,16 +423,17 @@ class _ProductsTab extends GetView<ProductsController> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  // Más columnas en cada breakpoint para densificar y
-                  // aprovechar el espacio: mobile 2 (antes 1 → card
-                  // gigante), tablet 3, desktop 4, desktop grande 5.
-                  final cross = width > 1200
-                      ? 5
-                      : width > 900
-                      ? 4
-                      : width > 600
-                      ? 3
-                      : 2;
+                  // Bug real reportado: con columnas fijas por breakpoint
+                  // (tablet 3, desktop 4...) la card podía salir enorme
+                  // en anchos "de transición" (ej. 900px con solo 3
+                  // columnas → card de ~280px). Ahora, a partir de
+                  // tablet, las columnas se calculan para que ninguna
+                  // card pase de ~170px de ancho — entran más columnas
+                  // solas a medida que hay más espacio. Mobile se deja
+                  // igual que antes (2 fijas, pensado para touch).
+                  final cross = width < 600
+                      ? 2
+                      : ((width - 32) / 170.0).floor().clamp(3, 8);
                   final gap = width < 600 ? 10.0 : 14.0;
                   final cardWidth =
                       (width - 16 * 2 - gap * (cross - 1)) / cross;

@@ -288,11 +288,17 @@ class ProductSelectorWidget extends StatelessWidget {
     const infoHeight = 170.0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = responsive.getGridColumns(
-          tablet: 3,
-          desktop: 4,
-          largeDesktop: 5,
-        );
+        // Bug real reportado: las cards de "Vender" salían "muy grandes"
+        // en laptop/desktop — `responsive.getGridColumns` decide las
+        // columnas según el ancho de TODA la pantalla, no el ancho real
+        // de esta grilla (que puede ser angosto si hay un panel de
+        // carrito al lado). Ahora las columnas se calculan a partir del
+        // ancho real disponible (`constraints.maxWidth`) para que
+        // ninguna card pase de ~210px — entran más columnas solas si
+        // hay espacio, sin importar cuánto reporte la pantalla.
+        final crossAxisCount = ((constraints.maxWidth - 16) / 210.0)
+            .floor()
+            .clamp(2, 7);
         final gap = responsive.spacing;
         final cardWidth =
             (constraints.maxWidth - gap * (crossAxisCount - 1)) /
