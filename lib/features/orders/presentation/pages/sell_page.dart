@@ -11,6 +11,7 @@ import '../../../../core/services/operation_mode_preference.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
+import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import '../../../payments/presentation/controllers/payment_controller.dart';
 import '../../../payments/presentation/widgets/process_payment_dialog.dart';
 import '../../../products/presentation/controllers/products_controller.dart';
@@ -688,6 +689,17 @@ class _BottomBar extends StatelessWidget {
       }
       if (Get.isRegistered<OrdersController>()) {
         Get.find<OrdersController>().switchMainView(1);
+      }
+      // Bug real reportado: si ya se estaba viendo "Cuentas abiertas"
+      // ANTES de vender (ej. se abrió "Vender" desde ahí mismo),
+      // `switchMainView(1)` no refresca — tiene un guard que corta si
+      // el índice no cambia (`mainView.value == view`), pensado para
+      // no repetir trabajo al tocar la misma pestaña dos veces. Pero
+      // acá SÍ hay algo nuevo que mostrar (la venta recién hecha), así
+      // que se fuerza el refresh de todos modos, sin depender de si
+      // el índice cambió o no.
+      if (Get.isRegistered<OpenTabsController>()) {
+        Get.find<OpenTabsController>().load();
       }
     }
   }
