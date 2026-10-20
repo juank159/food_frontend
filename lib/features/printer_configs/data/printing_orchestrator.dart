@@ -10,8 +10,10 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/utils/api_response_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/safe_get.dart';
+import '../../../core/services/local_cache_service.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../cash_sessions/data/models/cash_session_model.dart';
+import '../../orders/data/datasources/order_local_datasource.dart';
 import '../../orders/data/models/order_item_model.dart';
 import '../../orders/data/models/order_model.dart';
 import '../../tab_sessions/data/models/tab_session_model.dart';
@@ -106,10 +108,37 @@ class PrintingOrchestrator {
       );
       _tenantCache = info;
       _tenantCachedAt = now;
+      try {
+        await sl<LocalCacheService>().saveObject(_tenantCacheKey, {
+          'business_name': info.businessName,
+          'address': info.address,
+          'phone': info.phone,
+          'tax_id': info.taxId,
+          'logo_url': info.logoUrl,
+        });
+      } catch (_) {}
       return info;
     } catch (_) {
-      // Si falla, devolvemos defaults razonables para no abortar la
-      // impresión completa.
+      // Sin red Y sin caché en memoria (ej. recién arrancó la app sin
+      // internet) — última chance antes de caer al default genérico:
+      // la última versión persistida (`LocalCacheService`, sobrevive
+      // un restart). Bug real reportado: antes esto iba directo a
+      // "Mi Restaurante" apenas fallaba la red, aunque la app ya
+      // conociera el nombre real del negocio de una sesión anterior.
+      try {
+        final cached = sl<LocalCacheService>().getObject(_tenantCacheKey);
+        if (cached != null) {
+          return _TenantInfo(
+            businessName: (cached['business_name'] as String?)?.trim().isNotEmpty == true
+                ? cached['business_name'] as String
+                : 'Mi Restaurante',
+            address: cached['address'] as String?,
+            phone: cached['phone'] as String?,
+            taxId: cached['tax_id'] as String?,
+            logoUrl: cached['logo_url'] as String?,
+          );
+        }
+      } catch (_) {}
       return const _TenantInfo(
         businessName: 'Mi Restaurante',
         address: null,
@@ -118,6 +147,8 @@ class PrintingOrchestrator {
       );
     }
   }
+
+  static const _tenantCacheKey = 'printing_tenant_info';
 
   /// Si el usuario actualiza la info del negocio, llamar a esto para
   /// que el próximo recibo refleje los cambios sin esperar el TTL.
@@ -438,6 +469,37 @@ class PrintingOrchestrator {
     return PrinterDispatcher.printRawBytes(bytes: bytes, printer: printer);
   }
 
+  /// Bug real reportado (mismo pedido: imprimir debe andar con o sin
+  /// internet): este reporte lo calcula el backend (agrupado por
+  /// método de pago + llave Bre-B) — no es un dato simple que viva en
+  /// la caché de alguna otra pantalla, así que acá SÍ hace falta una
+  /// caché propia. Se guarda el JSON crudo cada vez que la red
+  /// responde bien (`LocalCacheService.saveObject`, misma clase que
+  /// usa el resto de la app) — si una reimpresión posterior del mismo
+  /// cierre de caja ocurre sin conexión, se usa esa última versión en
+  /// vez de fallar. Igual que `_fetchOrder`: solo cae a caché si la
+  /// falla es de CONECTIVIDAD (sin `response`), nunca para un error
+  /// real del servidor.
+  static Future<Map<String, dynamic>> _fetchCashSessionReportJson(
+    String sessionId,
+  ) async {
+    final cacheKey = 'cash_session_report_$sessionId';
+    try {
+      final dio = sl<Dio>();
+      final response = await dio.get('/cash-sessions/$sessionId/report');
+      final data = ApiResponseUtils.object(response);
+      try {
+        await sl<LocalCacheService>().saveObject(cacheKey, data);
+      } catch (_) {} // cache es best-effort, nunca debe tumbar la impresión
+      return data;
+    } on DioException catch (e) {
+      if (e.response != null) rethrow;
+      final cached = sl<LocalCacheService>().getObject(cacheKey);
+      if (cached != null) return cached;
+      rethrow;
+    }
+  }
+
   /// Arma `CashSessionReportData` desde el JSON crudo de
   /// `GET /cash-sessions/:id/report` — 100% dinámico: la lista de
   /// "otros métodos" y de llaves Bre-B sale directo de `by_method` /
@@ -449,9 +511,7 @@ class PrintingOrchestrator {
   static Future<CashSessionReportData> _buildCashSessionReportData(
     String sessionId,
   ) async {
-    final dio = sl<Dio>();
-    final response = await dio.get('/cash-sessions/$sessionId/report');
-    final data = ApiResponseUtils.object(response);
+    final data = await _fetchCashSessionReportJson(sessionId);
     final session = CashSessionModel.fromJson(
       (data['session'] as Map).cast<String, dynamic>(),
     );
@@ -716,11 +776,61 @@ class PrintingOrchestrator {
     );
   }
 
+  /// Bug real reportado (pedido explícito: imprimir debe funcionar
+  /// con o sin internet, la única excepción real es validar un pago
+  /// Bre-B contra el banco): esto SIEMPRE pedía la orden en vivo al
+  /// backend, sin ningún fallback — a diferencia del resto de la app,
+  /// que ya tiene un patrón "local-first" para listas (ver
+  /// `OrderLocalDataSource`/`ProductLocalDataSource`/etc.). Sin
+  /// conexión, imprimir (recibo o comanda) fallaba en seco aunque la
+  /// orden ya estuviera guardada localmente — la MISMA orden que la
+  /// pantalla de Órdenes sí podía mostrar offline, porque esa pantalla
+  /// ya usa esa caché y esta ruta de impresión nunca la consultaba.
+  ///
+  /// Fix: se sigue intentando la red primero SIEMPRE (datos más
+  /// frescos) — el fallback a la caché de `OrderLocalDataSource`
+  /// (`peekCachedOrders`, sin importar qué tan vieja esté: sin
+  /// conexión, lo que haya es mejor que nada) solo entra cuando la
+  /// red realmente falla por conectividad (`DioException` sin
+  /// `response` — timeout/sin conexión/DNS), nunca para un error real
+  /// del servidor (404/500 con response, esos SÍ deben reportarse).
   static Future<OrderModel> _fetchOrder(String orderId) async {
-    final dio = sl<Dio>();
-    final response = await dio.get('/orders/$orderId');
-    final json = ApiResponseUtils.object(response);
-    return OrderModel.fromJson(json);
+    try {
+      final dio = sl<Dio>();
+      final response = await dio.get('/orders/$orderId');
+      final json = ApiResponseUtils.object(response);
+      return OrderModel.fromJson(json);
+    } on DioException catch (e) {
+      if (e.response != null) rethrow; // error real del servidor, no de red
+      final cached = await _findCachedOrder(orderId);
+      if (cached != null) return cached;
+      rethrow;
+    }
+  }
+
+  static Future<OrderModel?> _findCachedOrder(String orderId) async {
+    try {
+      final local = sl<OrderLocalDataSource>();
+      final cached = await local.peekCachedOrders();
+      return cached?.firstWhereOrNull((o) => o.id == orderId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<OrderModel>> _findCachedOrdersByTabSession(
+    String tabSessionId,
+  ) async {
+    try {
+      final local = sl<OrderLocalDataSource>();
+      final cached = await local.peekCachedOrders();
+      return cached
+              ?.where((o) => o.tabSessionId == tabSessionId)
+              .toList() ??
+          const [];
+    } catch (_) {
+      return const [];
+    }
   }
 
   static Future<TicketData> _buildTicketData(
@@ -901,11 +1011,29 @@ class PrintingOrchestrator {
     required bool silent,
   }) async {
     // Parsear órdenes crudas del tab, excluir canceladas
-    final orders = session.orders
+    var orders = session.orders
         .whereType<Map<String, dynamic>>()
         .map(OrderModel.fromJson)
         .where((o) => o.status != 'cancelled')
         .toList();
+
+    // Bug real reportado (pedido explícito: imprimir debe andar con o
+    // sin internet): si esta `session` vino de la caché liviana de
+    // "Cuentas abiertas" (ver `TabSessionDetailController.load` — esa
+    // caché no trae items/payments anidados, solo para el primer
+    // pintado), estas orders llegan sin items — un recibo sin items
+    // ni total real. Completamos cada una con su versión de la caché
+    // de Órdenes (misma data que la pantalla de Órdenes, con items
+    // completos) cuando la que tenemos está vacía.
+    if (orders.any((o) => o.items.isEmpty)) {
+      final cachedOrders = await _findCachedOrdersByTabSession(session.id);
+      if (cachedOrders.isNotEmpty) {
+        orders = orders.map((o) {
+          if (o.items.isNotEmpty) return o;
+          return cachedOrders.firstWhereOrNull((c) => c.id == o.id) ?? o;
+        }).toList();
+      }
+    }
 
     if (orders.isEmpty) {
       AppSnackbar.show('Sin ítems', 'Todos los tickets están cancelados');
