@@ -314,10 +314,10 @@ class EscPosGenerator {
     for (final cat in categories) {
       // Sin id (no debería pasar, pero por si acaso) o no configurada
       // en ningún bloque → su propio ticket, como siempre.
-      final groupIndex = cat.id != null
-          ? groupIndexByCategoryId[cat.id]
-          : null;
-      final ticketKey = groupIndex != null ? 'group_$groupIndex' : 'solo_${cat.name}';
+      final groupIndex = cat.id != null ? groupIndexByCategoryId[cat.id] : null;
+      final ticketKey = groupIndex != null
+          ? 'group_$groupIndex'
+          : 'solo_${cat.name}';
       tickets.putIfAbsent(ticketKey, () => []).add(cat);
     }
 
@@ -919,7 +919,7 @@ class EscPosGenerator {
         data.deliveryAddress!.trim().isNotEmpty) {
       bytes.addAll(
         gen.text(
-          'Dirección: ${_sanitize(data.deliveryAddress!.trim())}',
+          'Direccion: ${_sanitize(data.deliveryAddress!.trim())}',
           styles: const PosStyles(bold: true),
         ),
       );
