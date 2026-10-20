@@ -45,8 +45,11 @@ class PrinterDispatcher {
     String? printerUrl,
   }) async {
     if (printerUrl != null && printerUrl.isNotEmpty) {
+      // Cualquier resultado que no sea éxito (false = falló de verdad,
+      // null = ya no está disponible) cae al diálogo — nunca se queda
+      // sin imprimir solo porque el intento directo no funcionó.
       final direct = await _printDirectToSaved(pdfBytes, jobName, printerUrl);
-      if (direct != null) return direct;
+      if (direct == true) return true;
     }
     return _printViaSystem(pdfBytes, jobName);
   }
