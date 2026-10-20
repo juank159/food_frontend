@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
+import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
@@ -201,61 +202,84 @@ class DashboardTab extends GetView<HomeController> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // En tablet ancho ponemos los 2 tiles bien gordos lado a lado.
-          // El alto se calcula proporcional al ancho para que no se
-          // estiren feo en pantallas grandes.
-          final tileWidth = (constraints.maxWidth - 12) / 2;
+          // Bug real reportado: en laptop/desktop (mouse, no dedo) estos
+          // tiles usaban `Expanded` sobre TODO el ancho disponible — en
+          // una pantalla ancha se estiraban a rectángulos enormes, casi
+          // vacíos (el contenido interno es de tamaño fijo, pensado para
+          // touch). En mobile esto está bien (ocupar el ancho completo
+          // es lo esperado) — el tope de ancho solo aplica a partir de
+          // tablet/desktop, y ahí quedan centrados en vez de estirados.
+          final isCompact = ResponsiveConfig(context).isDesktop;
+          final rawTileWidth = (constraints.maxWidth - 12) / 2;
+          final tileWidth =
+              isCompact ? rawTileWidth.clamp(0.0, 220.0) : rawTileWidth;
           final tileHeight = tileWidth.clamp(120.0, 160.0);
+
+          final sellTile = _PrimaryActionTile(
+            icon: FontAwesomeIcons.bolt,
+            title: 'Vender',
+            subtitle: 'Mostrador, mesa, llevar…',
+            accent: AppColors.accent,
+            // Abre la pantalla unificada con modo Mostrador
+            // por defecto. El operario cambia el destino
+            // con un toque en el pill superior — sin navegar
+            // a otra pantalla.
+            //
+            // Negocios "100% por mesas": `SellPage` detecta
+            // sola que no vino un modo preseteado y abre el
+            // sheet "¿Vendiendo a...?" de una — no hace falta
+            // ramificar nada acá (ver `SellPage._applyInitialMode`).
+            onTap: () => Get.toNamed(AppRoutes.sell),
+          );
+
+          final tabsTile = _PrimaryActionTile(
+            icon: FontAwesomeIcons.receipt,
+            title: 'Cuentas\nabiertas',
+            subtitle: 'Mesas y tickets vivos',
+            accent: AppColors.success,
+            // Bug real reportado: "Cuentas abiertas" se
+            // empujaba como ruta aparte (`OpenTabsPage`),
+            // dejando la pantalla sin la barra de navegación
+            // de abajo — igual que pasaba con Órdenes/
+            // Productos. Ya existe el mismo contenido embebido
+            // como segmento dentro de la pestaña Órdenes
+            // (`OrdersController.mainView == 1`, ver
+            // `_ViewToggle` en `orders_page.dart`) — cambiar de
+            // pestaña + segmento mantiene la barra visible.
+            onTap: () {
+              controller.changeIndex(1);
+              if (Get.isRegistered<OrdersController>()) {
+                Get.find<OrdersController>().switchMainView(1);
+              }
+            },
+          );
+
+          if (isCompact) {
+            return Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: tileWidth,
+                    height: tileHeight,
+                    child: sellTile,
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: tileWidth,
+                    height: tileHeight,
+                    child: tabsTile,
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: tileHeight,
-                  child: _PrimaryActionTile(
-                    icon: FontAwesomeIcons.bolt,
-                    title: 'Vender',
-                    subtitle: 'Mostrador, mesa, llevar…',
-                    accent: AppColors.accent,
-                    // Abre la pantalla unificada con modo Mostrador
-                    // por defecto. El operario cambia el destino
-                    // con un toque en el pill superior — sin navegar
-                    // a otra pantalla.
-                    //
-                    // Negocios "100% por mesas": `SellPage` detecta
-                    // sola que no vino un modo preseteado y abre el
-                    // sheet "¿Vendiendo a...?" de una — no hace falta
-                    // ramificar nada acá (ver `SellPage._applyInitialMode`).
-                    onTap: () => Get.toNamed(AppRoutes.sell),
-                  ),
-                ),
-              ),
+              Expanded(child: SizedBox(height: tileHeight, child: sellTile)),
               const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: tileHeight,
-                  child: _PrimaryActionTile(
-                    icon: FontAwesomeIcons.receipt,
-                    title: 'Cuentas\nabiertas',
-                    subtitle: 'Mesas y tickets vivos',
-                    accent: AppColors.success,
-                    // Bug real reportado: "Cuentas abiertas" se
-                    // empujaba como ruta aparte (`OpenTabsPage`),
-                    // dejando la pantalla sin la barra de navegación
-                    // de abajo — igual que pasaba con Órdenes/
-                    // Productos. Ya existe el mismo contenido embebido
-                    // como segmento dentro de la pestaña Órdenes
-                    // (`OrdersController.mainView == 1`, ver
-                    // `_ViewToggle` en `orders_page.dart`) — cambiar de
-                    // pestaña + segmento mantiene la barra visible.
-                    onTap: () {
-                      controller.changeIndex(1);
-                      if (Get.isRegistered<OrdersController>()) {
-                        Get.find<OrdersController>().switchMainView(1);
-                      }
-                    },
-                  ),
-                ),
-              ),
+              Expanded(child: SizedBox(height: tileHeight, child: tabsTile)),
             ],
           );
         },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../config/responsive_config.dart';
 import '../config/theme/app_colors.dart';
 import '../routes/app_routes.dart';
 
@@ -92,6 +93,21 @@ class AppGradientHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bug real reportado: en laptop/desktop (mouse, no dedo, y sin la
+    // distancia de un celular contra la cara) este header — pensado y
+    // medido para mobile — se ve desproporcionadamente grande. Todo lo
+    // de abajo se achica un poco SOLO en desktop; mobile/tablet quedan
+    // exactamente igual que antes.
+    final isCompact = ResponsiveConfig(context).isDesktop;
+    final titleSize = isCompact ? 16.0 : 20.0;
+    final subtitleSize = isCompact ? 11.0 : 12.0;
+    final vTopPad = isCompact ? 10.0 : 16.0;
+    final vBottomPad = isCompact
+        ? (hero != null || (chips != null && chips!.isNotEmpty) ? 14.0 : 12.0)
+        : (hero != null || (chips != null && chips!.isNotEmpty) ? 20.0 : 18.0);
+    final backButtonSize = isCompact ? 32.0 : 40.0;
+    final backIconSize = isCompact ? 16.0 : 20.0;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: AppColors.primaryGradient,
@@ -102,9 +118,9 @@ class AppGradientHeader extends StatelessWidget {
       ),
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
-        16,
+        vTopPad,
         horizontalPadding,
-        hero != null || (chips != null && chips!.isNotEmpty) ? 20 : 18,
+        vBottomPad,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,7 +132,11 @@ class AppGradientHeader extends StatelessWidget {
                 leading!,
                 const SizedBox(width: 12),
               ] else if (_shouldAutoBackButton()) ...[
-                _AutoBackButton(onTap: _handleBack),
+                _AutoBackButton(
+                  onTap: _handleBack,
+                  size: backButtonSize,
+                  iconSize: backIconSize,
+                ),
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -134,9 +154,9 @@ class AppGradientHeader extends StatelessWidget {
                               title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 20,
+                                fontSize: titleSize,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.3,
                                 height: 1.1,
@@ -159,9 +179,9 @@ class AppGradientHeader extends StatelessWidget {
                           subtitle!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 12,
+                            fontSize: subtitleSize,
                           ),
                         ),
                       ],
@@ -173,11 +193,11 @@ class AppGradientHeader extends StatelessWidget {
             ],
           ),
           if (hero != null) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: isCompact ? 10 : 14),
             hero!,
           ],
           if (chips != null && chips!.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: isCompact ? 8 : 12),
             Row(
               children: [
                 for (var i = 0; i < chips!.length; i++) ...[
@@ -199,23 +219,29 @@ class AppGradientHeader extends StatelessWidget {
 /// no es root del Home.
 class _AutoBackButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _AutoBackButton({required this.onTap});
+  final double size;
+  final double iconSize;
+  const _AutoBackButton({
+    required this.onTap,
+    this.size = 40,
+    this.iconSize = 20,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40,
-        height: 40,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.arrow_back,
           color: Colors.white,
-          size: 20,
+          size: iconSize,
         ),
       ),
     );
@@ -240,9 +266,10 @@ class AppKpiHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = ResponsiveConfig(context).isDesktop;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isCompact ? 10 : 16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(16),
@@ -251,12 +278,12 @@ class AppKpiHero extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isCompact ? 7 : 10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.white, size: 22),
+            child: Icon(icon, color: Colors.white, size: isCompact ? 16 : 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -265,9 +292,9 @@ class AppKpiHero extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: isCompact ? 11 : 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -280,9 +307,9 @@ class AppKpiHero extends StatelessWidget {
                   child: Text(
                     value,
                     maxLines: 1,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: isCompact ? 18 : 24,
                       fontWeight: FontWeight.w800,
                       height: 1.1,
                       letterSpacing: -0.5,
@@ -327,24 +354,28 @@ class AppKpiChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = ResponsiveConfig(context).isDesktop;
     final body = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: isCompact ? 7 : 10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 16, color: Colors.white),
+          Icon(icon, size: isCompact ? 13 : 16, color: Colors.white),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               value,
               maxLines: 1,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: isCompact ? 13 : 16,
                 fontWeight: FontWeight.w700,
                 height: 1.0,
               ),
@@ -353,9 +384,9 @@ class AppKpiChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white70,
-              fontSize: 10,
+              fontSize: isCompact ? 9 : 10,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
