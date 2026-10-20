@@ -100,6 +100,18 @@ dependencies:
   # desperdicien rollo de papel.
   esc_pos_utils_plus: ^2.0.4
 
+  # RAW printing a impresoras instaladas en Windows (USB) — manda los
+  # bytes ESC/POS directo al spooler (OpenPrinter/StartDocPrinter con
+  # pDataType "RAW"/WritePrinter), sin pasar por el renderizador GDI
+  # (que es lo que usa `Printing.directPrintPdf` — ESE es el camino
+  # que generaba un PDF en el backend solo para poder dibujarlo. Con
+  # esto, "system" en Windows con una impresora elegida queda tan
+  # offline como "network": arma el ticket local y lo manda directo
+  # al hardware, sin pedirle nada al backend más que el JSON de la
+  # orden (igual que ya hacía el camino de red).
+  win32: ^5.15.0
+  ffi: ^2.1.4
+
   # Decodificar/redimensionar el logo del negocio para rasterizarlo en
   # el recibo térmico (gen.image espera un Image del paquete `image`).
   # Ya venía transitivo via esc_pos_utils_plus; lo declaramos directo.

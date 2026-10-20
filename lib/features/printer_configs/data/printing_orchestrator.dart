@@ -22,6 +22,7 @@ import 'esc_pos_generator.dart';
 import 'models/printer_config_model.dart';
 import 'printer_configs_remote_datasource.dart';
 import 'printer_dispatcher.dart';
+import 'windows_raw_printer.dart';
 
 /// Tipo de documento a imprimir.
 enum PrintJobKind { kitchen, receipt, qrTicket }
@@ -390,6 +391,25 @@ class PrintingOrchestrator {
     required String sessionId,
     required PrinterConfigModel printer,
   }) async {
+    // Mismo criterio que `_runPrintJob`: con una impresora Windows
+    // elegida, ESC/POS local + RAW directo al hardware — nada de PDF
+    // ni backend de por medio más que el JSON que ya hacía falta.
+    final printerName = printer.host;
+    if (printerName != null &&
+        printerName.isNotEmpty &&
+        WindowsRawPrinter.isSupported) {
+      final data = await _buildCashSessionReportData(sessionId);
+      final bytes = await EscPosGenerator.buildCashSessionReport(
+        data: data,
+        paperWidthMm: printer.paperWidth,
+      );
+      final okRaw = PrinterDispatcher.printRawBytesToWindowsPrinter(
+        bytes: bytes,
+        printerName: printerName,
+      );
+      if (okRaw) return true;
+    }
+
     final width = printer.paperWidth == 58
         ? ThermalPaperWidth.mm58
         : ThermalPaperWidth.mm80;
@@ -512,12 +532,27 @@ class PrintingOrchestrator {
           );
           break;
         case PrinterConnectionType.system:
-          ok = await _printSystemPdf(
+          // Bug real reportado: "system" dependía 100% del backend
+          // (que renderizaba el PDF) — sin internet no imprimía
+          // nada, a diferencia de "network" que arma el ticket
+          // local. Con una impresora Windows elegida (`printer.host`
+          // viene seteado — ver `printer_settings_screen.dart`),
+          // hacemos lo mismo que "network": armar el ESC/POS local
+          // y mandarlo directo al hardware. `null` = este kind no
+          // tiene generador ESC/POS (QR ticket) o no hay impresora
+          // elegida/no es Windows — cae al PDF de siempre.
+          final viaRaw = await _printSystemEscPosRaw(
             kind: kind,
             orderId: orderId,
             printer: printer,
-            subtitle: subtitle,
           );
+          ok = viaRaw ??
+              await _printSystemPdf(
+                kind: kind,
+                orderId: orderId,
+                printer: printer,
+                subtitle: subtitle,
+              );
           break;
       }
 
@@ -535,6 +570,54 @@ class PrintingOrchestrator {
       _snackError(docLabel, printer, e);
       return PrintResult.printerError;
     }
+  }
+
+  /// Mismo contenido que `_printNetworkEscPos` (ESC/POS armado local
+  /// desde el JSON de la orden) pero el transporte es RAW directo al
+  /// spooler de Windows (`WindowsRawPrinter`) en vez de un socket TCP
+  /// — para impresoras `system` con una impresora instalada elegida.
+  ///
+  /// Devuelve `null` (no `false`) cuando no aplica: no hay impresora
+  /// elegida, no es Windows, o el kind no tiene generador ESC/POS (QR
+  /// ticket, igual que en `_printNetworkEscPos`) — en cualquiera de
+  /// esos casos el llamador cae al PDF existente, nunca se queda sin
+  /// intentar imprimir.
+  static Future<bool?> _printSystemEscPosRaw({
+    required PrintJobKind kind,
+    required String orderId,
+    required PrinterConfigModel printer,
+  }) async {
+    final printerName = printer.host;
+    if (printerName == null || printerName.isEmpty) return null;
+    if (!WindowsRawPrinter.isSupported) return null;
+    if (kind == PrintJobKind.qrTicket) return null;
+
+    final order = await _fetchOrder(orderId);
+    if (kind == PrintJobKind.kitchen && !_hasKitchenItems(order)) {
+      return true;
+    }
+    final ticket = await _buildTicketData(order, kind);
+    final Uint8List bytes;
+    switch (kind) {
+      case PrintJobKind.kitchen:
+        bytes = await EscPosGenerator.buildKitchen(
+          data: ticket,
+          paperWidthMm: printer.paperWidth,
+        );
+        break;
+      case PrintJobKind.receipt:
+        bytes = await EscPosGenerator.buildReceipt(
+          data: ticket,
+          paperWidthMm: printer.paperWidth,
+        );
+        break;
+      case PrintJobKind.qrTicket:
+        return null; // ya cubierto arriba — inalcanzable
+    }
+    return PrinterDispatcher.printRawBytesToWindowsPrinter(
+      bytes: bytes,
+      printerName: printerName,
+    );
   }
 
   /// Para impresoras de red: pedimos JSON de la orden, generamos
@@ -943,10 +1026,34 @@ class PrintingOrchestrator {
         case PrinterConnectionType.system:
           // Bug real reportado: esto mostraba "no compatible" y nunca
           // imprimía nada por USB — el recibo consolidado de la cuenta
-          // solo existía para impresoras de red. El backend ahora
-          // tiene el equivalente en PDF (`generateTabSessionReceiptPdf`,
-          // `GET /tab-sessions/:id/receipt-pdf`), mismo criterio de
-          // agregación que el bloque de arriba.
+          // solo existía para impresoras de red.
+          //
+          // Con una impresora Windows elegida, mismo ESC/POS local ya
+          // armado arriba (`ticket`) para el camino de red — solo
+          // cambia el transporte (RAW al spooler, no socket TCP). Sin
+          // esto, el fallback es el PDF renderizado por el backend
+          // (`generateTabSessionReceiptPdf`), que sí necesita internet.
+          final printerName = printer.host;
+          if (printerName != null &&
+              printerName.isNotEmpty &&
+              WindowsRawPrinter.isSupported) {
+            final rawBytes = await EscPosGenerator.buildReceipt(
+              data: ticket,
+              paperWidthMm: printer.paperWidth,
+            );
+            final okRaw = PrinterDispatcher.printRawBytesToWindowsPrinter(
+              bytes: rawBytes,
+              printerName: printerName,
+            );
+            if (okRaw) {
+              if (silent) {
+                _snackOkSilent('Cuenta', printer);
+              } else {
+                _snackOk('Cuenta', printer);
+              }
+              return PrintResult.success;
+            }
+          }
           final tps = sl<ThermalPrintService>();
           final pdf = await tps.getTabSessionReceiptPdfBytes(
             tabSessionId: session.id,

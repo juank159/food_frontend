@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import 'models/printer_config_model.dart';
+import 'windows_raw_printer.dart';
 
 /// Despachador de impresión que decide cómo entregar el job según
 /// la `PrinterConfigModel` elegida.
@@ -78,6 +79,22 @@ class PrinterDispatcher {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Manda bytes ESC/POS crudos directo a una impresora `system`
+  /// instalada en Windows por su nombre — sin PDF, sin backend, sin
+  /// diálogo (ver `WindowsRawPrinter`). Devuelve `false` (nunca lanza)
+  /// si no está soportado en esta plataforma o si falla — el llamador
+  /// decide si cae al camino PDF en ese caso.
+  static bool printRawBytesToWindowsPrinter({
+    required Uint8List bytes,
+    required String printerName,
+  }) {
+    if (!WindowsRawPrinter.isSupported) return false;
+    return WindowsRawPrinter.printRawBytes(
+      printerName: printerName,
+      bytes: bytes,
+    );
   }
 
   /// Lista las impresoras instaladas en el sistema operativo (las que
