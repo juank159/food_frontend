@@ -1010,6 +1010,29 @@ class PrintingOrchestrator {
     PrinterConfigModel printer, {
     required bool silent,
   }) async {
+    // Bug real reportado (repetido varias veces): el recibo consolidado
+    // de la cuenta salía SIN ítems al imprimir apenas se entraba a la
+    // pantalla de detalle. Causa real: esa pantalla pinta primero con
+    // la caché liviana de "Cuentas abiertas" (sin items/payments
+    // anidados — ver `TabSessionDetailController.load`) y la reemplaza
+    // por la versión completa (`findOne`) cuando esa segunda carga
+    // responde — pero el cajero entra e imprime de una, antes de que
+    // eso llegue, así que `session` acá todavía es la liviana. Pedimos
+    // la cuenta COMPLETA en vivo primero (mismo endpoint que usa esa
+    // pantalla), igual que ya se hace para un ticket individual
+    // (`_fetchOrder`) — así el recibo SIEMPRE tiene los items reales,
+    // sin importar qué tan rápido se imprima. Solo si de verdad no hay
+    // conexión seguimos con la `session` que ya nos pasaron.
+    try {
+      final dio = sl<Dio>();
+      final response = await dio.get('/tab-sessions/${session.id}');
+      final json = ApiResponseUtils.object(response);
+      session = TabSessionModel.fromJson(json).toEntity();
+    } on DioException catch (e) {
+      if (e.response != null) rethrow; // error real del servidor, no de red
+      // Sin conexión: seguimos con la `session` que ya teníamos.
+    }
+
     // Parsear órdenes crudas del tab, excluir canceladas
     var orders = session.orders
         .whereType<Map<String, dynamic>>()
@@ -1017,14 +1040,9 @@ class PrintingOrchestrator {
         .where((o) => o.status != 'cancelled')
         .toList();
 
-    // Bug real reportado (pedido explícito: imprimir debe andar con o
-    // sin internet): si esta `session` vino de la caché liviana de
-    // "Cuentas abiertas" (ver `TabSessionDetailController.load` — esa
-    // caché no trae items/payments anidados, solo para el primer
-    // pintado), estas orders llegan sin items — un recibo sin items
-    // ni total real. Completamos cada una con su versión de la caché
-    // de Órdenes (misma data que la pantalla de Órdenes, con items
-    // completos) cuando la que tenemos está vacía.
+    // Respaldo adicional (offline o algún ticket que de todas formas
+    // llegó sin items): completamos con la caché de Órdenes, igual que
+    // antes.
     if (orders.any((o) => o.items.isEmpty)) {
       final cachedOrders = await _findCachedOrdersByTabSession(session.id);
       if (cachedOrders.isNotEmpty) {
