@@ -111,7 +111,22 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
     // internet y tengo 20 clientes despachados, ¿cómo sé qué me debe
     // cada uno?". Antes esto fallaba directo (network-only) y la
     // pantalla de detalle no abría en absoluto.
+    //
+    // Bug real reportado: offline, el único respaldo era la caché
+    // LIVIANA de "Cuentas abiertas" (sin items/payments anidados) — la
+    // pantalla de detalle abría, pero cada ticket se veía "pendiente"
+    // sin importar si ya estaba pagado, porque no había con qué
+    // calcularlo. Ahora preferimos la caché COMPLETA de esta cuenta en
+    // particular (`cacheSessionDetail`, guardada la última vez que se
+    // vio online) si existe, y solo caemos a la liviana si nunca se
+    // guardó una completa de esta cuenta.
     if (!await networkInfo.isConnected) {
+      final fullCached = await localDataSource.peekCachedSessionDetail(id);
+      if (fullCached != null) {
+        return Right(
+          _withPendingOverlay(TabSessionModel.fromJson(fullCached).toEntity()),
+        );
+      }
       final cachedList = await localDataSource.peekCachedOpenTabs();
       TabSessionModel? cached;
       if (cachedList != null) {
@@ -128,6 +143,7 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
 
     return _run(() async {
       final model = await remoteDataSource.findOne(id);
+      await localDataSource.cacheSessionDetail(id, model.toJson());
       return model.toEntity();
     });
   }

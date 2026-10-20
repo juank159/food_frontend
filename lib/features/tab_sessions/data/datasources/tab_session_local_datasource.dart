@@ -25,6 +25,20 @@ abstract class TabSessionLocalDataSource {
     String? notes,
     int? partySize,
   });
+
+  /// Caché COMPLETA de una cuenta puntual (con sus órdenes, items y
+  /// pagos anidados — lo que trae `GET /tab-sessions/:id`). Distinta de
+  /// `cacheOpenTabs`/`peekCachedOpenTabs`: esa es la lista liviana de
+  /// "Cuentas abiertas" (sin items/payments, pensada para pintar rápido
+  /// el listado). Bug real reportado: sin esto, la pantalla de detalle
+  /// de una cuenta SIN internet solo tenía esa versión liviana — cada
+  /// ticket se veía "pendiente" porque no había datos de pago para
+  /// calcularlo, aunque YA se hubiera pagado estando online la última
+  /// vez que se abrió esta pantalla.
+  Future<void> cacheSessionDetail(String id, Map<String, dynamic> rawJson);
+
+  /// Caché SIN importar su edad — mismo criterio que `peekCachedOpenTabs`.
+  Future<Map<String, dynamic>?> peekCachedSessionDetail(String id);
 }
 
 class TabSessionLocalDataSourceImpl implements TabSessionLocalDataSource {
@@ -75,5 +89,17 @@ class TabSessionLocalDataSourceImpl implements TabSessionLocalDataSource {
     }).toList();
     if (!found) return;
     await cache.saveList(CacheKeys.openTabSessions, patched);
+  }
+
+  String _detailKey(String id) => 'tab_session_detail_$id';
+
+  @override
+  Future<void> cacheSessionDetail(String id, Map<String, dynamic> rawJson) async {
+    await cache.saveObject(_detailKey(id), rawJson);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> peekCachedSessionDetail(String id) async {
+    return cache.getObject(_detailKey(id));
   }
 }

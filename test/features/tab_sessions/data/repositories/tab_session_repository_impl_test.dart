@@ -35,6 +35,7 @@ class _FakeRemote implements TabSessionRemoteDataSource {
 
 class _FakeLocal implements TabSessionLocalDataSource {
   List<TabSessionModel>? cached;
+  final Map<String, Map<String, dynamic>> sessionDetailCache = {};
 
   @override
   Future<List<TabSessionModel>?> getCachedOpenTabs() async => cached;
@@ -49,6 +50,16 @@ class _FakeLocal implements TabSessionLocalDataSource {
     String? notes,
     int? partySize,
   }) async {}
+  @override
+  Future<void> cacheSessionDetail(
+    String id,
+    Map<String, dynamic> rawJson,
+  ) async {
+    sessionDetailCache[id] = rawJson;
+  }
+  @override
+  Future<Map<String, dynamic>?> peekCachedSessionDetail(String id) async =>
+      sessionDetailCache[id];
 }
 
 TabSessionModel _buildCachedSession({
