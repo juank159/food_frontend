@@ -236,6 +236,15 @@ class EscPosGenerator {
   static Future<Uint8List> buildKitchen({
     required TicketData data,
     required int paperWidthMm, // 58 | 80
+    /// Si `false` (default, comportamiento de siempre): una comanda
+    /// SEPARADA por categoría, cada una con su propio corte de papel.
+    /// Si `true`: todas las categorías salen una debajo de la otra en
+    /// UN SOLO documento, con un único corte al final — configuración
+    /// de negocio (`settings.printing.merge_kitchen_tickets`), ver
+    /// `PrintingOrchestrator._getTenantInfo`. Pedido real: un negocio
+    /// con una sola estación de cocina no necesita que se corte papel
+    /// por cada categoría.
+    bool mergeSections = false,
   }) async {
     final profile = await CapabilityProfile.load();
     final paper = paperWidthMm == 58 ? PaperSize.mm58 : PaperSize.mm80;
@@ -258,29 +267,44 @@ class EscPosGenerator {
     }
 
     // Agrupar por categoría preservando el orden de aparición → una
-    // comanda SEPARADA (con su propio corte) por cada categoría.
+    // comanda por cada categoría (separada o no según `mergeSections`).
     final groups = <String, List<TicketItem>>{};
     for (final item in kitchenItems) {
       final key = (item.categoryName ?? 'GENERAL').toUpperCase();
       groups.putIfAbsent(key, () => []).add(item);
     }
 
-    for (final entry in groups.entries) {
-      _writeKitchenSection(gen, bytes, data, entry.key, entry.value);
+    final entries = groups.entries.toList();
+    for (var i = 0; i < entries.length; i++) {
+      final isLast = i == entries.length - 1;
+      // Mergeado: solo cortamos al final (una tirada continua). Separado
+      // (default): cortamos después de CADA categoría, como siempre.
+      final cutAfter = mergeSections ? isLast : true;
+      _writeKitchenSection(
+        gen,
+        bytes,
+        data,
+        entries[i].key,
+        entries[i].value,
+        cutAfter: cutAfter,
+      );
     }
 
     return Uint8List.fromList(bytes);
   }
 
-  /// Escribe UNA comanda (la de una categoría) en [bytes], terminando con
-  /// corte de papel para que cada categoría salga en su propio ticket.
+  /// Escribe UNA comanda (la de una categoría) en [bytes]. Si
+  /// [cutAfter] es `true` (default), termina con corte de papel — en
+  /// `false` solo avanza el papel, para que la siguiente categoría siga
+  /// en el mismo documento (ver `mergeSections` en `buildKitchen`).
   static void _writeKitchenSection(
     Generator gen,
     List<int> bytes,
     TicketData data,
     String categoryName,
-    List<TicketItem> items,
-  ) {
+    List<TicketItem> items, {
+    bool cutAfter = true,
+  }) {
     // ─── Header: "COMANDA" + categoría (estación) + tipo de orden ───
     // "COMANDA" en tamaño normal (es solo la etiqueta); la categoría
     // (estación) y el destino se mantienen grandes y legibles. Ahorra papel.
@@ -475,7 +499,9 @@ class EscPosGenerator {
     // Avance mínimo + corte → ticket independiente por categoría.
     // (feed(1) en vez de 2: el corte ya deja margen y ahorra papel.)
     bytes.addAll(gen.feed(1));
-    bytes.addAll(gen.cut());
+    if (cutAfter) {
+      bytes.addAll(gen.cut());
+    }
   }
 
   /// Genera recibo del cliente (con precios + totales + método de pago).

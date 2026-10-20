@@ -1,14 +1,18 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 import 'package:printing/printing.dart' show Printer;
 
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../printer_configs/data/models/printer_config_model.dart';
 import '../../../printer_configs/data/printer_dispatcher.dart';
+import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../../printer_configs/presentation/controllers/printer_configs_controller.dart';
 
 /// Configuración de impresoras del tenant.
@@ -92,6 +96,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                         purpose: PrinterPurpose.receipt,
                         onTest: _testPrint,
                       ),
+                      const SizedBox(height: 12),
+                      const _KitchenTicketModeCard(),
                       const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -355,6 +361,242 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
             label: const Text('Editar impresora'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Card: comandas separadas por categoría vs. un solo documento
+// =====================================================================
+
+/// Config por-tenant de cómo salen las comandas de cocina cuando hay
+/// más de una categoría en el mismo ticket.
+///
+/// Pedido real: por default cada categoría ("Especiales", "Bebidas"...)
+/// sale en SU PROPIO documento con corte de papel — útil si cada
+/// categoría va a una estación distinta. Un negocio con una sola
+/// estación de cocina no necesita ese corte extra entre categorías —
+/// prefiere todo en un solo documento, un único corte al final.
+///
+/// Guarda en `settings.printing.merge_kitchen_tickets` del tenant
+/// (mismo patrón que `settings.operation_mode` — ver
+/// `OperationModeSettingsScreen`). `PrintingOrchestrator` ya cachea
+/// este valor en disco para que la impresión siga funcionando sin
+/// internet con la última config conocida.
+class _KitchenTicketModeCard extends StatefulWidget {
+  const _KitchenTicketModeCard();
+
+  @override
+  State<_KitchenTicketModeCard> createState() =>
+      _KitchenTicketModeCardState();
+}
+
+class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
+  late final Dio _dio;
+  bool _loading = true;
+  bool _saving = false;
+  bool _merge = false;
+  Map<String, dynamic> _existingSettings = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _dio = GetIt.I<Dio>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await _dio.get('/tenants/me');
+      final tenant = ApiResponseUtils.object(res);
+      final settings =
+          (tenant['settings'] as Map?)?.cast<String, dynamic>() ?? {};
+      _existingSettings = Map<String, dynamic>.from(settings);
+      final printing =
+          (settings['printing'] as Map?)?.cast<String, dynamic>() ?? {};
+      _merge = printing['merge_kitchen_tickets'] as bool? ?? false;
+    } catch (_) {
+      // Sin conexión: dejamos el toggle en el default (false) — no es
+      // crítico bloquear esta pantalla por esto, el valor real sigue
+      // viviendo donde ya se usa (PrintingOrchestrator lo cachea aparte).
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _setMerge(bool value) async {
+    if (_saving) return;
+    final previous = _merge;
+    setState(() {
+      _merge = value;
+      _saving = true;
+    });
+    try {
+      final newSettings = Map<String, dynamic>.from(_existingSettings);
+      final printing =
+          (Map<String, dynamic>.from(newSettings['printing'] as Map? ?? {}));
+      printing['merge_kitchen_tickets'] = value;
+      newSettings['printing'] = printing;
+      await _dio.patch('/tenants/me', data: {'settings': newSettings});
+      _existingSettings = newSettings;
+      // Para que el próximo "Imprimir comanda" ya use el valor nuevo,
+      // sin esperar los 10 min de TTL del cache en memoria.
+      PrintingOrchestrator.invalidateTenantCache();
+      if (mounted) {
+        AppSnackbar.show('Guardado', 'Preferencia de comanda actualizada.');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _merge = previous);
+      AppSnackbar.show(
+        'Error al guardar',
+        ApiResponseUtils.errorMessage(e) ?? e.toString(),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ModernCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A085).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.content_cut,
+                    color: Color(0xFF16A085),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Comandas con varias categorías',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (_loading || _saving)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Si un ticket tiene productos de más de una categoría '
+              '(ej. "Especiales" y "Bebidas"), elegí cómo sale la comanda.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            _ModeOption(
+              title: 'Una comanda por categoría',
+              subtitle: 'Corta el papel entre cada categoría — útil si cada '
+                  'una va a una estación distinta.',
+              selected: !_merge,
+              enabled: !_loading && !_saving,
+              onTap: () => _setMerge(false),
+            ),
+            const SizedBox(height: 8),
+            _ModeOption(
+              title: 'Todo en un solo documento',
+              subtitle: 'Todas las categorías salen juntas, con un único '
+                  'corte al final — para cocina con una sola estación.',
+              selected: _merge,
+              enabled: !_loading && !_saving,
+              onTap: () => _setMerge(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeOption extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _ModeOption({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.primary.withValues(alpha: 0.08)
+          : AppColors.background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: enabled ? onTap : null,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 20,
+                color: selected ? AppColors.primary : AppColors.textHint,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

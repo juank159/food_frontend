@@ -95,6 +95,8 @@ class PrintingOrchestrator {
           (settings['contact'] as Map?)?.cast<String, dynamic>() ?? {};
       final receipt =
           (settings['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
+      final printing =
+          (settings['printing'] as Map?)?.cast<String, dynamic>() ?? {};
       final logoUrl = (receipt['logo_url'] as String?)?.trim();
       final info = _TenantInfo(
         businessName:
@@ -105,6 +107,8 @@ class PrintingOrchestrator {
         phone: (contact['phone'] as String?)?.trim(),
         taxId: (contact['tax_id'] as String?)?.trim(),
         logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
+        mergeKitchenTickets:
+            printing['merge_kitchen_tickets'] as bool? ?? false,
       );
       _tenantCache = info;
       _tenantCachedAt = now;
@@ -115,6 +119,7 @@ class PrintingOrchestrator {
           'phone': info.phone,
           'tax_id': info.taxId,
           'logo_url': info.logoUrl,
+          'merge_kitchen_tickets': info.mergeKitchenTickets,
         });
       } catch (_) {}
       return info;
@@ -137,6 +142,8 @@ class PrintingOrchestrator {
             phone: cached['phone'] as String?,
             taxId: cached['tax_id'] as String?,
             logoUrl: cached['logo_url'] as String?,
+            mergeKitchenTickets:
+                cached['merge_kitchen_tickets'] as bool? ?? false,
           );
         }
       } catch (_) {}
@@ -662,9 +669,11 @@ class PrintingOrchestrator {
     final Uint8List bytes;
     switch (kind) {
       case PrintJobKind.kitchen:
+        final tenant = await _getTenantInfo();
         bytes = await EscPosGenerator.buildKitchen(
           data: ticket,
           paperWidthMm: printer.paperWidth,
+          mergeSections: tenant.mergeKitchenTickets,
         );
         break;
       case PrintJobKind.receipt:
@@ -701,9 +710,11 @@ class PrintingOrchestrator {
     final Uint8List bytes;
     switch (kind) {
       case PrintJobKind.kitchen:
+        final tenant = await _getTenantInfo();
         bytes = await EscPosGenerator.buildKitchen(
           data: ticket,
           paperWidthMm: printer.paperWidth,
+          mergeSections: tenant.mergeKitchenTickets,
         );
         break;
       case PrintJobKind.receipt:
@@ -1308,11 +1319,21 @@ class _TenantInfo {
   /// aparte y se cachea como bytes para imprimirlo en el recibo.
   final String? logoUrl;
 
+  /// `settings.printing.merge_kitchen_tickets` — pedido real de un
+  /// negocio con una sola estación de cocina: no necesita que se corte
+  /// papel por cada categoría, prefiere UN SOLO documento con todo.
+  /// Default `false` (comportamiento de siempre, sin tocar negocios
+  /// existentes): una comanda separada con su propio corte por
+  /// categoría. Configurable en Ajustes → Impresión, ver
+  /// `PrinterSettingsScreen`.
+  final bool mergeKitchenTickets;
+
   const _TenantInfo({
     required this.businessName,
     required this.address,
     required this.phone,
     required this.taxId,
     this.logoUrl,
+    this.mergeKitchenTickets = false,
   });
 }
