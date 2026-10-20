@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/date_period.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../controllers/payroll_controller.dart';
@@ -34,6 +36,7 @@ class PayrollScreen extends StatelessWidget {
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                 )),
+            _periodFilterBar(c),
             Expanded(
               child: Obx(() {
                 if (c.isLoading.value && c.items.isEmpty) {
@@ -65,6 +68,39 @@ class PayrollScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Bug real reportado: no había forma de ver "hoy/esta semana/
+  /// quincena/este mes" — solo la lista completa sin ningún filtro.
+  Widget _periodFilterBar(PayrollController c) {
+    const options = [
+      DatePeriod.today,
+      DatePeriod.yesterday,
+      DatePeriod.thisWeek,
+      DatePeriod.biweekly,
+      DatePeriod.thisMonth,
+      DatePeriod.all,
+    ];
+    return Obx(() => Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: options.map((p) {
+                final selected = c.datePeriod.value == p;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: AppFilterChip(
+                    label: p.shortLabel,
+                    selected: selected,
+                    onTap: () => c.setDatePeriod(p),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ));
   }
 
   Widget _tile(BuildContext context, PayrollController c, PayrollEntry e) {
@@ -223,14 +259,18 @@ class _PayrollFormState extends State<_PayrollForm> {
   late final TextEditingController _notes;
   late bool _isPaid;
 
+  // Bug real reportado (pedido explícito: "que se permita escoger
+  // eso" — no todos los negocios pagan mensual). `_periodStart` +
+  // `_frequency` determinan `_periodEnd` (calculado) y regeneran la
+  // etiqueta legible de `_period` cada vez que cambian.
+  late PayFrequency _frequency;
+  late DateTime _periodStart;
+
   @override
   void initState() {
     super.initState();
     final e = widget.entry;
     _name = TextEditingController(text: e?.employeeName ?? '');
-    _period = TextEditingController(
-      text: e?.periodLabel ?? _defaultPeriod(),
-    );
     _base = TextEditingController(
       text: e != null ? NumberFormatHelper.formatNumber(e.baseAmount.toInt()) : '',
     );
@@ -246,14 +286,69 @@ class _PayrollFormState extends State<_PayrollForm> {
     );
     _notes = TextEditingController(text: e?.notes ?? '');
     _isPaid = e?.isPaid ?? false;
+
+    _frequency = e?.payFrequency ?? PayFrequency.monthly;
+    // Hora de Colombia real — antes usaba `DateTime.now()` del
+    // dispositivo, lo que podía proponer el día/mes equivocado los
+    // últimos minutos/horas del período.
+    final nowBogota = DateTimeFormatter.nowInBogota();
+    final start = e?.periodStart ?? nowBogota;
+    _periodStart = DateTime(start.year, start.month, start.day);
+    _period = TextEditingController(
+      text: e?.periodLabel ?? _generateLabel(_frequency, _periodStart),
+    );
   }
 
-  String _defaultPeriod() {
-    // Hora de Colombia real — antes usaba `DateTime.now()` del
-    // dispositivo, lo que podía proponer el mes equivocado los últimos
-    // días/horas de cada mes.
-    final n = DateTimeFormatter.nowInBogota();
-    return '${n.year}-${n.month.toString().padLeft(2, '0')}';
+  DateTime get _periodEnd {
+    switch (_frequency) {
+      case PayFrequency.weekly:
+        return _periodStart.add(const Duration(days: 6));
+      case PayFrequency.biweekly:
+        final isFirstHalf = _periodStart.day <= 15;
+        return isFirstHalf
+            ? DateTime(_periodStart.year, _periodStart.month, 15)
+            : DateTime(_periodStart.year, _periodStart.month + 1, 0);
+      case PayFrequency.monthly:
+        return DateTime(_periodStart.year, _periodStart.month + 1, 0);
+    }
+  }
+
+  String _generateLabel(PayFrequency freq, DateTime start) {
+    DateTime end;
+    switch (freq) {
+      case PayFrequency.weekly:
+        end = start.add(const Duration(days: 6));
+        return '${DateFormat('d MMM', 'es').format(start)} - '
+            '${DateFormat('d MMM yyyy', 'es').format(end)}';
+      case PayFrequency.biweekly:
+        final isFirstHalf = start.day <= 15;
+        end = isFirstHalf
+            ? DateTime(start.year, start.month, 15)
+            : DateTime(start.year, start.month + 1, 0);
+        return '${start.day} - ${DateFormat('d MMM yyyy', 'es').format(end)}';
+      case PayFrequency.monthly:
+        return DateFormat('MMMM yyyy', 'es').format(start);
+    }
+  }
+
+  void _onPeriodConfigChanged() {
+    setState(() {
+      _period.text = _generateLabel(_frequency, _periodStart);
+    });
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _periodStart,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es'),
+    );
+    if (picked != null) {
+      _periodStart = DateTime(picked.year, picked.month, picked.day);
+      _onPeriodConfigChanged();
+    }
   }
 
   double _parse(TextEditingController c) =>
@@ -298,6 +393,9 @@ class _PayrollFormState extends State<_PayrollForm> {
       deductions: _parse(_deductions),
       isPaid: _isPaid,
       notes: _notes.text,
+      payFrequency: _frequency,
+      periodStart: _periodStart,
+      periodEnd: _periodEnd,
     );
     if (ok && mounted) Navigator.of(context).pop();
   }
@@ -349,11 +447,54 @@ class _PayrollFormState extends State<_PayrollForm> {
                 ),
               ),
               const SizedBox(height: 12),
+              const Text(
+                'Frecuencia de pago',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                children: PayFrequency.values.map((f) {
+                  final selected = _frequency == f;
+                  return AppFilterChip(
+                    label: f.displayName,
+                    selected: selected,
+                    onTap: () {
+                      _frequency = f;
+                      _onPeriodConfigChanged();
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickStartDate,
+                borderRadius: BorderRadius.circular(8),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Inicio del período',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today, size: 18),
+                  ),
+                  child: Text(
+                    DateFormat('d MMM yyyy', 'es').format(_periodStart),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Hasta ${DateFormat('d MMM yyyy', 'es').format(_periodEnd)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _period,
                 decoration: const InputDecoration(
-                  labelText: 'Período',
-                  hintText: 'Ej: 2026-06 o "Junio 2026 Q1"',
+                  labelText: 'Período (etiqueta)',
+                  hintText: 'Se autogenera — podés editarla',
                   border: OutlineInputBorder(),
                 ),
               ),

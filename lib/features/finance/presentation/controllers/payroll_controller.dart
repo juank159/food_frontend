@@ -5,7 +5,22 @@ import 'package:get_it/get_it.dart';
 import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../../core/utils/date_period.dart';
 import 'expenses_controller.dart' show moneyToDouble;
+
+/// Frecuencia de pago — no todos los negocios pagan mensual.
+enum PayFrequency {
+  weekly('weekly', 'Semanal'),
+  biweekly('biweekly', 'Quincenal'),
+  monthly('monthly', 'Mensual');
+
+  final String apiValue;
+  final String displayName;
+  const PayFrequency(this.apiValue, this.displayName);
+
+  static PayFrequency fromApi(String? value) => PayFrequency.values
+      .firstWhere((f) => f.apiValue == value, orElse: () => PayFrequency.monthly);
+}
 
 /// Entrada de nómina (pago a un empleado por un período).
 class PayrollEntry {
@@ -20,6 +35,9 @@ class PayrollEntry {
   final bool isPaid;
   final DateTime? paidAt;
   final String? notes;
+  final PayFrequency payFrequency;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
 
   const PayrollEntry({
     required this.id,
@@ -33,6 +51,9 @@ class PayrollEntry {
     required this.isPaid,
     this.paidAt,
     this.notes,
+    this.payFrequency = PayFrequency.monthly,
+    this.periodStart,
+    this.periodEnd,
   });
 
   factory PayrollEntry.fromJson(Map<String, dynamic> json) => PayrollEntry(
@@ -47,6 +68,9 @@ class PayrollEntry {
         isPaid: (json['is_paid'] as bool?) ?? false,
         paidAt: DateTime.tryParse(json['paid_at']?.toString() ?? ''),
         notes: json['notes'] as String?,
+        payFrequency: PayFrequency.fromApi(json['pay_frequency'] as String?),
+        periodStart: DateTime.tryParse(json['period_start']?.toString() ?? ''),
+        periodEnd: DateTime.tryParse(json['period_end']?.toString() ?? ''),
       );
 
   Map<String, dynamic> toJson() => {
@@ -61,8 +85,14 @@ class PayrollEntry {
         'is_paid': isPaid,
         'paid_at': paidAt?.toIso8601String(),
         'notes': notes,
+        'pay_frequency': payFrequency.apiValue,
+        'period_start': periodStart?.toIso8601String(),
+        'period_end': periodEnd?.toIso8601String(),
       };
 }
+
+String _isoDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 /// Controller de nómina. Dio directo. Endpoints `/payroll`.
 class PayrollController extends GetxController {
@@ -79,6 +109,10 @@ class PayrollController extends GetxController {
   final RxBool isSaving = false.obs;
   final RxString error = ''.obs;
 
+  // ── Filtro de período — bug real reportado: no había forma de ver
+  // "hoy/esta semana/quincena/este mes", solo la lista completa.
+  final Rx<DatePeriod> datePeriod = DatePeriod.all.obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -87,25 +121,40 @@ class PayrollController extends GetxController {
     load();
   }
 
+  void setDatePeriod(DatePeriod period) {
+    if (datePeriod.value == period) return;
+    datePeriod.value = period;
+    load();
+  }
+
   /// Local-first (mismo patrón que el resto): pinta la última nómina
-  /// cacheada al instante, refresca atrás sin bloquear.
+  /// cacheada al instante, refresca atrás sin bloquear. El filtro de
+  /// período se aplica solo del lado de la red (`date_from`/`date_to`)
+  /// — la caché local guarda siempre el último snapshot SIN filtrar,
+  /// simple y suficiente para el pintado inicial.
   Future<void> load() async {
     final cachedRaw = _cache.getObject(_cacheKey);
-    final paintedFromCache = cachedRaw != null;
+    final paintedFromCache = cachedRaw != null && datePeriod.value == DatePeriod.all;
     if (paintedFromCache) _applySnapshot(cachedRaw);
 
     isLoading.value = !paintedFromCache;
     error.value = '';
     try {
-      final res = await _dio.get('/payroll');
+      final range = resolveDatePeriod(datePeriod.value);
+      final res = await _dio.get('/payroll', queryParameters: {
+        if (range.start != null) 'date_from': _isoDate(range.start!),
+        if (range.end != null) 'date_to': _isoDate(range.end!),
+      });
       final obj = ApiResponseUtils.object(res);
       _applySnapshot(obj);
-      await _cache.saveObject(_cacheKey, {
-        'items': items.map((e) => e.toJson()).toList(),
-        'total_net': totalNet.value,
-        'total_paid': totalPaid.value,
-        'total_pending': totalPending.value,
-      });
+      if (datePeriod.value == DatePeriod.all) {
+        await _cache.saveObject(_cacheKey, {
+          'items': items.map((e) => e.toJson()).toList(),
+          'total_net': totalNet.value,
+          'total_paid': totalPaid.value,
+          'total_pending': totalPending.value,
+        });
+      }
     } catch (e) {
       if (!paintedFromCache) {
         error.value = ApiResponseUtils.errorMessage(e) ?? 'Error al cargar nómina';
@@ -135,6 +184,9 @@ class PayrollController extends GetxController {
     double deductions = 0,
     bool isPaid = false,
     String? notes,
+    PayFrequency payFrequency = PayFrequency.monthly,
+    DateTime? periodStart,
+    DateTime? periodEnd,
   }) async {
     if (isSaving.value) return false;
     isSaving.value = true;
@@ -148,6 +200,9 @@ class PayrollController extends GetxController {
         'deductions': deductions,
         'is_paid': isPaid,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        'pay_frequency': payFrequency.apiValue,
+        if (periodStart != null) 'period_start': _isoDate(periodStart),
+        if (periodEnd != null) 'period_end': _isoDate(periodEnd),
       };
       if (id == null) {
         await _dio.post('/payroll', data: data);

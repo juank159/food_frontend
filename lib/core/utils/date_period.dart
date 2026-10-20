@@ -5,7 +5,16 @@ import 'package:flutter/foundation.dart';
 /// Pensado para usarse en CUALQUIER pantalla con filtro temporal
 /// (órdenes, reportes, caja, etc.). La pantalla guarda el [DatePeriod]
 /// seleccionado y lo traduce a un rango concreto con [resolveDatePeriod].
-enum DatePeriod { today, yesterday, last7Days, thisMonth, all, custom }
+enum DatePeriod {
+  today,
+  yesterday,
+  thisWeek,
+  last7Days,
+  biweekly,
+  thisMonth,
+  all,
+  custom,
+}
 
 extension DatePeriodLabel on DatePeriod {
   /// Etiqueta corta para el pill compacto del filtro.
@@ -15,8 +24,12 @@ extension DatePeriodLabel on DatePeriod {
         return 'Hoy';
       case DatePeriod.yesterday:
         return 'Ayer';
+      case DatePeriod.thisWeek:
+        return 'Semana';
       case DatePeriod.last7Days:
         return '7 días';
+      case DatePeriod.biweekly:
+        return 'Quincena';
       case DatePeriod.thisMonth:
         return 'Mes';
       case DatePeriod.all:
@@ -33,8 +46,12 @@ extension DatePeriodLabel on DatePeriod {
         return 'Hoy';
       case DatePeriod.yesterday:
         return 'Ayer';
+      case DatePeriod.thisWeek:
+        return 'Esta semana';
       case DatePeriod.last7Days:
         return 'Últimos 7 días';
+      case DatePeriod.biweekly:
+        return 'Quincena actual';
       case DatePeriod.thisMonth:
         return 'Este mes';
       case DatePeriod.all:
@@ -121,10 +138,29 @@ DatePeriodRange resolveDatePeriod(
     case DatePeriod.yesterday:
       final y = today.subtract(const Duration(days: 1));
       return DatePeriodRange(startOfBogotaDay(y), endOfBogotaDay(y));
+    case DatePeriod.thisWeek:
+      // Semana calendario Lunes→hoy (Colombia). `weekday`: 1=lunes…7=domingo.
+      final daysSinceMonday = today.weekday - 1;
+      return DatePeriodRange(
+        startOfBogotaDay(today.subtract(Duration(days: daysSinceMonday))),
+        endOfBogotaDay(today),
+      );
     case DatePeriod.last7Days:
       return DatePeriodRange(
         startOfBogotaDay(today.subtract(const Duration(days: 6))),
         endOfBogotaDay(today),
+      );
+    case DatePeriod.biweekly:
+      // Quincena colombiana: 1-15 y 16-fin de mes. Rango completo de
+      // la quincena ACTUAL (no acotado a "hasta hoy" — a diferencia de
+      // "este mes", acá se quiere ver el período de pago completo).
+      final isFirstHalf = today.day <= 15;
+      final start = isFirstHalf ? 1 : 16;
+      final lastDayOfMonth = DateTime(today.year, today.month + 1, 0).day;
+      final end = isFirstHalf ? 15 : lastDayOfMonth;
+      return DatePeriodRange(
+        _bogotaMidnightUtc(today.year, today.month, start),
+        _bogotaEndOfDayUtc(today.year, today.month, end),
       );
     case DatePeriod.thisMonth:
       return DatePeriodRange(
