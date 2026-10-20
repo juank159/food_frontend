@@ -32,13 +32,25 @@ class TabTicketCard extends StatelessWidget {
     final totalItems = (rawOrder['total_items'] as num?)?.toInt() ?? 0;
     final createdAt = rawOrder['created_at'] as String?;
 
+    // Bug real reportado: un ticket ya pagado se seguía viendo
+    // "pendiente" acá aunque su propio detalle (pantalla de la orden)
+    // sí lo mostraba pagado — esta card hacía su PROPIA cuenta sumando
+    // `payments`, una segunda fuente de verdad distinta a la que usa
+    // el detalle (`order.payment_status`, calculado por el backend en
+    // `attachPaymentSummary` — ver ese archivo). Ahora leemos el MISMO
+    // campo que el detalle, así las dos pantallas siempre coinciden.
+    // `paidAmount` igual se sigue sumando de `payments` solo para
+    // mostrar el monto ("Debe $X"), no para decidir pagado/pendiente.
     final payments = rawOrder['payments'] as List<dynamic>? ?? const [];
     final paidAmount = payments
         .whereType<Map<String, dynamic>>()
         .where((p) => p['status'] == 'completed')
         .fold<double>(0, (sum, p) => sum + _parseNum(p['amount']));
     final balance = totalAmount - paidAmount;
-    final isFullyPaid = balance <= 0.01;
+    final paymentStatus = rawOrder['payment_status'] as String?;
+    final isFullyPaid = paymentStatus != null
+        ? paymentStatus == 'completed'
+        : balance <= 0.01;
 
     final typeMeta = _typeMeta(orderType);
     final statusColor = _statusColor(status);
