@@ -399,7 +399,11 @@ class PrintingOrchestrator {
       width: width,
     );
     if (pdf.isEmpty) return true;
-    return PrinterDispatcher.printPdf(pdfBytes: pdf, jobName: 'Cierre de caja');
+    return PrinterDispatcher.printPdf(
+      pdfBytes: pdf,
+      jobName: 'Cierre de caja',
+      printerUrl: printer.host,
+    );
   }
 
   static Future<bool> _printCashSessionReportNetwork({
@@ -622,7 +626,11 @@ class PrintingOrchestrator {
     }
     // PDF vacío del backend (skip) → no abrir diálogo de impresión.
     if (pdf.isEmpty) return true;
-    return PrinterDispatcher.printPdf(pdfBytes: pdf, jobName: jobName);
+    return PrinterDispatcher.printPdf(
+      pdfBytes: pdf,
+      jobName: jobName,
+      printerUrl: printer.host,
+    );
   }
 
   static Future<OrderModel> _fetchOrder(String orderId) async {

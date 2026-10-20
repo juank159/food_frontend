@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:printing/printing.dart' show Printer;
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -178,5 +179,18 @@ class PrinterConfigsController extends GetxController {
   /// Test de conexión sin imprimir (solo para red).
   Future<bool> testNetworkPing({required String host, required int port}) {
     return PrinterDispatcher.testNetworkConnection(host: host, port: port);
+  }
+
+  /// Impresoras instaladas en el SO (Windows/macOS/Linux) — incluye las
+  /// conectadas por USB, ya que el sistema las expone igual que una de
+  /// red una vez instalado el driver. No disponible en Flutter Web.
+  Future<List<Printer>> listInstalledPrinters() {
+    return PrinterDispatcher.listInstalledPrinters();
+  }
+
+  /// Imprime una página de prueba DIRECTO a la impresora elegida (solo
+  /// para `system` — las de red usan `testNetworkPing`).
+  Future<bool> testSystemPrinter(Printer printer) {
+    return PrinterDispatcher.testSystemPrinter(printer);
   }
 }

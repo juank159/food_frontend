@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:printing/printing.dart' show Printer;
 
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
@@ -776,6 +778,18 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
   bool _testing = false;
   bool? _testOk;
 
+  /// `host` de la impresora `system` elegida (reusa el mismo campo que
+  /// `network` usa para la IP — el backend no diferencia, nunca lo
+  /// valida para `system`, así que no hace falta una columna nueva).
+  /// Es el identificador único (`Printer.url`) que da el SO, no un
+  /// nombre — por eso se guarda aparte del "Nombre" que el usuario
+  /// elige libremente para identificar la impresora en la app.
+  String? _systemPrinterUrl;
+  String? _systemPrinterLabel;
+  List<Printer> _systemPrinters = [];
+  bool _loadingSystemPrinters = false;
+  bool? _systemTestOk;
+
   bool get _isEditing => widget.existing != null;
 
   static const _allRoles = [
@@ -802,6 +816,14 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
     _isDefault = e?.isDefault ?? true;
     _autoPrint = e?.autoPrint ?? true;
     _allowedRoles = Set.from(e?.allowedRoles ?? []);
+    if (e?.connectionType == PrinterConnectionType.system) {
+      _systemPrinterUrl = e?.host;
+      // Todavía no se detectó el listado real — se muestra el nombre
+      // guardado de la impresora como placeholder hasta que el admin
+      // toque "Detectar" (ahí se confirma si sigue instalada o no).
+      _systemPrinterLabel = e?.host != null ? e!.name : null;
+    }
+    if (!kIsWeb) _detectSystemPrinters();
   }
 
   @override
@@ -820,6 +842,18 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
       return false;
     }
     return true;
+  }
+
+  /// `host` a persistir según el tipo — la IP para `network`, el
+  /// identificador de la impresora elegida (o `null`, sin elegir
+  /// ninguna = sigue usando el diálogo del SO) para `system`.
+  String? get _hostToSave {
+    switch (_connType) {
+      case PrinterConnectionType.network:
+        return _hostCtrl.text.trim();
+      case PrinterConnectionType.system:
+        return _systemPrinterUrl;
+    }
   }
 
   @override
@@ -878,6 +912,8 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
                       _label('Tipo de conexión'),
                       _connectionSelector(),
                       const SizedBox(height: 14),
+                      if (_connType == PrinterConnectionType.system)
+                        _systemPrinterPicker(),
                       if (_connType == PrinterConnectionType.network) ...[
                         _label('IP de la impresora'),
                         TextField(
@@ -1199,6 +1235,215 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
     );
   }
 
+  /// Picker de impresoras instaladas en el SO (incluye las conectadas
+  /// por USB — Windows las muestra igual que cualquier otra una vez
+  /// que el driver está puesto). Elegir una acá hace que la impresión
+  /// sea directa (sin el diálogo del SO en cada ticket); no elegir
+  /// ninguna deja el comportamiento de siempre (diálogo manual).
+  Widget _systemPrinterPicker() {
+    if (kIsWeb) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: const Text(
+            'Desde el navegador no se puede elegir una impresora '
+            'instalada — cada impresión abre el diálogo normal del SO. '
+            'Para elegir una directa, abrí esta app instalada en la '
+            'computadora (no en el navegador).',
+            style: TextStyle(fontSize: 11.5, height: 1.3),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _label('Impresora instalada (opcional)')),
+              TextButton.icon(
+                onPressed: _loadingSystemPrinters ? null : _detectSystemPrinters,
+                icon: _loadingSystemPrinters
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh, size: 16),
+                label: Text(_loadingSystemPrinters ? 'Buscando…' : 'Detectar'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'Elegí una de las impresoras instaladas en esta computadora '
+            '(USB o red configurada por Windows) para imprimir directo, '
+            'sin que aparezca el diálogo de impresión cada vez. Si no '
+            'elegís ninguna, sigue pidiendo confirmación manual.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          if (_systemPrinterUrl != null) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.print, color: AppColors.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Elegida: ${_systemPrinterLabel ?? _systemPrinterUrl}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                        color: AppColors.primary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (_systemTestOk != null)
+                    Icon(
+                      _systemTestOk! ? Icons.check_circle : Icons.error_outline,
+                      color: _systemTestOk! ? AppColors.accent : AppColors.error,
+                      size: 18,
+                    ),
+                  IconButton(
+                    tooltip: 'Quitar selección',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => setState(() {
+                      _systemPrinterUrl = null;
+                      _systemPrinterLabel = null;
+                      _systemTestOk = null;
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (_loadingSystemPrinters)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_systemPrinters.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No se detectó ninguna impresora instalada. Conectá la '
+                'impresora por USB (o instalá el driver) y tocá '
+                '"Detectar".',
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _systemPrinters.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (_, i) {
+                  final p = _systemPrinters[i];
+                  final isSelected = p.url == _systemPrinterUrl;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary.withValues(alpha: 0.06)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          p.isAvailable ? Icons.print : Icons.print_disabled,
+                          color: p.isAvailable ? Colors.grey.shade700 : Colors.grey.shade400,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                p.isDefault
+                                    ? 'Predeterminada en Windows'
+                                    : p.isAvailable
+                                        ? 'Disponible'
+                                        : 'No disponible ahora',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: p.isAvailable
+                                      ? Colors.green.shade700
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (p.isAvailable) ...[
+                          TextButton(
+                            onPressed: () => _testSelectedSystemPrinter(p),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              minimumSize: Size.zero,
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                            child: const Text('Probar'),
+                          ),
+                          const SizedBox(width: 4),
+                          FilledButton(
+                            onPressed: isSelected ? null : () => _selectSystemPrinter(p),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              minimumSize: Size.zero,
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                            child: Text(isSelected ? 'Elegida' : 'Usar'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _paperChip(int width) {
     final selected = _paperWidth == width;
     return InkWell(
@@ -1225,6 +1470,42 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _detectSystemPrinters() async {
+    setState(() => _loadingSystemPrinters = true);
+    final printers = await widget.controller.listInstalledPrinters();
+    if (!mounted) return;
+    setState(() {
+      _systemPrinters = printers;
+      _loadingSystemPrinters = false;
+      // Si ya había una guardada, confirmamos el nombre real ahora que
+      // tenemos el listado fresco (puede haber cambiado de nombre en
+      // Windows sin cambiar de `url`).
+      if (_systemPrinterUrl != null) {
+        final match = printers.where((p) => p.url == _systemPrinterUrl).firstOrNull;
+        if (match != null) _systemPrinterLabel = match.name;
+      }
+    });
+  }
+
+  void _selectSystemPrinter(Printer p) {
+    setState(() {
+      _systemPrinterUrl = p.url;
+      _systemPrinterLabel = p.name;
+      _systemTestOk = null;
+      // Si el admin no escribió un nombre propio todavía, usamos el de
+      // la impresora elegida como punto de partida — igual lo puede
+      // cambiar.
+      if (_nameCtrl.text.trim().isEmpty) _nameCtrl.text = p.name;
+    });
+  }
+
+  Future<void> _testSelectedSystemPrinter(Printer p) async {
+    setState(() => _systemTestOk = null);
+    final ok = await widget.controller.testSystemPrinter(p);
+    if (!mounted) return;
+    setState(() => _systemTestOk = ok);
   }
 
   Future<void> _testConnection() async {
@@ -1255,9 +1536,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
           name: _nameCtrl.text.trim(),
           purpose: _purpose,
           connectionType: _connType,
-          host: _connType == PrinterConnectionType.network
-              ? _hostCtrl.text.trim()
-              : null,
+          host: _hostToSave,
           port: _connType == PrinterConnectionType.network
               ? int.tryParse(_portCtrl.text.trim()) ?? 9100
               : null,
@@ -1272,9 +1551,7 @@ class _PrinterFormDialogState extends State<_PrinterFormDialog> {
           name: _nameCtrl.text.trim(),
           purpose: _purpose,
           connectionType: _connType,
-          host: _connType == PrinterConnectionType.network
-              ? _hostCtrl.text.trim()
-              : null,
+          host: _hostToSave,
           port: _connType == PrinterConnectionType.network
               ? int.tryParse(_portCtrl.text.trim()) ?? 9100
               : null,
