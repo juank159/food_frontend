@@ -57,7 +57,6 @@ class ProductFormPage extends GetView<ProductFormController> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       _buildErrorBanner(),
-                      _buildJustCreatedBanner(),
                       _buildBasicSection(context),
                       const SizedBox(height: 14),
                       _buildPricingSection(),
@@ -123,69 +122,6 @@ class ProductFormPage extends GetView<ProductFormController> {
         ),
       ),
     );
-  }
-
-  /// Banner que aparece tras crear el producto desde modo "crear".
-  /// Le indica al operario que ahora puede agregar opciones de
-  /// personalización (grupos de modificadores) sin salir del form.
-  Widget _buildJustCreatedBanner() {
-    return Obx(() {
-      if (!controller.didJustCreate.value) {
-        return const SizedBox.shrink();
-      }
-      return Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.check_circle,
-                color: AppColors.success,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '¡Producto creado!',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Bajá hasta "Extras y acompañantes" para agregar opciones como "sin cebolla" o "extra queso".',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    });
   }
 
   Widget _buildErrorBanner() {

@@ -144,12 +144,6 @@ class ProductFormController extends GetxController {
   /// hacer un GET extra.
   Product? lastSavedProduct;
 
-  /// `true` si el form recién creó el producto en esta sesión (vs.
-  /// haber sido abierto para editar uno preexistente). Lo usamos para
-  /// decidir si mostramos el banner verde "¡Producto creado!" que guía
-  /// al operario hacia la sección de grupos de modificadores.
-  final RxBool didJustCreate = false.obs;
-
   // Loading states
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
@@ -513,35 +507,27 @@ class ProductFormController extends GetxController {
           await _createVariantsForProduct(product.id);
         }
 
-        // Transición a modo edición sin pop. La intención: dejar al
-        // operario continuar agregando grupos de modifiers ("sin cebolla",
-        // "extra queso", etc.) sin tener que volver a abrir el form.
-        // - `productToEdit` se setea para habilitar el resto del flujo
-        //   de edición (variant sync, modifier groups CRUD).
-        // - `lastSavedProduct` queda guardado para devolverlo al pop
-        //   final cuando el usuario cierre el form (back o cancel).
-        // - `isEditModeRx` dispara los Obx() en la page para que se
-        //   muestre el widget de modifier groups y cambien título/botón.
-        // - `didJustCreate` activa el banner guía.
-        productToEdit = product;
+        // Bug real reportado: crear quedaba en el mismo form (pasaba a
+        // modo edición sin pop, pensado para agregar modifier groups
+        // de una) mientras que actualizar SÍ volvía a la lista — dos
+        // comportamientos distintos para el mismo botón de guardar.
+        // Ahora crear hace lo mismo que actualizar: guarda y vuelve a
+        // la lista. Si el operario necesita agregar modifiers, vuelve
+        // a entrar a editar el producto recién creado, igual que
+        // cualquier otra edición.
         lastSavedProduct = product;
-        isEditModeRx.value = true;
-        didJustCreate.value = true;
-
-        // Refrescar lista global — el producto recién creado debe
-        // aparecer en el ProductSelector del POS sin necesidad de
-        // volver a la lista de productos y recargar a mano.
         _refreshGlobalProductsCache();
 
         AppSnackbar.show(
           '¡Producto creado!',
-          'Ahora podés agregar opciones de personalización (sin cebolla, extra queso, etc.)',
+          'Se agregó correctamente al menú.',
           snackPosition: SnackPosition.TOP,
           backgroundColor: Get.theme.colorScheme.primary,
           colorText: Get.theme.colorScheme.onPrimary,
-          duration: const Duration(seconds: 4),
           icon: const Icon(Icons.check_circle, color: Colors.white),
         );
+
+        closeForm();
       },
     );
   }

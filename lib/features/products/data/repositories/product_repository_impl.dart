@@ -361,50 +361,94 @@ class ProductRepositoryImpl implements ProductRepository {
     int? sortOrder,
     Map<String, dynamic>? metadata,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        final data = <String, dynamic>{};
-        if (name != null) data['name'] = name;
-        if (basePrice != null) data['base_price'] = basePrice;
-        if (sku != null) data['sku'] = sku;
-        if (categoryId != null) data['category_id'] = categoryId;
-        if (description != null) data['description'] = description;
-        if (cost != null) data['cost'] = cost;
-        if (requiresPreparation != null) {
-          data['requires_preparation'] = requiresPreparation;
-        }
-        if (preparationTime != null) data['preparation_time'] = preparationTime;
-        if (imageUrl != null) data['image_url'] = imageUrl;
-        if (images != null) data['images'] = images;
-        if (barcode != null) data['barcode'] = barcode;
-        if (isAvailable != null) data['is_available'] = isAvailable;
-        if (isFeatured != null) data['is_featured'] = isFeatured;
-        if (tags != null) data['tags'] = tags;
-        if (allergens != null) data['allergens'] = allergens;
-        if (nutritionalInfo != null) data['nutritional_info'] = nutritionalInfo;
-        if (trackInventory != null) data['track_inventory'] = trackInventory;
-        if (currentStock != null) data['current_stock'] = currentStock;
-        if (minStockAlert != null) data['min_stock_alert'] = minStockAlert;
-        if (sortOrder != null) data['sort_order'] = sortOrder;
-        if (metadata != null) data['metadata'] = metadata;
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (basePrice != null) data['base_price'] = basePrice;
+    if (sku != null) data['sku'] = sku;
+    if (categoryId != null) data['category_id'] = categoryId;
+    if (description != null) data['description'] = description;
+    if (cost != null) data['cost'] = cost;
+    if (requiresPreparation != null) {
+      data['requires_preparation'] = requiresPreparation;
+    }
+    if (preparationTime != null) data['preparation_time'] = preparationTime;
+    if (imageUrl != null) data['image_url'] = imageUrl;
+    if (images != null) data['images'] = images;
+    if (barcode != null) data['barcode'] = barcode;
+    if (isAvailable != null) data['is_available'] = isAvailable;
+    if (isFeatured != null) data['is_featured'] = isFeatured;
+    if (tags != null) data['tags'] = tags;
+    if (allergens != null) data['allergens'] = allergens;
+    if (nutritionalInfo != null) data['nutritional_info'] = nutritionalInfo;
+    if (trackInventory != null) data['track_inventory'] = trackInventory;
+    if (currentStock != null) data['current_stock'] = currentStock;
+    if (minStockAlert != null) data['min_stock_alert'] = minStockAlert;
+    if (sortOrder != null) data['sort_order'] = sortOrder;
+    if (metadata != null) data['metadata'] = metadata;
 
-        final result = await remoteDataSource.updateProduct(id, data);
-        return Right(result.toEntity());
-      } on UnauthorizedException {
-        return const Left(UnauthorizedFailure());
-      } on NotFoundException {
-        return const Left(NotFoundFailure('Producto no encontrado'));
-      } on ValidationException catch (e) {
-        return Left(ValidationFailure(e.message));
-      } on NetworkException catch (e) {
-        return Left(NetworkFailure(e.message));
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return Left(ServerFailure('Unexpected error: ${e.toString()}'));
+    // Bug real reportado (pedido explícito: editar debe andar con o
+    // sin internet, igual que crear — ver `createProduct` arriba, que
+    // ya tenía este patrón). Sin conexión, encolamos la mutación
+    // (`genericMutation` — ya existe un id real, no hace falta
+    // resolver ningún `local_id`) y actualizamos el producto
+    // optimistamente en la caché local, para que la lista y el form
+    // reflejen el cambio al instante sin esperar el sync.
+    if (!await networkInfo.isConnected) {
+      final cachedList = await localDataSource.peekCachedProducts();
+      final existing = cachedList
+          ?.map((m) => m.toEntity())
+          .where((p) => p.id == id)
+          .firstOrNull;
+      if (existing == null) {
+        return const Left(NetworkFailure());
       }
-    } else {
-      return const Left(NetworkFailure());
+      final optimistic = existing.copyWith(
+        name: name,
+        basePrice: basePrice,
+        sku: sku,
+        categoryId: categoryId,
+        description: description,
+        cost: cost,
+        requiresPreparation: requiresPreparation,
+        preparationTime: preparationTime,
+        imageUrl: imageUrl,
+        barcode: barcode,
+        isAvailable: isAvailable,
+        tags: tags,
+        allergens: allergens,
+        nutritionalInfo: nutritionalInfo,
+        trackInventory: trackInventory,
+        currentStock: currentStock,
+        minStockAlert: minStockAlert,
+        updatedAt: DateTime.now(),
+      );
+      await localDataSource.updateCachedProduct(
+        ProductModel.fromEntity(optimistic),
+      );
+      await enqueueGenericMutation(
+        offlineQueue,
+        method: 'PATCH',
+        path: '${ApiConstants.products}/$id',
+        body: data,
+      );
+      return Right(optimistic);
+    }
+
+    try {
+      final result = await remoteDataSource.updateProduct(id, data);
+      return Right(result.toEntity());
+    } on UnauthorizedException {
+      return const Left(UnauthorizedFailure());
+    } on NotFoundException {
+      return const Left(NotFoundFailure('Producto no encontrado'));
+    } on ValidationException catch (e) {
+      return Left(ValidationFailure(e.message));
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error: ${e.toString()}'));
     }
   }
 
