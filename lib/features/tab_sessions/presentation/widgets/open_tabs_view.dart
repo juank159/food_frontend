@@ -675,13 +675,16 @@ class _TabCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasBalance = session.hasPendingBalance;
     final visual = _DestinationVisual.of(session);
-    // El color de "¿debe plata?" (borde) queda independiente del color
-    // de destino (ícono) — son dos señales distintas y el cajero las
-    // quiere ver las dos.
-    final balanceAccent = hasBalance ? AppColors.primary : AppColors.success;
+    // El color de "¿debe plata?" (fondo/borde) queda independiente del
+    // color de destino (ícono) — son dos señales distintas y el cajero
+    // las quiere ver las dos. El ícono NUNCA cambia de forma por esto,
+    // solo lo de alrededor.
+    final balanceAccent = hasBalance ? AppColors.error : AppColors.success;
 
     return Material(
-      color: AppColors.cardBackground,
+      color: hasBalance
+          ? AppColors.error.withValues(alpha: 0.06)
+          : AppColors.cardBackground,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -692,7 +695,7 @@ class _TabCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: hasBalance
-                  ? balanceAccent.withValues(alpha: 0.5)
+                  ? balanceAccent.withValues(alpha: 0.35)
                   : AppColors.border,
               width: hasBalance ? 1.5 : 1,
             ),
