@@ -941,14 +941,35 @@ class PrintingOrchestrator {
           return PrintResult.printerError;
 
         case PrinterConnectionType.system:
-          AppSnackbar.show(
-            'Impresora no compatible',
-            'El recibo unificado solo funciona con impresora de red (TCP).',
-            backgroundColor: Colors.amber.shade800,
-            colorText: Colors.white,
-            icon: const Icon(Icons.warning_amber),
+          // Bug real reportado: esto mostraba "no compatible" y nunca
+          // imprimía nada por USB — el recibo consolidado de la cuenta
+          // solo existía para impresoras de red. El backend ahora
+          // tiene el equivalente en PDF (`generateTabSessionReceiptPdf`,
+          // `GET /tab-sessions/:id/receipt-pdf`), mismo criterio de
+          // agregación que el bloque de arriba.
+          final tps = sl<ThermalPrintService>();
+          final pdf = await tps.getTabSessionReceiptPdfBytes(
+            tabSessionId: session.id,
+            width: printer.paperWidth == 58
+                ? ThermalPaperWidth.mm58
+                : ThermalPaperWidth.mm80,
           );
-          return PrintResult.noPrinterConfigured;
+          if (pdf.isEmpty) return PrintResult.success;
+          final okSystem = await PrinterDispatcher.printPdf(
+            pdfBytes: pdf,
+            jobName: 'Cuenta',
+            printerUrl: printer.host,
+          );
+          if (okSystem) {
+            if (silent) {
+              _snackOkSilent('Cuenta', printer);
+            } else {
+              _snackOk('Cuenta', printer);
+            }
+            return PrintResult.success;
+          }
+          _snackError('cuenta', printer, 'No se pudo imprimir');
+          return PrintResult.printerError;
       }
     } catch (err) {
       _snackError('cuenta', printer, err);

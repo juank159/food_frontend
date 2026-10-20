@@ -338,9 +338,12 @@ class EscPosGenerator {
         data.customerName!.trim().isNotEmpty &&
         data.customerName!.trim() != destination;
     if (hasCustomer) {
+      // Mayúscula ANTES de `_sanitize` — `toUpperCase()` de Dart ya
+      // respeta tildes y ñ ('josé' → 'JOSÉ', 'ñ' → 'Ñ'); `_sanitize`
+      // se encarga de mapear esos caracteres al byte CP437 correcto.
       bytes.addAll(
         gen.text(
-          _sanitize(data.customerName!.trim()),
+          _sanitize(data.customerName!.trim().toUpperCase()),
           styles: const PosStyles(
             align: PosAlign.center,
             height: PosTextSize.size2,
@@ -758,7 +761,12 @@ class EscPosGenerator {
     if (data.customerName != null &&
         data.customerName!.trim().isNotEmpty &&
         data.customerName!.trim() != recDest) {
-      bytes.addAll(gen.text('Cliente: ${_sanitize(data.customerName!.trim())}'));
+      bytes.addAll(
+        gen.text(
+          'Cliente: ${_sanitize(data.customerName!.trim().toUpperCase())}',
+          styles: const PosStyles(bold: true),
+        ),
+      );
       if (data.customerPhone != null && data.customerPhone!.isNotEmpty) {
         bytes.addAll(gen.text('Tel: ${data.customerPhone}'));
       }

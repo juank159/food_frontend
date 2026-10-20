@@ -84,6 +84,20 @@ class ThermalPrintService {
     );
   }
 
+  /// Recibo PDF CONSOLIDADO de una cuenta abierta (todos sus tickets
+  /// activos en un solo recibo) — equivalente al que ya existía para
+  /// impresoras de red (`EscPosGenerator.buildReceipt` sobre
+  /// `_runTabSessionPrint`), pero para impresoras `system`/USB.
+  Future<Uint8List> getTabSessionReceiptPdfBytes({
+    required String tabSessionId,
+    ThermalPaperWidth width = ThermalPaperWidth.mm80,
+  }) {
+    return _fetchPdf(
+      path: '/tab-sessions/$tabSessionId/receipt-pdf',
+      width: width,
+    );
+  }
+
   Future<Uint8List> getKitchenPdfBytes({
     required String orderId,
     ThermalPaperWidth width = ThermalPaperWidth.mm80,
