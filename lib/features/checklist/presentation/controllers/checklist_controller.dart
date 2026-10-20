@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/network/network_info.dart';
 import '../../../../core/services/local_cache_service.dart';
+import '../../../../core/services/offline_queue_service.dart';
 import '../../../../core/utils/api_response_utils.dart';
 import '../../../../core/utils/app_snackbar.dart';
 
@@ -32,6 +34,8 @@ class ChecklistItem {
 class ChecklistController extends GetxController {
   late final Dio _dio;
   late final LocalCacheService _cache;
+  late final NetworkInfo _networkInfo;
+  late final OfflineQueueService _offlineQueue;
 
   final RxList<ChecklistItem> items = <ChecklistItem>[].obs;
   final RxBool isLoading = false.obs;
@@ -46,7 +50,16 @@ class ChecklistController extends GetxController {
     super.onInit();
     _dio = GetIt.I<Dio>();
     _cache = GetIt.I<LocalCacheService>();
+    _networkInfo = GetIt.I<NetworkInfo>();
+    _offlineQueue = GetIt.I<OfflineQueueService>();
     load();
+  }
+
+  Future<void> _persistCache() async {
+    await _cache.saveList(
+      CacheKeys.checklist,
+      items.map((i) => i.toJson()).toList(),
+    );
   }
 
   /// Local-first (mismo patrón que products/categories/etc.): pinta la
@@ -81,16 +94,38 @@ class ChecklistController extends GetxController {
     }
   }
 
+  /// Bug real reportado (pedido explícito: que funcione con o sin
+  /// internet): esto solo intentaba la red — sin conexión, agregar un
+  /// item fallaba con un snackbar de error. Igual que productos/
+  /// pedidos, sin conexión se agrega optimista con un id local y se
+  /// encola la creación (`createEntity` — si más adelante se marca o
+  /// borra ESE mismo item antes de sincronizar, el id local en esas
+  /// otras entradas de la cola se resuelve solo al id real).
   Future<void> add(String text) async {
     final t = text.trim();
     if (t.isEmpty || isSaving.value) return;
     isSaving.value = true;
     try {
+      if (!await _networkInfo.isConnected) {
+        final localId = 'local_chk_${DateTime.now().microsecondsSinceEpoch}';
+        final item = ChecklistItem(id: localId, text: t, isDone: false);
+        items.insert(0, item);
+        await _persistCache();
+        await enqueueCreateEntity(
+          _offlineQueue,
+          method: 'POST',
+          path: '/checklist',
+          body: {'text': t},
+          localId: localId,
+        );
+        return;
+      }
       final res = await _dio.post('/checklist', data: {'text': t});
       final item = ChecklistItem.fromJson(ApiResponseUtils.object(res));
       // Pendiente nuevo arriba (la lista va pendientes primero, recientes
       // arriba — coincide con el orden del backend).
       items.insert(0, item);
+      await _persistCache();
     } catch (e) {
       AppSnackbar.show('No se pudo agregar', ApiResponseUtils.errorMessage(e) ?? 'Error');
     } finally {
@@ -108,11 +143,27 @@ class ChecklistController extends GetxController {
       isDone: !item.isDone,
     );
     items[idx] = optimistic;
+    await _persistCache();
+
+    if (!await _networkInfo.isConnected) {
+      // `genericMutation` con el id tal cual (puede ser `local_...` si
+      // el item mismo se creó offline) — el remap de la cola lo
+      // resuelve solo al sincronizar, en orden, antes de este PATCH.
+      await enqueueGenericMutation(
+        _offlineQueue,
+        method: 'PATCH',
+        path: '/checklist/${item.id}',
+        body: {'is_done': !item.isDone},
+      );
+      return;
+    }
+
     try {
       await _dio.patch('/checklist/${item.id}', data: {'is_done': !item.isDone});
       await load(); // re-ordena (comprados al fondo)
     } catch (e) {
       items[idx] = item; // revertir
+      await _persistCache();
       AppSnackbar.show('Error', ApiResponseUtils.errorMessage(e) ?? 'Error');
     }
   }
@@ -121,20 +172,50 @@ class ChecklistController extends GetxController {
     final idx = items.indexWhere((i) => i.id == item.id);
     if (idx == -1) return;
     final removed = items.removeAt(idx);
+    await _persistCache();
+
+    if (!await _networkInfo.isConnected) {
+      // Mismo criterio que `toggle`: el id (local o real) se resuelve
+      // solo al sincronizar, en el orden en que se encoló. Si el item
+      // se había creado offline y se borra offline también, el efecto
+      // final en el servidor es "se creó y se borró" — correcto.
+      await enqueueGenericMutation(
+        _offlineQueue,
+        method: 'DELETE',
+        path: '/checklist/${item.id}',
+      );
+      return;
+    }
+
     try {
       await _dio.delete('/checklist/${item.id}');
     } catch (e) {
       items.insert(idx, removed); // revertir
+      await _persistCache();
       AppSnackbar.show('Error', ApiResponseUtils.errorMessage(e) ?? 'Error');
     }
   }
 
   Future<void> clearCompleted() async {
     if (doneCount == 0) return;
+    final removedItems = items.where((i) => i.isDone).toList();
+    items.removeWhere((i) => i.isDone);
+    await _persistCache();
+
+    if (!await _networkInfo.isConnected) {
+      await enqueueGenericMutation(
+        _offlineQueue,
+        method: 'DELETE',
+        path: '/checklist/completed',
+      );
+      return;
+    }
+
     try {
       await _dio.delete('/checklist/completed');
-      items.removeWhere((i) => i.isDone);
     } catch (e) {
+      items.addAll(removedItems); // revertir
+      await _persistCache();
       AppSnackbar.show('Error', ApiResponseUtils.errorMessage(e) ?? 'Error');
     }
   }

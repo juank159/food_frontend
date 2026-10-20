@@ -135,7 +135,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.close, size: 18,
                     color: AppColors.textHint),
-                onPressed: () => controller.remove(item),
+                onPressed: () => _confirmRemove(item),
               ),
             ],
           ),
@@ -208,6 +208,31 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         ),
       ),
     );
+  }
+
+  /// Bug real reportado: borrar un item era un solo tap, sin
+  /// confirmación — a diferencia de "Borrar comprados" (bulk), que ya
+  /// pedía confirmar. Mismo patrón acá, para que borrar uno solo no
+  /// sea más fácil de hacer por accidente que borrar varios.
+  Future<void> _confirmRemove(ChecklistItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Borrar item'),
+        content: Text('¿Borrar "${item.text}" de la lista?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Borrar'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await controller.remove(item);
   }
 
   Future<void> _confirmClear() async {
