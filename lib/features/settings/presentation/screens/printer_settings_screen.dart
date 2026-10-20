@@ -97,7 +97,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                         onTest: _testPrint,
                       ),
                       const SizedBox(height: 12),
-                      const _KitchenTicketModeCard(),
+                      const _KitchenTicketGroupsCard(),
                       const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -367,36 +367,48 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
 }
 
 // =====================================================================
-// Card: comandas separadas por categoría vs. un solo documento
+// Card: bloques de impresión por categoría
 // =====================================================================
 
-/// Config por-tenant de cómo salen las comandas de cocina cuando hay
-/// más de una categoría en el mismo ticket.
+class _CategoryLite {
+  final String id;
+  final String name;
+  const _CategoryLite({required this.id, required this.name});
+}
+
+/// Config por-tenant de qué categorías comparten ticket al imprimir la
+/// comanda de cocina.
 ///
 /// Pedido real: por default cada categoría ("Especiales", "Bebidas"...)
 /// sale en SU PROPIO documento con corte de papel — útil si cada
-/// categoría va a una estación distinta. Un negocio con una sola
-/// estación de cocina no necesita ese corte extra entre categorías —
-/// prefiere todo en un solo documento, un único corte al final.
+/// categoría va a una estación distinta. Pero un negocio puede querer
+/// armar "bloques" más finos: ej. que "Especiales" y "Entradas" salgan
+/// juntas en un ticket, "Bebidas" y "Postres" juntas en otro, y
+/// "Parrilla" sola aparte — cada bloque es un documento con un único
+/// corte, sin repetir título/orden/pie por categoría (solo su nombre
+/// como separador).
 ///
-/// Guarda en `settings.printing.merge_kitchen_tickets` del tenant
+/// Guarda en `settings.printing.kitchen_ticket_groups` del tenant
 /// (mismo patrón que `settings.operation_mode` — ver
 /// `OperationModeSettingsScreen`). `PrintingOrchestrator` ya cachea
 /// este valor en disco para que la impresión siga funcionando sin
 /// internet con la última config conocida.
-class _KitchenTicketModeCard extends StatefulWidget {
-  const _KitchenTicketModeCard();
+class _KitchenTicketGroupsCard extends StatefulWidget {
+  const _KitchenTicketGroupsCard();
 
   @override
-  State<_KitchenTicketModeCard> createState() =>
-      _KitchenTicketModeCardState();
+  State<_KitchenTicketGroupsCard> createState() =>
+      _KitchenTicketGroupsCardState();
 }
 
-class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
+class _KitchenTicketGroupsCardState extends State<_KitchenTicketGroupsCard> {
   late final Dio _dio;
   bool _loading = true;
   bool _saving = false;
-  bool _merge = false;
+  String? _error;
+  List<_CategoryLite> _categories = [];
+  List<List<String>> _groups = [];
+  final Set<String> _selected = {};
   Map<String, dynamic> _existingSettings = {};
 
   @override
@@ -407,54 +419,136 @@ class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final res = await _dio.get('/tenants/me');
-      final tenant = ApiResponseUtils.object(res);
+      final catsRes = await _dio.get('/categories/active');
+      final categories = ApiResponseUtils.list(catsRes)
+          .whereType<Map<String, dynamic>>()
+          // Categorías que NO van a cocina no tienen sentido acá — no
+          // generan ningún ticket que agrupar.
+          .where((c) => (c['prints_kitchen'] as bool?) ?? true)
+          .map(
+            (c) => _CategoryLite(
+              id: c['id'] as String,
+              name: (c['name'] as String?)?.trim().isNotEmpty == true
+                  ? c['name'] as String
+                  : 'Sin nombre',
+            ),
+          )
+          .toList();
+
+      final tenantRes = await _dio.get('/tenants/me');
+      final tenant = ApiResponseUtils.object(tenantRes);
       final settings =
           (tenant['settings'] as Map?)?.cast<String, dynamic>() ?? {};
-      _existingSettings = Map<String, dynamic>.from(settings);
       final printing =
           (settings['printing'] as Map?)?.cast<String, dynamic>() ?? {};
-      _merge = printing['merge_kitchen_tickets'] as bool? ?? false;
-    } catch (_) {
-      // Sin conexión: dejamos el toggle en el default (false) — no es
-      // crítico bloquear esta pantalla por esto, el valor real sigue
-      // viviendo donde ya se usa (PrintingOrchestrator lo cachea aparte).
+      final rawGroups = printing['kitchen_ticket_groups'] as List? ?? [];
+
+      _existingSettings = Map<String, dynamic>.from(settings);
+      _categories = categories;
+      _groups = rawGroups
+          .whereType<List>()
+          .map((g) => g.whereType<String>().toList())
+          .where((g) => g.isNotEmpty)
+          .toList();
+    } catch (e) {
+      _error = ApiResponseUtils.errorMessage(e) ?? e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _setMerge(bool value) async {
-    if (_saving) return;
-    final previous = _merge;
-    setState(() {
-      _merge = value;
-      _saving = true;
-    });
+  List<_CategoryLite> get _ungrouped => _categories
+      .where((c) => !_groups.any((g) => g.contains(c.id)))
+      .toList();
+
+  String _nameFor(String categoryId) {
+    for (final c in _categories) {
+      if (c.id == categoryId) return c.name;
+    }
+    return categoryId;
+  }
+
+  Future<bool> _persist() async {
+    setState(() => _saving = true);
     try {
       final newSettings = Map<String, dynamic>.from(_existingSettings);
       final printing =
-          (Map<String, dynamic>.from(newSettings['printing'] as Map? ?? {}));
-      printing['merge_kitchen_tickets'] = value;
+          Map<String, dynamic>.from(newSettings['printing'] as Map? ?? {});
+      printing['kitchen_ticket_groups'] = _groups;
       newSettings['printing'] = printing;
       await _dio.patch('/tenants/me', data: {'settings': newSettings});
       _existingSettings = newSettings;
-      // Para que el próximo "Imprimir comanda" ya use el valor nuevo,
+      // Para que el próximo "Imprimir comanda" ya use la config nueva,
       // sin esperar los 10 min de TTL del cache en memoria.
       PrintingOrchestrator.invalidateTenantCache();
-      if (mounted) {
-        AppSnackbar.show('Guardado', 'Preferencia de comanda actualizada.');
-      }
+      return true;
     } catch (e) {
-      if (mounted) setState(() => _merge = previous);
       AppSnackbar.show(
         'Error al guardar',
         ApiResponseUtils.errorMessage(e) ?? e.toString(),
       );
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _toggleSelected(String categoryId) {
+    setState(() {
+      if (_selected.contains(categoryId)) {
+        _selected.remove(categoryId);
+      } else {
+        _selected.add(categoryId);
+      }
+    });
+  }
+
+  Future<void> _createGroup() async {
+    if (_selected.length < 2 || _saving) return;
+    final previous = List<List<String>>.from(_groups);
+    final newGroup = _selected.toList();
+    setState(() {
+      _groups = [..._groups, newGroup];
+      _selected.clear();
+    });
+    final ok = await _persist();
+    if (!ok && mounted) setState(() => _groups = previous);
+    if (ok) AppSnackbar.show('Guardado', 'Bloque de impresión creado.');
+  }
+
+  Future<void> _deleteGroup(int index) async {
+    if (_saving) return;
+    final previous = List<List<String>>.from(_groups);
+    setState(() => _groups = [..._groups]..removeAt(index));
+    final ok = await _persist();
+    if (!ok && mounted) setState(() => _groups = previous);
+    if (ok) AppSnackbar.show('Guardado', 'Bloque deshecho.');
+  }
+
+  /// Saca una categoría de su bloque. Si el bloque queda con menos de
+  /// 2 categorías, se disuelve entero — un "bloque" de una sola
+  /// categoría es lo mismo que no tener bloque.
+  Future<void> _removeFromGroup(int groupIndex, String categoryId) async {
+    if (_saving) return;
+    final previous = List<List<String>>.from(_groups);
+    setState(() {
+      final updated = List<List<String>>.from(_groups);
+      final members = List<String>.from(updated[groupIndex])
+        ..remove(categoryId);
+      if (members.length < 2) {
+        updated.removeAt(groupIndex);
+      } else {
+        updated[groupIndex] = members;
+      }
+      _groups = updated;
+    });
+    final ok = await _persist();
+    if (!ok && mounted) setState(() => _groups = previous);
   }
 
   @override
@@ -484,8 +578,9 @@ class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text(
-                    'Comandas con varias categorías',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    'Bloques de impresión de cocina',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
                 if (_loading || _saving)
@@ -498,28 +593,80 @@ class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Si un ticket tiene productos de más de una categoría '
-              '(ej. "Especiales" y "Bebidas"), elegí cómo sale la comanda.',
+              'Por default cada categoría sale en su propio ticket, con '
+              'su propio corte. Agrupá 2 o más para que salgan juntas en '
+              'UN SOLO documento — útil si varias categorías van a la '
+              'misma estación.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
-            _ModeOption(
-              title: 'Una comanda por categoría',
-              subtitle: 'Corta el papel entre cada categoría — útil si cada '
-                  'una va a una estación distinta.',
-              selected: !_merge,
-              enabled: !_loading && !_saving,
-              onTap: () => _setMerge(false),
-            ),
-            const SizedBox(height: 8),
-            _ModeOption(
-              title: 'Todo en un solo documento',
-              subtitle: 'Todas las categorías salen juntas, con un único '
-                  'corte al final — para cocina con una sola estación.',
-              selected: _merge,
-              enabled: !_loading && !_saving,
-              onTap: () => _setMerge(true),
-            ),
+            if (_loading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_error != null)
+              _ErrorInline(message: _error!, onRetry: _load)
+            else if (_categories.isEmpty)
+              Text(
+                'No tenés categorías que impriman a cocina todavía.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.textHint),
+              )
+            else ...[
+              for (var g = 0; g < _groups.length; g++) ...[
+                _GroupBlock(
+                  title: 'Bloque ${g + 1}',
+                  categoryNames: _groups[g].map(_nameFor).toList(),
+                  enabled: !_saving,
+                  onRemoveCategory: (i) =>
+                      _removeFromGroup(g, _groups[g][i]),
+                  onDeleteGroup: () => _deleteGroup(g),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (_ungrouped.isNotEmpty) ...[
+                Text(
+                  _groups.isEmpty
+                      ? 'CATEGORÍAS (tocá 2 o más para agruparlas)'
+                      : 'SIN AGRUPAR',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final cat in _ungrouped)
+                      _SelectableCategoryChip(
+                        label: cat.name,
+                        selected: _selected.contains(cat.id),
+                        enabled: !_saving,
+                        onTap: () => _toggleSelected(cat.id),
+                      ),
+                  ],
+                ),
+                if (_selected.length >= 2) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _createGroup,
+                      icon: const Icon(Icons.call_merge, size: 18),
+                      label: Text(
+                        'Crear bloque con ${_selected.length} categorías',
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ],
           ],
         ),
       ),
@@ -527,16 +674,96 @@ class _KitchenTicketModeCardState extends State<_KitchenTicketModeCard> {
   }
 }
 
-class _ModeOption extends StatelessWidget {
+class _GroupBlock extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final List<String> categoryNames;
+  final bool enabled;
+  final void Function(int index) onRemoveCategory;
+  final VoidCallback onDeleteGroup;
+
+  const _GroupBlock({
+    required this.title,
+    required this.categoryNames,
+    required this.enabled,
+    required this.onRemoveCategory,
+    required this.onDeleteGroup,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.content_paste, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: enabled ? onDeleteGroup : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: enabled ? AppColors.error : AppColors.textHint,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < categoryNames.length; i++)
+                Chip(
+                  label: Text(
+                    categoryNames[i],
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.3)),
+                  deleteIcon: const Icon(Icons.close, size: 15),
+                  onDeleted: enabled ? () => onRemoveCategory(i) : null,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectableCategoryChip extends StatelessWidget {
+  final String label;
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
 
-  const _ModeOption({
-    required this.title,
-    required this.subtitle,
+  const _SelectableCategoryChip({
+    required this.label,
     required this.selected,
     required this.enabled,
     required this.onTap,
@@ -546,58 +773,65 @@ class _ModeOption extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected
-          ? AppColors.primary.withValues(alpha: 0.08)
+          ? AppColors.primary.withValues(alpha: 0.12)
           : AppColors.background,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(999),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         onTap: enabled ? onTap : null,
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: selected ? AppColors.primary : AppColors.border,
               width: selected ? 1.4 : 1,
             ),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 selected
-                    ? Icons.radio_button_checked
+                    ? Icons.check_circle
                     : Icons.radio_button_unchecked,
-                size: 20,
+                size: 15,
                 color: selected ? AppColors.primary : AppColors.textHint,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? AppColors.primary : AppColors.textPrimary,
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ErrorInline extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorInline({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(fontSize: 12, color: AppColors.error),
+          ),
+        ),
+        TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+      ],
     );
   }
 }

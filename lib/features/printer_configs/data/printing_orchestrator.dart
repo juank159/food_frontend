@@ -107,8 +107,8 @@ class PrintingOrchestrator {
         phone: (contact['phone'] as String?)?.trim(),
         taxId: (contact['tax_id'] as String?)?.trim(),
         logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
-        mergeKitchenTickets:
-            printing['merge_kitchen_tickets'] as bool? ?? false,
+        kitchenTicketGroups:
+            _parseKitchenTicketGroups(printing['kitchen_ticket_groups']),
       );
       _tenantCache = info;
       _tenantCachedAt = now;
@@ -119,7 +119,7 @@ class PrintingOrchestrator {
           'phone': info.phone,
           'tax_id': info.taxId,
           'logo_url': info.logoUrl,
-          'merge_kitchen_tickets': info.mergeKitchenTickets,
+          'kitchen_ticket_groups': info.kitchenTicketGroups,
         });
       } catch (_) {}
       return info;
@@ -142,8 +142,8 @@ class PrintingOrchestrator {
             phone: cached['phone'] as String?,
             taxId: cached['tax_id'] as String?,
             logoUrl: cached['logo_url'] as String?,
-            mergeKitchenTickets:
-                cached['merge_kitchen_tickets'] as bool? ?? false,
+            kitchenTicketGroups:
+                _parseKitchenTicketGroups(cached['kitchen_ticket_groups']),
           );
         }
       } catch (_) {}
@@ -154,6 +154,18 @@ class PrintingOrchestrator {
         taxId: null,
       );
     }
+  }
+
+  /// Parsea `settings.printing.kitchen_ticket_groups` (o la copia
+  /// cacheada) tolerando cualquier forma rara del JSON — nunca lanza,
+  /// peor caso devuelve `[]` (= sin agrupar, comportamiento de siempre).
+  static List<List<String>> _parseKitchenTicketGroups(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<List>()
+        .map((g) => g.whereType<String>().toList())
+        .where((g) => g.isNotEmpty)
+        .toList();
   }
 
   static const _tenantCacheKey = 'printing_tenant_info';
@@ -673,7 +685,7 @@ class PrintingOrchestrator {
         bytes = await EscPosGenerator.buildKitchen(
           data: ticket,
           paperWidthMm: printer.paperWidth,
-          mergeSections: tenant.mergeKitchenTickets,
+          printGroups: tenant.kitchenTicketGroups,
         );
         break;
       case PrintJobKind.receipt:
@@ -714,7 +726,7 @@ class PrintingOrchestrator {
         bytes = await EscPosGenerator.buildKitchen(
           data: ticket,
           paperWidthMm: printer.paperWidth,
-          mergeSections: tenant.mergeKitchenTickets,
+          printGroups: tenant.kitchenTicketGroups,
         );
         break;
       case PrintJobKind.receipt:
@@ -969,6 +981,7 @@ class PrintingOrchestrator {
       specialInstructions: item.specialInstructions,
       requiresPreparation: item.requiresPreparation,
       categoryName: item.categoryName,
+      categoryId: item.categoryId,
       categoryPrintsKitchen: item.categoryPrintsKitchen,
       selectedFlavors: item.selectedFlavors,
       modifiers: modifiers,
@@ -1319,14 +1332,15 @@ class _TenantInfo {
   /// aparte y se cachea como bytes para imprimirlo en el recibo.
   final String? logoUrl;
 
-  /// `settings.printing.merge_kitchen_tickets` — pedido real de un
-  /// negocio con una sola estación de cocina: no necesita que se corte
-  /// papel por cada categoría, prefiere UN SOLO documento con todo.
-  /// Default `false` (comportamiento de siempre, sin tocar negocios
-  /// existentes): una comanda separada con su propio corte por
-  /// categoría. Configurable en Ajustes → Impresión, ver
+  /// `settings.printing.kitchen_ticket_groups` — bloques de impresión
+  /// configurados por el tenant: cada entrada es una lista de IDs de
+  /// categoría que deben salir juntas en UN SOLO documento (un único
+  /// corte, sin repetir título/orden/pie por categoría). Una categoría
+  /// que no aparece en ningún bloque sigue saliendo SOLA, en su propio
+  /// documento — comportamiento de siempre. Default `[]` (sin tocar
+  /// negocios existentes). Configurable en Ajustes → Impresoras, ver
   /// `PrinterSettingsScreen`.
-  final bool mergeKitchenTickets;
+  final List<List<String>> kitchenTicketGroups;
 
   const _TenantInfo({
     required this.businessName,
@@ -1334,6 +1348,6 @@ class _TenantInfo {
     required this.phone,
     required this.taxId,
     this.logoUrl,
-    this.mergeKitchenTickets = false,
+    this.kitchenTicketGroups = const [],
   });
 }

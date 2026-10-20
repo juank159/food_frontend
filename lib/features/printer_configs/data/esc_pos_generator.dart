@@ -99,8 +99,15 @@ class TicketItem {
   final bool requiresPreparation;
 
   /// Categoría del producto — la comanda se agrupa por categoría e
-  /// imprime un ticket separado por cada una.
+  /// imprime un ticket separado por cada una (salvo que el tenant haya
+  /// agrupado varias en un mismo bloque de impresión — ver
+  /// `EscPosGenerator.buildKitchen`'s `printGroups`).
   final String? categoryName;
+
+  /// Id real de la categoría — se usa para resolver los bloques de
+  /// impresión configurados por el tenant. `categoryName` es solo para
+  /// mostrar/agrupar visualmente.
+  final String? categoryId;
 
   /// Si la categoría imprime comanda. Items en `false` no salen a cocina
   /// aunque `requiresPreparation` sea true. Default `true`.
@@ -123,6 +130,7 @@ class TicketItem {
     required this.specialInstructions,
     this.requiresPreparation = true,
     this.categoryName,
+    this.categoryId,
     this.categoryPrintsKitchen = true,
     this.selectedFlavors = const [],
     this.modifiers = const [],
@@ -216,6 +224,17 @@ class CashSessionReportData {
   });
 }
 
+/// Una categoría de cocina con sus items, ya agrupados por
+/// `EscPosGenerator.buildKitchen` — unidad interna para resolver los
+/// bloques de impresión configurados por el tenant.
+class _KitchenCategory {
+  final String name;
+  final String? id;
+  final List<TicketItem> items = [];
+
+  _KitchenCategory({required this.name, required this.id});
+}
+
 /// Generador de ESC/POS para impresoras térmicas POS de red.
 ///
 /// **Por qué este archivo existe:**
@@ -236,15 +255,15 @@ class EscPosGenerator {
   static Future<Uint8List> buildKitchen({
     required TicketData data,
     required int paperWidthMm, // 58 | 80
-    /// Si `false` (default, comportamiento de siempre): una comanda
-    /// SEPARADA por categoría, cada una con su propio corte de papel.
-    /// Si `true`: todas las categorías salen una debajo de la otra en
-    /// UN SOLO documento, con un único corte al final — configuración
-    /// de negocio (`settings.printing.merge_kitchen_tickets`), ver
-    /// `PrintingOrchestrator._getTenantInfo`. Pedido real: un negocio
-    /// con una sola estación de cocina no necesita que se corte papel
-    /// por cada categoría.
-    bool mergeSections = false,
+    /// Bloques de impresión configurados por el tenant — cada entrada
+    /// es una lista de IDs de categoría que deben salir juntas en UN
+    /// SOLO documento (un único corte al final, sin repetir título/
+    /// orden/pie por cada categoría — solo su nombre como separador).
+    /// Una categoría que no aparece en ningún bloque sigue saliendo
+    /// SOLA, en su propio documento — comportamiento de siempre.
+    /// Default `[]` = nadie agrupado = comportamiento de siempre para
+    /// TODAS las categorías. Ver `PrintingOrchestrator._getTenantInfo`.
+    List<List<String>> printGroups = const [],
   }) async {
     final profile = await CapabilityProfile.load();
     final paper = paperWidthMm == 58 ? PaperSize.mm58 : PaperSize.mm80;
@@ -266,46 +285,102 @@ class EscPosGenerator {
       return Uint8List.fromList(bytes);
     }
 
-    // Agrupar por categoría preservando el orden de aparición → una
-    // comanda por cada categoría (separada o no según `mergeSections`).
-    final groups = <String, List<TicketItem>>{};
+    // 1) Agrupar por categoría preservando el orden de aparición.
+    final byCategory = <String, _KitchenCategory>{};
     for (final item in kitchenItems) {
+      // Clave de agrupación VISUAL (nombre) — dos categorías con el
+      // mismo nombre (raro, pero posible con sub-categorías) comparten
+      // ticket igual que antes. El id (para resolver bloques) es el de
+      // la PRIMERA vez que se ve esa clave.
       final key = (item.categoryName ?? 'GENERAL').toUpperCase();
-      groups.putIfAbsent(key, () => []).add(item);
+      final bucket = byCategory.putIfAbsent(
+        key,
+        () => _KitchenCategory(name: key, id: item.categoryId),
+      );
+      bucket.items.add(item);
+    }
+    final categories = byCategory.values.toList();
+
+    // 2) Resolver a qué "ticket físico" (bloque de impresión) pertenece
+    // cada categoría, preservando el orden de aparición de los bloques.
+    // categoryId -> índice de bloque configurado (si el tenant lo agrupó).
+    final groupIndexByCategoryId = <String, int>{};
+    for (var g = 0; g < printGroups.length; g++) {
+      for (final categoryId in printGroups[g]) {
+        groupIndexByCategoryId[categoryId] = g;
+      }
+    }
+    final tickets = <String, List<_KitchenCategory>>{};
+    for (final cat in categories) {
+      // Sin id (no debería pasar, pero por si acaso) o no configurada
+      // en ningún bloque → su propio ticket, como siempre.
+      final groupIndex = cat.id != null
+          ? groupIndexByCategoryId[cat.id]
+          : null;
+      final ticketKey = groupIndex != null ? 'group_$groupIndex' : 'solo_${cat.name}';
+      tickets.putIfAbsent(ticketKey, () => []).add(cat);
     }
 
-    final entries = groups.entries.toList();
-    for (var i = 0; i < entries.length; i++) {
-      final isLast = i == entries.length - 1;
-      // Mergeado: solo cortamos al final (una tirada continua). Separado
-      // (default): cortamos después de CADA categoría, como siempre.
-      final cutAfter = mergeSections ? isLast : true;
-      _writeKitchenSection(
-        gen,
-        bytes,
-        data,
-        entries[i].key,
-        entries[i].value,
-        cutAfter: cutAfter,
-      );
+    // 3) Escribir cada ticket físico resuelto — cada uno con su propio
+    // corte al final (el corte separa TICKETS, no categorías dentro de
+    // un mismo ticket fusionado).
+    for (final ticketCategories in tickets.values) {
+      _writeKitchenTicket(gen, bytes, data, ticketCategories);
     }
 
     return Uint8List.fromList(bytes);
   }
 
-  /// Escribe UNA comanda (la de una categoría) en [bytes]. Si
-  /// [cutAfter] es `true` (default), termina con corte de papel — en
-  /// `false` solo avanza el papel, para que la siguiente categoría siga
-  /// en el mismo documento (ver `mergeSections` en `buildKitchen`).
-  static void _writeKitchenSection(
+  /// Escribe UN ticket físico completo — una o varias categorías juntas
+  /// (según cómo haya resuelto `buildKitchen` los bloques de impresión).
+  ///
+  /// Si [categories] trae UNA sola categoría: comportamiento de
+  /// siempre — su nombre sale GRANDE como parte del header (como el
+  /// "destino"), exactamente igual a como se veía antes de que
+  /// existieran los bloques de impresión.
+  ///
+  /// Si trae VARIAS (el tenant las agrupó en un mismo bloque): el
+  /// título/destino/turno/Nº de orden/notas/"Impreso" se escriben UNA
+  /// sola vez — pedido real: no tiene sentido repetirlos si va todo en
+  /// el mismo papel. El ÚNICO separador entre categorías es su
+  /// nombre, antes de sus items.
+  static void _writeKitchenTicket(
     Generator gen,
     List<int> bytes,
     TicketData data,
-    String categoryName,
-    List<TicketItem> items, {
-    bool cutAfter = true,
+    List<_KitchenCategory> categories,
+  ) {
+    final solo = categories.length == 1;
+    _writeKitchenHeader(
+      gen,
+      bytes,
+      data,
+      soloCategoryName: solo ? categories.first.name : null,
+    );
+    for (final cat in categories) {
+      if (!solo) {
+        _writeCategoryDivider(gen, bytes, cat.name);
+      }
+      _writeKitchenItemsList(gen, bytes, cat.items);
+    }
+    _writeKitchenFooter(gen, bytes, data);
+
+    // Avance mínimo + corte → separa este ticket físico del siguiente.
+    // (feed(1) en vez de 2: el corte ya deja margen y ahorra papel.)
+    bytes.addAll(gen.feed(1));
+    bytes.addAll(gen.cut());
+  }
+
+  /// Header común: título + (categoría grande, solo si [soloCategoryName]
+  /// viene) + destino + turno + cliente + badge para llevar/domicilio +
+  /// Nº de orden/hora + badge QR + teléfono.
+  static void _writeKitchenHeader(
+    Generator gen,
+    List<int> bytes,
+    TicketData data, {
+    String? soloCategoryName,
   }) {
-    // ─── Header: "COMANDA" + categoría (estación) + tipo de orden ───
+    // ─── "COMANDA" + categoría (si aplica) ───
     // "COMANDA" en tamaño normal (es solo la etiqueta); la categoría
     // (estación) y el destino se mantienen grandes y legibles. Ahorra papel.
     bytes.addAll(
@@ -314,16 +389,18 @@ class EscPosGenerator {
         styles: const PosStyles(align: PosAlign.center, bold: true),
       ),
     );
-    bytes.addAll(
-      gen.text(
-        _sanitize(categoryName),
-        styles: const PosStyles(
-          align: PosAlign.center,
-          height: PosTextSize.size2,
-          bold: true,
+    if (soloCategoryName != null) {
+      bytes.addAll(
+        gen.text(
+          _sanitize(soloCategoryName),
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size2,
+            bold: true,
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     // ─── Destino (GRANDE) ───
     final destination = _destinationLabel(data);
@@ -427,8 +504,35 @@ class EscPosGenerator {
     }
 
     bytes.addAll(gen.hr());
+  }
 
-    // ─── Items de esta categoría ───
+  /// Separador entre categorías DENTRO de un mismo ticket fusionado —
+  /// pedido explícito: "el único separador fuera el nombre de la
+  /// categoría" (sin repetir título/destino/orden).
+  static void _writeCategoryDivider(
+    Generator gen,
+    List<int> bytes,
+    String categoryName,
+  ) {
+    bytes.addAll(
+      gen.text(
+        _sanitize(categoryName),
+        styles: const PosStyles(
+          align: PosAlign.center,
+          height: PosTextSize.size2,
+          bold: true,
+        ),
+      ),
+    );
+  }
+
+  /// Lista de items de UNA categoría — cantidad, variante, sabores,
+  /// extras y nota, en el mismo orden/formato de siempre.
+  static void _writeKitchenItemsList(
+    Generator gen,
+    List<int> bytes,
+    List<TicketItem> items,
+  ) {
     for (final item in items) {
       bytes.addAll(
         gen.text(
@@ -478,8 +582,14 @@ class EscPosGenerator {
       // ya separa visualmente cada producto y ahorra MUCHO papel en
       // comandas largas.
     }
+  }
 
-    // ─── Notas generales (se repiten en cada comanda) ───
+  /// Footer común: notas generales del pedido + "Impreso HH:MM".
+  static void _writeKitchenFooter(
+    Generator gen,
+    List<int> bytes,
+    TicketData data,
+  ) {
     if (data.notes != null && data.notes!.isNotEmpty) {
       bytes.addAll(gen.hr());
       bytes.addAll(gen.text('NOTAS:', styles: const PosStyles(bold: true)));
@@ -495,13 +605,6 @@ class EscPosGenerator {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-
-    // Avance mínimo + corte → ticket independiente por categoría.
-    // (feed(1) en vez de 2: el corte ya deja margen y ahorra papel.)
-    bytes.addAll(gen.feed(1));
-    if (cutAfter) {
-      bytes.addAll(gen.cut());
-    }
   }
 
   /// Genera recibo del cliente (con precios + totales + método de pago).
