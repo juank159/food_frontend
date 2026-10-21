@@ -103,10 +103,23 @@ class HomeController extends GetxController {
   void changeIndex(int index) {
     _currentIndex.value = index;
     if (Get.isRegistered<OrdersController>()) {
-      Get.find<OrdersController>().loadOrders();
-    }
-    if (Get.isRegistered<OpenTabsController>()) {
-      Get.find<OpenTabsController>().load();
+      final ordersController = Get.find<OrdersController>();
+      // Bug real reportado: el acceso directo "Cuentas abiertas" del
+      // home llama a `changeIndex(1)` y, justo después, a
+      // `OrdersController.switchMainView(1)` — si acá llamábamos
+      // `OpenTabsController.load()` SIEMPRE (sin mirar qué segmento
+      // está activo), ese `load()` se disparaba DOS VECES casi
+      // simultáneas (una desde acá, otra desde `switchMainView`),
+      // pisándose entre sí — resultado: a veces la pantalla se quedaba
+      // sin cargar nada. Replicamos acá el mismo criterio que ya usa
+      // `switchMainView`: refrescar SOLO el segmento que esté
+      // realmente visible en este momento.
+      if (ordersController.mainView.value == 1 &&
+          Get.isRegistered<OpenTabsController>()) {
+        Get.find<OpenTabsController>().load();
+      } else {
+        ordersController.loadOrders();
+      }
     }
   }
 

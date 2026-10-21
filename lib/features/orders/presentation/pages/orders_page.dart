@@ -254,30 +254,22 @@ class _Header extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Bug real reportado: esta pantalla no tenía NINGÚN botón
-              // de volver propio — cuando se llega acá normalmente
-              // (como pestaña del home) está bien, porque la barra de
-              // navegación de abajo YA es la forma de salir. Pero
-              // también se llega acá empujada como ruta independiente
-              // (ej. accesos directos del dashboard, `NavigationService
-              // .toOrders`/`toOrdersList`) — ahí no hay pestañas abajo
-              // y el usuario quedaba sin ninguna forma de volver.
-              // `Navigator.canPop` es `false` cuando esta pantalla es
-              // la pestaña del home (no hay nada debajo en el stack de
-              // ESTA ruta) y `true` cuando sí la empujaron — así el
-              // botón solo aparece cuando realmente hace falta.
-              if (Navigator.canPop(context))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ),
+              // Bug real reportado: el botón de volver salía "a veces
+              // sí, a veces no" y, cuando salía, tocarlo dejaba la
+              // pantalla en negro. Causa: `Navigator.canPop(context)`
+              // no sabe POR QUÉ hay algo debajo en el stack — si Home
+              // (la pantalla que contiene esta pestaña) se abrió con
+              // un `push` en vez de reemplazar el stack (ej. un
+              // redirect de login), `canPop` daba `true` aunque esta
+              // pantalla siga siendo SOLO una pestaña — tocar "volver"
+              // no cerraba la pestaña, cerraba HOME ENTERO, dejando lo
+              // que hubiera (o nada) debajo. `toOrders`/`toOrdersList`
+              // (los únicos casos que de verdad empujaban esta
+              // pantalla aparte, sin barra de abajo) ya no los llama
+              // nadie — hoy se llega acá SIEMPRE como pestaña del home,
+              // donde la barra de navegación de abajo ya es la forma
+              // de salir. Sin botón de volver propio, no hay nada que
+              // pueda fallar.
               Text(
                 'Órdenes',
                 style: TextStyle(
