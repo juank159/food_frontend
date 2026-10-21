@@ -6,6 +6,8 @@ import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/utils/date_period.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../orders/presentation/controllers/orders_controller.dart';
+import '../../../tab_sessions/presentation/controllers/open_tabs_controller.dart';
 
 /// Home Controller
 ///
@@ -84,9 +86,28 @@ class HomeController extends GetxController {
     loadDashboardStats();
   }
 
-  /// Cambia el índice de la navegación inferior
+  /// Cambia el índice de la navegación inferior.
+  ///
+  /// Bug real reportado: "vendo, me manda al home, voy a Órdenes y me
+  /// toca recargar a mano, voy a Cuentas abiertas y también". Las
+  /// pestañas del home viven en un `IndexedStack` — quedan montadas
+  /// todo el tiempo, así que cambiar de pestaña NO dispara ningún
+  /// refresh por sí solo; todo dependía de que el push por WebSocket
+  /// llegara justo a tiempo (si se perdió un evento por timing/
+  /// reconexión, la pantalla queda vieja hasta un pull-to-refresh
+  /// manual). Refrescamos acá las pantallas más sensibles a cambios
+  /// hechos DESDE OTRA pantalla (Órdenes, Cuentas abiertas) cada vez
+  /// que se cambia de pestaña — es barato (no-op si el controller no
+  /// está registrado para el rol actual) y no depende de que el
+  /// tiempo real haya avisado a tiempo.
   void changeIndex(int index) {
     _currentIndex.value = index;
+    if (Get.isRegistered<OrdersController>()) {
+      Get.find<OrdersController>().loadOrders();
+    }
+    if (Get.isRegistered<OpenTabsController>()) {
+      Get.find<OpenTabsController>().load();
+    }
   }
 
   /// Carga las estadísticas del dashboard desde el backend.
