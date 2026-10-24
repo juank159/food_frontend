@@ -67,6 +67,30 @@ void main() {
       },
     );
 
+    test('createPayment (cobro de UN ticket offline): POST /payments con order_id en el body', () {
+      final result = resolvePaymentSyncRequest({
+        'type': 'createPayment',
+        'order_id': 'order-3',
+        'payment_method': 'transfer',
+        'amount': 28500,
+      });
+
+      expect(result, isNotNull);
+      expect(result!.path, '/payments');
+      expect(result.body, {
+        'order_id': 'order-3',
+        'payment_method': 'transfer',
+        'amount': 28500,
+      });
+    });
+
+    test('createPayment sin order_id (entrada corrupta) → null', () {
+      expect(
+        resolvePaymentSyncRequest({'type': 'createPayment', 'amount': 1000}),
+        isNull,
+      );
+    });
+
     test('sin type y sin order_id (entrada corrupta) → null', () {
       final result = resolvePaymentSyncRequest({'payment_method': 'cash'});
 

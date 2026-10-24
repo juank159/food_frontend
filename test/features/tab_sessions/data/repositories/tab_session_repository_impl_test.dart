@@ -230,5 +230,54 @@ void main() {
 
       expect(result.isLeft(), true);
     });
+
+    test(
+        'BUG REAL evitado: cuenta cobrada SIN internet queda en saldo 0 y su '
+        'ticket en "Pagado" antes de sincronizar', () async {
+      networkInfo.connected = false;
+      final detail = _buildCachedSession(
+        id: 'tab-evelyn',
+        subtotal: 28500,
+        totalAmount: 28500,
+        balance: 28500,
+      ).toJson()
+        ..['orders'] = [
+          {
+            'id': 'order-qr',
+            'total_amount': '28500.00',
+            'created_at': '2026-10-23T19:00:00Z',
+            'status': 'completed',
+            'payment_status': 'pending',
+            'payments': <dynamic>[],
+          },
+        ];
+      local.sessionDetailCache['tab-evelyn'] = detail;
+      await queue.enqueue(QueueEntry(
+        id: 'q-pay',
+        type: QueueOperationType.createPayment,
+        payload: {
+          'type': 'processTabPayment',
+          'tab_session_id': 'tab-evelyn',
+          'amount': 28500,
+          'payment_method': 'transfer',
+        },
+        createdAt: DateTime.now(),
+      ));
+
+      final result = await repo.findOne('tab-evelyn');
+
+      result.fold(
+        (_) => fail('no debería fallar'),
+        (session) {
+          expect(session.balance, 0);
+          expect(session.paidAmount, 28500);
+          final order = session.orders.single as Map;
+          expect(order['payment_status'], 'completed');
+        },
+      );
+      // La caché guardada no se modifica: al sincronizar manda el servidor.
+      expect((local.sessionDetailCache['tab-evelyn']!['orders'] as List)
+          .single['payments'], isEmpty);
+    });
   });
 }

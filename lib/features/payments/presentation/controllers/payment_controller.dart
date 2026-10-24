@@ -1,11 +1,15 @@
 // lib/features/payments/presentation/controllers/payment_controller.dart
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/utils/api_response_utils.dart';
+import '../../../orders/data/datasources/order_local_datasource.dart';
+import '../../../orders/domain/entities/order.dart' as order_entity;
+import '../../../orders/presentation/controllers/order_detail_controller.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
 import '../../domain/entities/payment.dart';
@@ -55,6 +59,9 @@ class PaymentController extends GetxController {
       result.fold(
         (failure) {
           errorMessage.value = failure.message;
+          // Sin internet se conserva lo ya cargado (y los cobros offline
+          // de `_applyOfflinePayment`) — no hay error que mostrar.
+          if (failure is NetworkFailure) return;
           AppSnackbar.show(
             'Error',
             failure.message,
@@ -212,6 +219,17 @@ class PaymentController extends GetxController {
       Payment? createdPayment;
       result.fold((f) => foldFailure = f, (p) => createdPayment = p);
 
+      if (foldFailure is OfflineQueuedFailure) {
+        return _applyOfflinePayment(
+          orderId: orderId,
+          paymentMethod: paymentMethod,
+          amount: amount,
+          receivedAmount: receivedAmount,
+          transactionReference: transactionReference,
+          notes: notes,
+        );
+      }
+
       if (foldFailure != null) {
         final failure = foldFailure!;
         errorMessage.value = failure.message;
@@ -317,6 +335,94 @@ class PaymentController extends GetxController {
   }
 
   /// Refresca una orden después de un pago que el backend registró por
+  /// Pago cobrado SIN internet: ya quedó en la cola y se manda solo al
+  /// volver la señal (`SyncHandlers` → `POST /payments`). Bug real
+  /// reportado: antes esto fallaba con "Sin conexión" y el ticket
+  /// seguía debiendo. Ahora se refleja al instante en el detalle, las
+  /// listas y la caché de órdenes, igual que si el servidor hubiera
+  /// respondido — sin pedirle nada a la red.
+  Payment _applyOfflinePayment({
+    required String orderId,
+    required PaymentMethod paymentMethod,
+    required double amount,
+    double? receivedAmount,
+    String? transactionReference,
+    String? notes,
+  }) {
+    final now = DateTime.now();
+    final payment = Payment(
+      id: 'local_pending_${now.microsecondsSinceEpoch}',
+      orderId: orderId,
+      paymentMethod: paymentMethod,
+      amount: amount,
+      receivedAmount: receivedAmount,
+      changeAmount: receivedAmount != null && receivedAmount > amount
+          ? receivedAmount - amount
+          : null,
+      transactionReference: transactionReference,
+      status: PaymentStatus.completed,
+      processedBy: '',
+      processedAt: now,
+      notes: notes,
+      createdAt: now,
+      updatedAt: now,
+    );
+    payments.add(payment);
+
+    final base = _findOrderInMemory(orderId);
+    if (base != null) {
+      final paid = base.paidAmount + amount;
+      final itemQty = Map<String, int>.from(base.paidItemQuantities);
+      try {
+        final decoded = jsonDecode(notes ?? '') as Map<String, dynamic>?;
+        for (final raw in (decoded?['__items__'] as List?) ?? const []) {
+          final m = raw as Map<String, dynamic>;
+          final id = m['id'] as String?;
+          final qty = (m['qty'] as num?)?.toInt() ?? 0;
+          if (id != null) itemQty[id] = (itemQty[id] ?? 0) + qty;
+        }
+      } catch (_) {}
+      final updated = base.copyWith(
+        paidAmount: paid,
+        paidItemQuantities: itemQty,
+        paymentMethod: paymentMethod,
+        paymentStatus: paid >= base.totalAmount - 0.01
+            ? PaymentStatus.completed
+            : base.paymentStatus,
+      );
+      if (Get.isRegistered<OrdersController>()) {
+        Get.find<OrdersController>().applyOrderUpdate(updated);
+      } else if (Get.isRegistered<OrderDetailController>()) {
+        Get.find<OrderDetailController>().acceptExternalUpdate(updated);
+      }
+      sl<OrderLocalDataSource>().updateCachedOrder(updated).ignore();
+    }
+
+    AppSnackbar.show(
+      'Pago guardado sin internet',
+      '${paymentMethod.displayName} · ${amount.toStringAsFixed(0)} — se envía solo al volver la señal',
+      snackPosition: SnackPosition.TOP,
+      duration: const Duration(seconds: 3),
+    );
+    return payment;
+  }
+
+  order_entity.Order? _findOrderInMemory(String orderId) {
+    if (Get.isRegistered<OrderDetailController>()) {
+      final current = Get.find<OrderDetailController>().currentOrder;
+      if (current?.id == orderId) return current;
+    }
+    if (Get.isRegistered<OrdersController>()) {
+      final c = Get.find<OrdersController>();
+      for (final list in [c.orders, c.activeOrders, c.unpaidOrders]) {
+        for (final o in list) {
+          if (o.id == orderId) return o;
+        }
+      }
+    }
+    return null;
+  }
+
   /// fuera del flujo sincrónico normal — hoy solo Bre-B, que se confirma
   /// recién cuando el backend concilia el correo del banco (llega por
   /// push/polling, no como respuesta directa de un POST /payments). Como

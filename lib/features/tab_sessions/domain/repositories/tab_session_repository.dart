@@ -22,6 +22,10 @@ abstract class TabSessionRepository {
   /// nada.
   Future<List<TabSession>?> getCachedOpenTabsPeek();
 
+  /// Caché de UNA cuenta sin tocar la red: la copia completa (con
+  /// tickets y pagos) si alguna vez se guardó, si no la de la lista.
+  Future<TabSession?> peekCachedSessionDetail(String id);
+
   /// Detalle completo con tickets y pagos.
   Future<Either<Failure, TabSession>> findOne(String id);
 

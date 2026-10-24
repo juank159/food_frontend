@@ -5,6 +5,7 @@ import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/services/offline_queue_service.dart';
+import '../../../payments/data/pending_payments_overlay.dart';
 import '../../domain/entities/tab_session.dart';
 import '../../domain/repositories/tab_session_repository.dart';
 import '../datasources/tab_session_local_datasource.dart';
@@ -71,7 +72,9 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
         await localDataSource.cacheOpenTabs(
           list.map((m) => m.toJson()).toList(),
         );
-        return Right(list.map((m) => m.toEntity()).toList());
+        return Right(
+          list.map((m) => _withPendingPayments(m.toEntity())).toList(),
+        );
       } on UnauthorizedException {
         return const Left(UnauthorizedFailure());
       } on NotFoundException catch (e) {
@@ -92,7 +95,7 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
     // perder la señal.
     final cached = await localDataSource.getCachedOpenTabs();
     if (cached != null) {
-      return Right(cached.map((m) => _withPendingOverlay(m.toEntity())).toList());
+      return Right(cached.map((m) => _withOfflineOverlays(m.toEntity())).toList());
     }
     return const Left(NetworkFailure());
   }
@@ -101,7 +104,21 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
   Future<List<TabSession>?> getCachedOpenTabsPeek() async {
     final cached = await localDataSource.peekCachedOpenTabs();
     if (cached == null) return null;
-    return cached.map((m) => _withPendingOverlay(m.toEntity())).toList();
+    return cached.map((m) => _withOfflineOverlays(m.toEntity())).toList();
+  }
+
+  @override
+  Future<TabSession?> peekCachedSessionDetail(String id) async {
+    final fullCached = await localDataSource.peekCachedSessionDetail(id);
+    if (fullCached != null) {
+      return _withOfflineOverlays(TabSessionModel.fromJson(fullCached).toEntity());
+    }
+    final cachedList = await getCachedOpenTabsPeek();
+    if (cachedList == null) return null;
+    for (final s in cachedList) {
+      if (s.id == id) return s;
+    }
+    return null;
   }
 
   @override
@@ -124,7 +141,7 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
       final fullCached = await localDataSource.peekCachedSessionDetail(id);
       if (fullCached != null) {
         return Right(
-          _withPendingOverlay(TabSessionModel.fromJson(fullCached).toEntity()),
+          _withOfflineOverlays(TabSessionModel.fromJson(fullCached).toEntity()),
         );
       }
       final cachedList = await localDataSource.peekCachedOpenTabs();
@@ -138,14 +155,66 @@ class TabSessionRepositoryImpl implements TabSessionRepository {
         }
       }
       if (cached == null) return const Left(NetworkFailure());
-      return Right(_withPendingOverlay(cached.toEntity()));
+      return Right(_withOfflineOverlays(cached.toEntity()));
     }
 
     return _run(() async {
       final model = await remoteDataSource.findOne(id);
       await localDataSource.cacheSessionDetail(id, model.toJson());
-      return model.toEntity();
+      return _withPendingPayments(model.toEntity());
     });
+  }
+
+  /// Sin conexión: tickets despachados offline + pagos cobrados offline.
+  TabSession _withOfflineOverlays(TabSession entity) =>
+      _withPendingPayments(_withPendingOverlay(entity));
+
+  /// Aplica los pagos cobrados SIN internet que siguen en la cola (ver
+  /// `overlayPendingPayments`). Bug real reportado: cobrar una cuenta
+  /// offline la dejaba en "Debe $X" (cuenta y tickets) hasta que volvía
+  /// la señal — el pago estaba en la cola pero nada lo mostraba. Se
+  /// aplica también con red: si el pago todavía no salió de la cola (la
+  /// señal recién volvió), el servidor aún no lo tiene y sin esto la
+  /// cuenta "volvería a deber" unos segundos.
+  TabSession _withPendingPayments(TabSession entity) {
+    final pending = pendingPaymentsFromQueue(offlineQueue.getAll());
+    if (pending.isEmpty) return entity;
+    final overlay = overlayPendingPayments(
+      tabSessionId: entity.id,
+      orders: entity.orders,
+      balance: entity.balance,
+      pending: pending,
+    );
+    if (overlay.paidDelta == 0 && identical(overlay.orders, entity.orders)) {
+      return entity;
+    }
+    return TabSession(
+      id: entity.id,
+      tableId: entity.tableId,
+      tableElementId: entity.tableElementId,
+      tableName: entity.tableName,
+      customerId: entity.customerId,
+      customerName: entity.customerName,
+      openedBy: entity.openedBy,
+      openedByName: entity.openedByName,
+      openedAt: entity.openedAt,
+      closedBy: entity.closedBy,
+      closedByName: entity.closedByName,
+      closedAt: entity.closedAt,
+      status: entity.status,
+      partySize: entity.partySize,
+      notes: entity.notes,
+      totalOrders: entity.totalOrders,
+      subtotal: entity.subtotal,
+      taxAmount: entity.taxAmount,
+      discountAmount: entity.discountAmount,
+      tipAmount: entity.tipAmount,
+      deliveryFee: entity.deliveryFee,
+      totalAmount: entity.totalAmount,
+      paidAmount: entity.paidAmount + overlay.paidDelta,
+      balance: entity.balance - overlay.paidDelta,
+      orders: overlay.orders,
+    );
   }
 
   /// Suma al saldo/total/cantidad de tickets de [entity] lo que haya

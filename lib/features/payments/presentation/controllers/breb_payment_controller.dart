@@ -141,7 +141,16 @@ class BrebPaymentController extends GetxController {
       _startPolling();
       _startCountdown();
     } on DioException catch (e) {
-      errorMsg.value = ApiResponseUtils.errorMessage(e) ?? 'Error iniciando el cobro';
+      // Bre-B no se puede cobrar offline: el pago solo existe cuando el
+      // backend concilia el correo del banco. Mensaje claro en vez del
+      // error técnico de conexión.
+      final noInternet = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.unknown;
+      errorMsg.value = noInternet
+          ? 'Bre-B necesita internet para confirmar el pago con el banco. '
+              'Cobrá con otro método (efectivo, tarjeta, transferencia) y se sincroniza solo.'
+          : ApiResponseUtils.errorMessage(e) ?? 'Error iniciando el cobro';
       state.value = BrebPaymentState.error;
       AppSnackbar.show('Error Bre-B', errorMsg.value);
     }

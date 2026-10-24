@@ -8,6 +8,7 @@ import '../../../../core/config/constants/order_enums.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/error/failures.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../../../core/utils/scroll_into_view.dart';
@@ -153,6 +154,28 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
 
     if (!mounted) return;
     setState(() => _isProcessing = false);
+
+    // Bug real reportado: sin internet el cobro SÍ quedaba en la cola
+    // (se manda solo al volver la señal), pero acá se mostraba como
+    // "Error al cobrar" y el diálogo seguía abierto — riesgo de cobrar
+    // dos veces. Es un cobro hecho: misma salida que con red. La cuenta
+    // lo refleja al instante (`TabSessionRepositoryImpl._withPendingPayments`).
+    final queuedOffline = result.fold((f) => f is OfflineQueuedFailure, (_) => false);
+    if (queuedOffline) {
+      if (isFullPayment) {
+        AppSnackbar.show('Cobro guardado sin internet',
+            'Cuenta cobrada completa · se sincroniza sola al volver la señal');
+        PrintingOrchestrator.autoPrintTabSessionReceipt(session);
+      } else {
+        AppSnackbar.show(
+          'Pago guardado sin internet',
+          '${CurrencyFormatter.format(_amount)} cobrado · queda '
+              '${CurrencyFormatter.format(session.balance - _amount)} pendiente',
+        );
+      }
+      if (mounted) Navigator.of(context).pop(true);
+      return;
+    }
 
     result.fold(
       (failure) {
@@ -324,6 +347,8 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
           );
           return result.fold(
             (failure) {
+              // Sin internet: el cobro quedó en la cola — es un cobro hecho.
+              if (failure is OfflineQueuedFailure) return true;
               if (isCashSessionRequiredError(failure.message)) {
                 handleCashSessionError(failure.message);
               } else {

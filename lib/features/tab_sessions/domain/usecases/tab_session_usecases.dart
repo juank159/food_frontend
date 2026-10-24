@@ -31,6 +31,9 @@ class TabSessionUseCases {
   Future<List<TabSession>?> getCachedOpenTabsPeek() =>
       repository.getCachedOpenTabsPeek();
 
+  Future<TabSession?> peekCachedSessionDetail(String id) =>
+      repository.peekCachedSessionDetail(id);
+
   Future<Either<Failure, TabSession>> findOne(String id) =>
       repository.findOne(id);
 

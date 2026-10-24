@@ -339,7 +339,12 @@ class OrderModel {
       totalAmount: parseNum(json['total_amount']),
       paymentMethod: json['payment_method'] as String?,
       paymentStatus: (json['payment_status'] as String?) ?? 'pending',
-      paidAmount: paid,
+      // La caché local (`toJson`) guarda `paid_amount` pero no `payments`
+      // — sin este respaldo, una orden releída de caché (sin internet)
+      // perdía lo ya cobrado y un pago parcial se veía como "sin pagar".
+      paidAmount: json['payments'] is List
+          ? paid
+          : parseNumOrNull(json['paid_amount']) ?? paid,
       paidItemQuantities: paidItemQty,
       specialInstructions: json['special_instructions'] as String?,
       estimatedTime: (json['estimated_time'] as num?)?.toInt(),

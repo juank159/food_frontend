@@ -24,6 +24,7 @@ class TabSessionDetailController extends GetxController {
 
   Future<void> init(String sessionId) async {
     _sessionId = sessionId;
+    if (session.value?.id != sessionId) session.value = null;
     await load();
   }
 
@@ -36,15 +37,21 @@ class TabSessionDetailController extends GetxController {
   /// anidados), pero de sobra para el primer pintado (totales,
   /// cliente, cantidad de tickets). Reusamos esa caché en vez de crear
   /// una nueva por-detalle.
+  ///
+  /// Bug real reportado: la lista liviana no trae los `payments` de cada
+  /// ticket, así que el primer pintado mostraba "Debe $X" en tickets ya
+  /// pagados. Ahora se prefiere la copia COMPLETA de esta cuenta
+  /// (`peekCachedSessionDetail`), y solo se pinta desde caché si la
+  /// pantalla está vacía — un refresco (tiempo real, volver de cobrar)
+  /// no vuelve a pisar datos buenos con una copia vieja.
   Future<void> load() async {
     if (_sessionId == null) return;
 
-    final cachedList = await useCases.getCachedOpenTabsPeek();
-    final cached = cachedList?.firstWhereOrNull((s) => s.id == _sessionId);
-    final paintedFromCache = cached != null;
-    if (paintedFromCache) {
-      session.value = cached;
+    if (session.value == null) {
+      final cached = await useCases.peekCachedSessionDetail(_sessionId!);
+      if (cached != null) session.value = cached;
     }
+    final paintedFromCache = session.value != null;
 
     isLoading.value = !paintedFromCache;
     errorMessage.value = '';

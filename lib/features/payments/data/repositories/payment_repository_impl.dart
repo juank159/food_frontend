@@ -55,7 +55,23 @@ class PaymentRepositoryImpl implements PaymentRepository {
         return Left(ServerFailure(e.message));
       }
     } else {
-      return const Left(NetworkFailure());
+      // Bug real reportado: cobrar UN ticket sin internet fallaba directo
+      // (el cobro de cuenta sí se encolaba). Mismo encolado que
+      // `processTabPayment` — ver `resolvePaymentSyncRequest`.
+      final dto = <String, dynamic>{
+        'type': 'createPayment',
+        'order_id': orderId,
+        'payment_method': paymentMethod.value,
+        'amount': amount,
+        if (receivedAmount != null) 'received_amount': receivedAmount,
+        if (transactionReference != null)
+          'transaction_reference': transactionReference,
+        if (notes != null) 'notes': notes,
+        if (tenantPaymentAccountId != null)
+          'tenant_payment_account_id': tenantPaymentAccountId,
+      };
+      await localDataSource.enqueuePayment(dto);
+      return const Left(OfflineQueuedFailure());
     }
   }
 

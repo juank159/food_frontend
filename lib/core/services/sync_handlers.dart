@@ -34,6 +34,12 @@ PaymentSyncRequest? resolvePaymentSyncRequest(Map<String, dynamic> raw) {
     );
   }
 
+  if (type == 'createPayment') {
+    // `POST /payments` lleva el `order_id` en el body, no en el path.
+    if (payload['order_id'] is! String) return null;
+    return PaymentSyncRequest(path: '/payments', body: payload);
+  }
+
   final orderId = payload.remove('order_id') as String?;
   if (orderId == null) return null;
   return PaymentSyncRequest(
