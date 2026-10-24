@@ -55,7 +55,17 @@ class TabSessionDetailController extends GetxController {
       if (paintedFromCache) return;
       errorMessage.value = failure.message;
       AppSnackbar.show('Error', failure.message);
-    }, (s) => session.value = s);
+    }, (s) {
+      // Bug real reportado: cuenta pagada (saldo $0) pero la card del
+      // ticket seguía en "Debe $X". La caché de arriba no trae los
+      // `payments` de cada ticket, y `TabSession` no compara `orders`
+      // en su `==` — con los mismos totales, GetX ve el valor de red
+      // "igual" al de caché y DESCARTA la asignación (`Rx.value` no
+      // asigna si `==`), así que quedaban los tickets sin pagos. Se
+      // suelta el de caché primero para que el de red sí entre.
+      if (session.value == s) session.value = null;
+      session.value = s;
+    });
     isLoading.value = false;
   }
 
