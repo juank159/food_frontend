@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/utils/app_snackbar.dart';
 import '../controllers/breb_payment_controller.dart';
@@ -24,6 +25,9 @@ class BrebPaymentDialog extends StatefulWidget {
   final String? orderId;
   final String? tabSessionId;
   final double amount;
+  /// `false` en el pago por ítems: ahí quien llama asume que el monto se
+  /// cubrió completo, así que no se permite asignar a mano un pago menor.
+  final bool allowPartialAssign;
 
   const BrebPaymentDialog({
     super.key,
@@ -31,6 +35,7 @@ class BrebPaymentDialog extends StatefulWidget {
     this.orderId,
     this.tabSessionId,
     required this.amount,
+    this.allowPartialAssign = true,
   }) : assert(
           (orderId == null) != (tabSessionId == null),
           'Se requiere exactamente uno: orderId o tabSessionId',
@@ -97,13 +102,33 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
-                          CurrencyFormatter.format(widget.amount),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+                        // El monto a transferir puede venir ajustado (hasta
+                        // $9 menos) para que sea único entre los cobros
+                        // pendientes — es el que el cliente DEBE enviar.
+                        Obx(() {
+                          final adj = widget.controller.adjustment;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                CurrencyFormatter.format(_amount),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (adj > 0 &&
+                                  widget.controller.state.value == BrebPaymentState.waiting)
+                                Text(
+                                  'Ajustado −${CurrencyFormatter.format(adj)} para identificar '
+                                  'el pago al instante. Pedile al cliente este valor exacto.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                                ),
+                            ],
+                          );
+                        }),
                       ],
                     ),
                   ),
@@ -184,7 +209,7 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
             children: [
               for (int i = 0; i < llaves.length; i++) ...[
                 if (i > 0) const SizedBox(height: 10),
-                _LlaveCard(llave: llaves[i], amount: widget.amount),
+                _LlaveCard(llave: llaves[i], amount: _amount),
               ],
             ],
           )
@@ -230,7 +255,9 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
             Text('Esperando confirmación de pago…', style: theme.textTheme.bodySmall),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        _findReceivedButton(),
+        const SizedBox(height: 8),
 
         SizedBox(
           width: double.infinity,
@@ -242,6 +269,31 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
         ),
       ],
     );
+  }
+
+  /// Red de seguridad: el cliente ya transfirió pero el pago no se
+  /// asignó solo (mandó otro valor, llegó tarde…). El cajero lo busca
+  /// entre los pagos recibidos y lo asigna a esta venta.
+  Widget _findReceivedButton() {
+    return TextButton.icon(
+      icon: const Icon(Icons.manage_search, size: 18),
+      label: const Text('¿Ya pagó y no se confirma? Buscar pago'),
+      onPressed: _openReceivedPayments,
+    );
+  }
+
+  Future<void> _openReceivedPayments() async {
+    final picked = await showDialog<BrebReceivedPayment>(
+      context: context,
+      builder: (_) => _ReceivedPaymentsDialog(
+        controller: widget.controller,
+        expected: _amount,
+        allowPartial: widget.allowPartialAssign,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final err = await widget.controller.assignReceived(picked);
+    if (err != null) AppSnackbar.show('No se pudo asignar', err);
   }
 
   Widget _buildSuccess(BuildContext context, ThemeData theme) {
@@ -274,9 +326,20 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            CurrencyFormatter.format(widget.amount),
+            CurrencyFormatter.format(_amount),
             style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
+          if (_isPartial) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Abono — queda saldo pendiente por cobrar.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.orange.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             payer.isNotEmpty ? 'Transferencia de $payer confirmada.' : 'Transferencia confirmada.',
@@ -304,7 +367,9 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
+          _findReceivedButton(),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -369,6 +434,17 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
       ),
     );
   }
+
+  /// Monto del cobro en curso (el ajustado si el backend lo ajustó).
+  double get _amount {
+    final v = widget.controller.chargeAmount.value;
+    return v > 0 ? v : widget.amount;
+  }
+
+  /// Se asignó a mano un pago menor que lo que se debía (más allá del
+  /// redondeo de hasta $9): quedó como abono.
+  bool get _isPartial =>
+      widget.controller.requestedAmount.value - widget.controller.chargeAmount.value > 9.009;
 
   void _cancel() {
     widget.controller.cancel();
@@ -557,6 +633,150 @@ class _QrPreviewDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Lista de pagos Bre-B recibidos sin asignar (últimas 24 h). El cajero
+/// toca el que corresponde a esta venta.
+class _ReceivedPaymentsDialog extends StatefulWidget {
+  final BrebPaymentController controller;
+  final double expected;
+  final bool allowPartial;
+  const _ReceivedPaymentsDialog({
+    required this.controller,
+    required this.expected,
+    required this.allowPartial,
+  });
+
+  @override
+  State<_ReceivedPaymentsDialog> createState() => _ReceivedPaymentsDialogState();
+}
+
+class _ReceivedPaymentsDialogState extends State<_ReceivedPaymentsDialog> {
+  late Future<List<BrebReceivedPayment>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.controller.loadUnassigned();
+  }
+
+  void _reload() => setState(() => _future = widget.controller.loadUnassigned());
+
+  Future<void> _pick(BrebReceivedPayment p) async {
+    final diff = widget.expected - p.amount;
+    String? warning;
+    if (diff > 9.009 && !widget.allowPartial) {
+      AppSnackbar.show(
+        'Pago menor al cobro',
+        'En el pago por ítems no se puede asignar un pago menor. '
+            'Cerrá y cobrá ese valor desde "Cobrar" (abono).',
+      );
+      return;
+    }
+    if (diff > 9.009) {
+      warning = 'Este pago es MENOR que el cobro: se registra como abono de '
+          '${CurrencyFormatter.format(p.amount)} y quedan '
+          '${CurrencyFormatter.format(diff)} pendientes.';
+    } else if (diff < -0.009) {
+      warning = 'Este pago es MAYOR que el cobro: se registra '
+          '${CurrencyFormatter.format(widget.expected)} (lo que se debía).';
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Asignar este pago a la venta?'),
+        content: Text(
+          '${CurrencyFormatter.format(p.amount)}'
+          '${p.payerName != null && p.payerName!.isNotEmpty ? ' de ${p.payerName}' : ''}'
+          '${warning != null ? '\n\n$warning' : ''}',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Asignar')),
+        ],
+      ),
+    );
+    if ((ok ?? false) && mounted) Navigator.pop(context, p);
+  }
+
+  String _time(DateTime? d) => d == null ? '' : DateTimeFormatter.timeOnly(d);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Pagos recibidos sin asignar'),
+      contentPadding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+      content: SizedBox(
+        width: 360,
+        child: FutureBuilder<List<BrebReceivedPayment>>(
+          future: _future,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snap.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No se pudo cargar (¿hay internet?).',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              );
+            }
+            final items = snap.data ?? const [];
+            if (items.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Todavía no llegó ningún pago sin asignar. Si el cliente '
+                  'acaba de transferir, esperá unos segundos y actualizá.',
+                  textAlign: TextAlign.center,
+                ),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final p = items[i];
+                final exact = (widget.expected - p.amount).abs() < 0.01;
+                return ListTile(
+                  leading: Icon(
+                    exact ? Icons.check_circle : Icons.payments_outlined,
+                    color: exact ? Colors.green : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    CurrencyFormatter.format(p.amount),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text([
+                    if (p.payerName != null && p.payerName!.isNotEmpty) p.payerName!,
+                    if (p.bankLabel != null && p.bankLabel!.isNotEmpty) p.bankLabel!,
+                    _time(p.receivedAt),
+                  ].where((x) => x.isNotEmpty).join(' · ')),
+                  onTap: () => _pick(p),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton.icon(
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('Actualizar'),
+          onPressed: _reload,
+        ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+      ],
     );
   }
 }

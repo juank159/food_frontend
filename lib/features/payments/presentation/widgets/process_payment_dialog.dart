@@ -311,6 +311,7 @@ class _ProcessPaymentDialogState extends State<ProcessPaymentDialog> {
         controller: brebCtrl,
         orderId: widget.orderId,
         amount: amount,
+        allowPartialAssign: false,
       ),
     );
     brebCtrl.cancel();

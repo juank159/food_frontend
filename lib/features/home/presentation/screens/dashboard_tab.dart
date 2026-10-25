@@ -78,9 +78,14 @@ class DashboardTab extends GetView<HomeController> {
     required bool isAdminOrManager,
   }) {
     final user = authController.currentUser;
+    // Un usuario puede tener un solo nombre ("Evelyn") → lastName vacío;
+    // indexar [0] sin revisar tumbaba todo el inicio.
     final initials = user != null
-        ? '${user.firstName[0]}${user.lastName[0]}'.toUpperCase()
-        : 'U';
+        ? ('${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+                '${user.lastName.isNotEmpty ? user.lastName[0] : ''}')
+            .toUpperCase()
+        : '';
+    final avatarText = initials.isEmpty ? 'U' : initials;
     final name = user?.firstName ?? 'Usuario';
     // Hora de Colombia real — antes usaba `DateTime.now().hour` del
     // dispositivo, que podía saludar "Buenas noches" de mañana si el
@@ -128,7 +133,7 @@ class DashboardTab extends GetView<HomeController> {
         ),
         alignment: Alignment.center,
         child: Text(
-          initials,
+          avatarText,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,

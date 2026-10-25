@@ -226,18 +226,23 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         amount: amount,
       ),
     );
+    // Lo que realmente quedó cubierto: el cobro ajustado (redondeo de hasta
+    // $9, que el backend registra como descuento) o, si el cajero asignó a
+    // mano un pago menor, solo ese abono.
+    final charged = brebCtrl.chargeAmount.value > 0 ? brebCtrl.chargeAmount.value : amount;
+    final covered = amount - charged <= 9.009 ? amount : charged;
     brebCtrl.cancel();
     if ((confirmed ?? false) && outerContext.mounted) {
       HapticFeedback.mediumImpact();
-      if (isFullPayment) {
+      if (isFullPayment && covered >= amount) {
         // Mismo comportamiento que el cobro no-Bre-B: si esto cubrió todo
         // lo que faltaba, imprimir el recibo final de una vez.
         PrintingOrchestrator.autoPrintTabSessionReceipt(session);
       } else {
         AppSnackbar.show(
           'Pago registrado',
-          '${CurrencyFormatter.format(amount)} cobrado · queda '
-              '${CurrencyFormatter.format(session.balance - amount)} pendiente',
+          '${CurrencyFormatter.format(covered)} cobrado · queda '
+              '${CurrencyFormatter.format(session.balance - covered)} pendiente',
         );
       }
       Navigator.of(outerContext).pop(true);
@@ -389,6 +394,7 @@ class _TabPaymentDialogState extends State<TabPaymentDialog> {
         controller: brebCtrl,
         tabSessionId: session.id,
         amount: amount,
+        allowPartialAssign: false,
       ),
     );
     brebCtrl.cancel();
