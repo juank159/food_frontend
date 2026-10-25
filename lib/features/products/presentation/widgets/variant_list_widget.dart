@@ -7,6 +7,9 @@ import '../../../../core/utils/app_snackbar.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../controllers/product_form_controller.dart';
 import 'variant_form_widget.dart';
+import '../../../../core/utils/input_formatters.dart';
+import '../../../inventory/domain/entities/recipe_line.dart';
+import '../../../inventory/presentation/widgets/recipe_editor.dart';
 
 /// Widget for managing the list of product variants
 class VariantListWidget extends GetView<ProductFormController> {
@@ -66,6 +69,24 @@ class VariantListWidget extends GetView<ProductFormController> {
                     onRemove: () => _confirmRemoveVariant(context, index),
                     onToggleDefault: () =>
                         controller.toggleVariantDefault(index),
+                    onEditRecipe: variant.id == null
+                        ? null
+                        : () => showRecipeEditorSheet(
+                              context,
+                              ownerType: RecipeOwnerType.variant,
+                              ownerId: variant.id!,
+                              title: variant.nameController.text.trim().isEmpty
+                                  ? 'Variante ${index + 1}'
+                                  : variant.nameController.text.trim(),
+                              subtitle: 'Se suma a la receta del producto. Ej. "Doble" = +1 arepa.',
+                              salePrice: ((NumberFormatHelper.parseFormattedInt(
+                                            controller.basePriceController.text) ??
+                                        0) +
+                                    (NumberFormatHelper.parseFormattedInt(
+                                            variant.priceModifierController.text) ??
+                                        0))
+                                  .toDouble(),
+                            ),
                   );
                 },
               ),

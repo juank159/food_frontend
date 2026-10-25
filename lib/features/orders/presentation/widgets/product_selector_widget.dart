@@ -22,6 +22,7 @@ import '../controllers/order_form_controller.dart';
 import 'modifier_selector_widget.dart';
 import 'variant_selector_widget.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../inventory/services/inventory_stock_service.dart';
 
 /// Product Selector Widget
 /// Widget para seleccionar productos y agregarlos al carrito
@@ -331,14 +332,16 @@ class ProductSelectorWidget extends StatelessWidget {
     // y se agota el stock, queremos que el card refleje "Agotado" sin esperar
     // un re-fetch del catálogo.
     return Obx(() {
-      // Forzamos dependencia con el carrito leyendo la lista observable.
+      // Forzamos dependencia con el carrito y con el stock de insumos
+      // (otra caja vendió, llegó una compra) leyendo las listas observables.
       // ignore: unused_local_variable
-      final _ = orderController.cartItems.length;
+      final _ = orderController.cartItems.length +
+          (InventoryStockService.maybe?.ingredients.length ?? 0);
 
-      final outOfStock = orderController.isProductOutOfStock(product);
       final remaining = orderController.remainingStock(product);
-      final cartFull = remaining != null && remaining <= 0;
-      final isAvailable = product.isAvailable && !outOfStock && !cartFull;
+      // El inventario NO bloquea la venta (vender y avisar): sin stock se
+      // muestra el aviso pero la card sigue tocable.
+      final isAvailable = product.isAvailable;
 
       return HoverCard(
         // Tap en la card = abrir el detalle (cantidad + NOTAS para cocina +
@@ -616,13 +619,13 @@ class ProductSelectorWidget extends StatelessWidget {
                         ),
                       ),
               ),
-              // Overlay "Agotado" cuando no se puede agregar más por stock.
-              // Se monta sobre la imagen para que sea evidente a primera vista.
+              // Aviso "Sin stock" según los insumos de la receta. Es solo
+              // aviso (overlay suave): se puede vender igual.
               if (isOutOfStock)
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
+                      color: Colors.black.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
@@ -636,7 +639,7 @@ class ProductSelectorWidget extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
-                        'Agotado',
+                        'Sin stock',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -774,7 +777,7 @@ class ProductSelectorWidget extends StatelessWidget {
     final isLow = remaining > 0 && remaining <= 5;
     if (!isOut && !isLow) return null;
     final color = isOut ? Colors.red : Colors.orange;
-    final label = isOut ? 'Agotado' : 'Quedan $remaining';
+    final label = isOut ? 'Sin stock' : 'Quedan $remaining';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

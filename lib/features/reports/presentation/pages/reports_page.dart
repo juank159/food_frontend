@@ -251,7 +251,7 @@ class ReportsPage extends StatelessWidget {
       ),
       _ReportTile(
         title: 'Inventario',
-        subtitle: 'Stock crítico y movimientos',
+        subtitle: 'Stock de insumos, valor y costo de platos',
         icon: Icons.warehouse_outlined,
         accent: AppColors.info,
         onTap: () => Get.toNamed(AppRoutes.inventoryReport),

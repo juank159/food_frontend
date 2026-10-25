@@ -21,6 +21,9 @@ import '../../domain/usecases/resend_signup_code_usecase.dart';
 import '../../domain/usecases/reset_password_usecase.dart';
 import '../../domain/usecases/sign_up_business_usecase.dart';
 import '../../domain/usecases/update_profile_usecase.dart';
+import '../../../inventory/services/inventory_stock_service.dart';
+import '../../../../core/network/network_info.dart';
+import '../../../../core/services/connectivity_service.dart';
 
 /// Auth Controller using GetX
 /// Manages authentication state and business logic
@@ -125,6 +128,25 @@ class AuthController extends GetxController {
     try {
       Get.find<RealtimeService>().connect().ignore();
     } catch (_) {}
+    // Stock de insumos local-first para venta e inventario (ver
+    // `InventoryStockService`): refresca la caché apenas hay sesión.
+    InventoryStockService.maybe?.start();
+    // Bug real: lo que quedó en la cola offline de una sesión anterior
+    // (app cerrada sin red) no se mandaba si la app arrancaba CON red —
+    // el sync solo se disparaba al pasar de "sin red" a "con red". Se
+    // manda acá, ya con token y solo si hay red de verdad (un intento
+    // fallido gasta uno de los 5 reintentos de cada operación).
+    _syncPendingQueue();
+  }
+
+  Future<void> _syncPendingQueue() async {
+    if (!Get.isRegistered<SyncService>()) return;
+    if (!await sl<NetworkInfo>().isConnected) return;
+    if (Get.isRegistered<ConnectivityService>() &&
+        !Get.find<ConnectivityService>().isOnline.value) {
+      return;
+    }
+    Get.find<SyncService>().processQueue();
   }
 
   /// Login user against the given tenant subdomain.
@@ -412,5 +434,6 @@ class AuthController extends GetxController {
     try {
       Get.find<RealtimeService>().disconnect();
     } catch (_) {}
+    InventoryStockService.maybe?.stop();
   }
 }

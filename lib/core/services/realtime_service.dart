@@ -9,6 +9,7 @@ import '../../features/orders/presentation/controllers/orders_controller.dart';
 import '../../features/products/presentation/controllers/products_controller.dart';
 import '../../features/tab_sessions/presentation/controllers/open_tabs_controller.dart';
 import '../../features/tab_sessions/presentation/controllers/tab_session_detail_controller.dart';
+import '../../features/inventory/services/inventory_stock_service.dart';
 
 /// Aviso en vivo entre dispositivos del mismo negocio — ver el
 /// comentario largo en `realtime.gateway.ts` (backend) para el
@@ -120,6 +121,12 @@ class RealtimeService extends GetxController {
           if (Get.isRegistered<TabSessionDetailController>()) {
             Get.find<TabSessionDetailController>().load();
           }
+          break;
+        case 'inventory':
+          // Otra caja vendió (descuenta insumos) o alguien registró una
+          // compra/merma/receta: refrescar el stock local-first que usan
+          // la pantalla de venta y la de inventario.
+          InventoryStockService.maybe?.refresh();
           break;
         case 'products':
           if (Get.isRegistered<ProductsController>()) {

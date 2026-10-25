@@ -85,7 +85,13 @@ class AppSnackbar {
       return;
     }
 
-    final overlay = Overlay.maybeOf(ctx, rootOverlay: true);
+    // Bug real: `Get.context` es el contexto del Navigator de GetX, y su
+    // Overlay es HIJO del Navigator, no ancestro — `Overlay.maybeOf` desde
+    // ahí da null y cada aviso se descartaba en silencio ("Producto
+    // agregado", "Pago registrado", errores…). Se cae al overlay del
+    // propio Navigator, que siempre existe.
+    final overlay = Overlay.maybeOf(ctx, rootOverlay: true) ??
+        Get.key.currentState?.overlay;
     if (overlay == null) {
       debugPrint(
         '[AppSnackbar suppressed — no Overlay] $title — $message',

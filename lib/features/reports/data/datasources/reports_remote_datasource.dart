@@ -6,10 +6,8 @@ import '../../../../core/utils/date_period.dart';
 import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/data/models/customer_statistics_model.dart';
 import '../../../employees/data/models/employee_model.dart';
-import '../../../products/data/models/product_model.dart';
 import '../models/customer_report_model.dart';
 import '../models/employee_report_model.dart';
-import '../models/inventory_report_model.dart';
 import '../models/product_sales_model.dart';
 import '../models/sales_report_model.dart';
 import '../../domain/entities/product_sales_report.dart';
@@ -20,7 +18,6 @@ import '../../domain/entities/product_sales_report.dart';
 /// reusa endpoints existentes del backend (no se introducen nuevos):
 ///
 ///   * Sales → `GET /orders/statistics`
-///   * Inventory → `GET /products?is_available=true`
 ///   * Employees → `GET /users`
 ///   * Customers → `GET /customers/statistics` + `GET /customers`
 abstract class ReportsRemoteDataSource {
@@ -34,7 +31,6 @@ abstract class ReportsRemoteDataSource {
 
   /// Llama a `GET /products?is_available=true` y devuelve los productos
   /// crudos para que la capa de dominio filtre los trackeados.
-  Future<InventoryReportModel> getInventoryReport();
 
   /// Llama a `GET /users` y devuelve la lista de empleados con sus
   /// métricas agregadas (`total_orders_handled`, `total_sales_amount`,
@@ -103,36 +99,6 @@ class ReportsRemoteDataSourceImpl implements ReportsRemoteDataSource {
       } else {
         throw ServerException('Failed to load sales report');
       }
-    } on DioException catch (e) {
-      _handleDioException(e);
-      rethrow;
-    }
-  }
-
-  @override
-  Future<InventoryReportModel> getInventoryReport() async {
-    try {
-      // Pedimos sólo productos disponibles — los descontinuados no aportan
-      // al reporte de stock vigente. Subimos el `limit` para no perder
-      // productos en catálogos grandes.
-      final response = await dio.get(
-        ApiConstants.products,
-        queryParameters: <String, dynamic>{
-          'is_available': true,
-          'limit': 500,
-        },
-      );
-
-      if (response.statusCode != 200) {
-        throw ServerException('Failed to load inventory report');
-      }
-
-      final list = _extractList(response.data);
-      final products = list
-          .whereType<Map<String, dynamic>>()
-          .map(ProductModel.fromJson)
-          .toList();
-      return InventoryReportModel(products: products);
     } on DioException catch (e) {
       _handleDioException(e);
       rethrow;

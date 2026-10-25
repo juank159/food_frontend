@@ -2,7 +2,6 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/error/failures.dart';
 import '../entities/customer_report.dart';
 import '../entities/employee_report.dart';
-import '../entities/inventory_report.dart';
 import '../entities/product_sales_report.dart';
 import '../entities/sales_report.dart';
 
@@ -21,11 +20,6 @@ abstract class ReportsRepository {
     DateTime? dateFrom,
     DateTime? dateTo,
   });
-
-  /// Reporte de inventario — listado de productos con seguimiento y
-  /// KPIs derivados de su stock actual. No tiene filtros de fecha
-  /// porque es un snapshot del estado vigente.
-  Future<Either<Failure, InventoryReport>> getInventoryReport();
 
   /// Reporte de empleados — ranking por ventas y KPIs del equipo.
   Future<Either<Failure, EmployeeReport>> getEmployeeReport();

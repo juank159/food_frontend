@@ -2,6 +2,7 @@ import '../../../../core/services/local_cache_service.dart';
 import '../../../../core/services/offline_queue_service.dart';
 import '../../domain/entities/order.dart' as order_entity;
 import '../models/order_model.dart';
+import 'package:uuid/uuid.dart';
 
 abstract class OrderLocalDataSource {
   // Cache (para ver órdenes offline)
@@ -89,7 +90,13 @@ class OrderLocalDataSourceImpl implements OrderLocalDataSource {
     final entry = QueueEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       type: QueueOperationType.createOrder,
-      payload: createOrderDto,
+      // Idempotencia: si el servidor recibe esta orden dos veces (la
+      // respuesta se perdió y la cola reintentó), devuelve la ya creada.
+      payload: {
+        ...createOrderDto,
+        'client_request_id':
+            createOrderDto['client_request_id'] ?? const Uuid().v4(),
+      },
       createdAt: DateTime.now(),
     );
     await queue.enqueue(entry);

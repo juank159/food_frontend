@@ -30,6 +30,7 @@ import 'kitchen_dashboard.dart';
 import '../../../../core/utils/app_dialog.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../inventory/services/inventory_stock_service.dart';
 
 /// Home Screen - Pantalla principal con navegación inferior.
 ///
@@ -260,12 +261,23 @@ class HomeScreen extends GetView<HomeController> {
               onTap: () => Get.toNamed(AppRoutes.counterTicketsBoard),
             ),
           if (access.canSeeInventory)
-            _buildMenuItem(
-              icon: FontAwesomeIcons.boxesStacked,
-              title: 'Inventario',
-              subtitle: 'Control de stock',
-              onTap: () => NavigationService.toInventory(),
-            ),
+            // Alerta de stock bajo/agotado (insumos) directo en el menú.
+            Obx(() {
+              final stock = InventoryStockService.maybe;
+              final out = stock?.outCount ?? 0;
+              final low = stock?.lowCount ?? 0;
+              return _buildMenuItem(
+                icon: FontAwesomeIcons.boxesStacked,
+                title: 'Inventario',
+                subtitle: out + low == 0
+                    ? 'Insumos, recetas, compras y costos'
+                    : '⚠ ${[
+                        if (out > 0) '$out agotado${out == 1 ? '' : 's'}',
+                        if (low > 0) '$low con stock bajo',
+                      ].join(' · ')}',
+                onTap: () => NavigationService.toInventory(),
+              );
+            }),
           if (access.canSeeChecklist)
             _buildMenuItem(
               icon: FontAwesomeIcons.listCheck,

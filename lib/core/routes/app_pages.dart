@@ -88,21 +88,19 @@ import '../../features/subscriptions/presentation/bindings/subscription_binding.
 import '../../features/subscriptions/presentation/pages/subscription_page.dart';
 import '../../features/reports/presentation/bindings/customer_report_binding.dart';
 import '../../features/reports/presentation/bindings/employee_report_binding.dart';
-import '../../features/reports/presentation/bindings/inventory_report_binding.dart';
 import '../../features/reports/presentation/bindings/product_sales_binding.dart';
 import '../../features/reports/presentation/bindings/reports_binding.dart';
 import '../../features/reports/presentation/bindings/sales_report_binding.dart';
 import '../../features/reports/presentation/pages/customer_report_page.dart';
 import '../../features/reports/presentation/pages/employee_report_page.dart';
-import '../../features/reports/presentation/pages/inventory_report_page.dart';
 import '../../features/reports/presentation/pages/product_sales_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/reports/presentation/pages/sales_report_page.dart';
 import '../../features/inventory/presentation/bindings/inventory_binding.dart';
-import '../../features/inventory/presentation/bindings/inventory_detail_binding.dart';
-import '../../features/inventory/presentation/pages/inventory_adjustment_page.dart';
-import '../../features/inventory/presentation/pages/inventory_detail_page.dart';
 import '../../features/inventory/presentation/pages/inventory_page.dart';
+import '../../features/inventory/presentation/pages/ingredient_detail_page.dart';
+import '../../features/inventory/presentation/pages/stock_count_page.dart';
+import '../../features/inventory/presentation/pages/stock_operation_page.dart';
 import '../../features/reservations/presentation/bindings/reservation_detail_binding.dart';
 import '../../features/reservations/presentation/bindings/reservation_form_binding.dart';
 import '../../features/reservations/presentation/bindings/reservations_binding.dart';
@@ -708,8 +706,10 @@ class AppPages {
     ),
     GetPage(
       name: AppRoutes.inventoryReport,
-      page: () => const InventoryReportPage(),
-      binding: InventoryReportBinding(),
+      // El reporte viejo (stock por producto) se reemplazó por el
+      // inventario de insumos: valorización, alertas y costos de platos.
+      page: () => const InventoryPage(),
+      binding: InventoryBinding(),
       middlewares: [AuthGuard(), RoleGuard(requiredRoles: const ["admin", "manager"])],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),
@@ -807,20 +807,27 @@ class AppPages {
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),
     ),
+    // Rutas estáticas ANTES de `/inventory/:id` para que GetX no las
+    // tome como un id de insumo.
     GetPage(
-      name: AppRoutes.inventoryDetail,
-      page: () => const InventoryDetailPage(),
-      binding: InventoryDetailBinding(),
+      name: AppRoutes.inventoryOperation,
+      page: () => const StockOperationPage(),
       middlewares: [AuthGuard()],
-      transition: Transition.cupertino,
+      transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
-      name: AppRoutes.inventoryAdjustment,
-      page: () => const InventoryAdjustmentPage(),
-      binding: InventoryBinding(),
+      name: AppRoutes.inventoryCount,
+      page: () => const StockCountPage(),
       middlewares: [AuthGuard()],
       transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.inventoryDetail,
+      page: () => const IngredientDetailPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),
     ),
 

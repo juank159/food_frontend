@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../../core/config/formatters/currency_formatter.dart';
+import '../../../../core/config/formatters/datetime_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/widgets.dart';
-import '../../domain/entities/inventory_item.dart';
+import '../../domain/entities/ingredient.dart';
+import '../../domain/entities/ingredient_movement.dart';
 import '../controllers/inventory_controller.dart';
+import '../widgets/ingredient_form_sheet.dart';
+import '../widgets/inventory_format.dart';
+import 'stock_operation_page.dart';
 
-/// Inventory Page
-///
-/// Listado de inventario con KPIs en el header, chips de filtro inline
-/// (todos / en stock / bajo / agotados) y cards estilo `OrderCard` con
-/// stripe vertical de color (verde/ámbar/rojo) — patrón visual idéntico
-/// al resto de la app para que el usuario navegue por inercia.
+/// Inventario por insumos + recetas: Insumos · Movimientos · Costos.
 class InventoryPage extends GetView<InventoryController> {
   const InventoryPage({super.key});
 
@@ -23,18 +24,28 @@ class InventoryPage extends GetView<InventoryController> {
         child: Column(
           children: [
             _Header(controller: controller),
-            const SizedBox(height: 12),
-            _Filters(controller: controller),
-            const SizedBox(height: 8),
-            Expanded(child: _ItemsList(controller: controller)),
+            const SizedBox(height: 10),
+            _Tabs(controller: controller),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Obx(() {
+                switch (controller.tab.value) {
+                  case 1:
+                    return _MovementsTab(controller: controller);
+                  case 2:
+                    return _CostsTab(controller: controller);
+                  default:
+                    return _IngredientsTab(controller: controller);
+                }
+              }),
+            ),
           ],
         ),
       ),
+      bottomNavigationBar: _ActionsBar(controller: controller),
     );
   }
 }
-
-// ─────────────────────────────── Header ───────────────────────────────
 
 class _Header extends StatelessWidget {
   final InventoryController controller;
@@ -43,40 +54,56 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Forzamos la suscripción a `items` para que los KPIs se
-      // recalculen cuando cambia la lista.
-      final _ = controller.items.length;
+      final s = controller.stock;
       return AppGradientHeader(
         title: 'Inventario',
-        subtitle: 'Control de stock en tiempo real',
-        trailing: IconButton(
-          tooltip: 'Refrescar',
-          onPressed: controller.refresh,
-          icon: const Icon(Icons.refresh, color: Colors.white),
-        ),
+        subtitle: 'Insumos, recetas y costos',
+        trailing: s.isRefreshing.value
+            ? const Padding(
+                padding: EdgeInsets.all(12),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+              )
+            : IconButton(
+                tooltip: 'Actualizar',
+                onPressed: controller.refreshAll,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+              ),
         chips: [
           AppKpiChip(
             icon: Icons.inventory_2_outlined,
-            label: 'Productos',
-            value: controller.totalCount.toString(),
-          ),
-          AppKpiChip(
-            icon: Icons.check_circle_outline,
-            label: 'En stock',
-            value: controller.inStockCount.toString(),
-            onTap: () => controller.setFilter(InventoryFilter.inStock),
+            label: 'Insumos',
+            value: '${s.ingredients.length}',
+            onTap: () {
+              controller.tab.value = 0;
+              controller.filter.value = IngredientFilter.all;
+            },
           ),
           AppKpiChip(
             icon: Icons.warning_amber_rounded,
-            label: 'Bajo',
-            value: controller.lowStockCount.toString(),
-            onTap: () => controller.setFilter(InventoryFilter.lowStock),
+            label: 'Bajos',
+            value: '${s.lowCount}',
+            onTap: () {
+              controller.tab.value = 0;
+              controller.filter.value = IngredientFilter.low;
+            },
           ),
           AppKpiChip(
             icon: Icons.remove_circle_outline,
             label: 'Agotados',
-            value: controller.outOfStockCount.toString(),
-            onTap: () => controller.setFilter(InventoryFilter.outOfStock),
+            value: '${s.outCount}',
+            onTap: () {
+              controller.tab.value = 0;
+              controller.filter.value = IngredientFilter.out;
+            },
+          ),
+          AppKpiChip(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Valor',
+            value: CurrencyFormatter.format(controller.inventoryValue),
           ),
         ],
       );
@@ -84,188 +111,189 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────── Filters ───────────────────────────────
-
-class _Filters extends StatelessWidget {
+class _Tabs extends StatelessWidget {
   final InventoryController controller;
-  const _Filters({required this.controller});
+  const _Tabs({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-      child: SizedBox(
-        height: 36,
-        child: Obx(() {
-          final f = controller.filter.value;
-          return ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            children: [
-              AppFilterChip(
-                label: 'Todos',
-                selected: f == InventoryFilter.all,
-                onTap: () => controller.setFilter(InventoryFilter.all),
+    const labels = ['Insumos', 'Movimientos', 'Costos'];
+    const icons = [Icons.inventory_2_outlined, Icons.history, Icons.pie_chart_outline];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Obx(
+        () => Row(
+          children: [
+            for (var i = 0; i < labels.length; i++)
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < labels.length - 1 ? 8 : 0),
+                  child: AppFilterChip(
+                    label: labels[i],
+                    icon: icons[i],
+                    selected: controller.tab.value == i,
+                    onTap: () => controller.tab.value = i,
+                  ),
+                ),
               ),
-              AppFilterChip(
-                label: 'En stock',
-                icon: Icons.check_circle_outline,
-                selected: f == InventoryFilter.inStock,
-                onTap: () => controller.setFilter(InventoryFilter.inStock),
-              ),
-              AppFilterChip(
-                label: 'Stock bajo',
-                icon: Icons.warning_amber_rounded,
-                selected: f == InventoryFilter.lowStock,
-                onTap: () => controller.setFilter(InventoryFilter.lowStock),
-              ),
-              AppFilterChip(
-                label: 'Agotados',
-                icon: Icons.remove_circle_outline,
-                selected: f == InventoryFilter.outOfStock,
-                onTap: () => controller.setFilter(InventoryFilter.outOfStock),
-              ),
-            ],
-          );
-        }),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─────────────────────────────── List ───────────────────────────────
+// ─────────────────────────────── Insumos ───────────────────────────────
 
-class _ItemsList extends StatelessWidget {
+class _IngredientsTab extends StatelessWidget {
   final InventoryController controller;
-  const _ItemsList({required this.controller});
+  const _IngredientsTab({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final loading = controller.isLoading.value;
-      final err = controller.errorMessage.value;
-      final list = controller.filteredItems;
-
-      if (loading && controller.items.isEmpty) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (err.isNotEmpty && controller.items.isEmpty) {
-        return AppErrorState(
-          message: err,
-          onRetry: controller.refresh,
-        );
-      }
-      if (list.isEmpty) {
-        return AppEmptyState(
-          icon: _emptyIcon(controller.filter.value),
-          title: _emptyTitle(controller.filter.value),
-          message: _emptyMessage(controller.filter.value),
-        );
-      }
-
-      return RefreshIndicator(
-        color: AppColors.primary,
-        onRefresh: controller.refresh,
-        child: ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => _InventoryCard(
-            item: list[i],
-            // El tap sobre la card va al detalle — la página dedicada
-            // muestra todo el contexto del item (estado, configuración,
-            // histórico). El CTA "Ajustar" sigue yendo directo al form
-            // para no agregar fricción cuando ya sabés qué cambiar.
-            onTap: () async {
-              await Get.toNamed(
-                AppRoutes.buildInventoryDetail(list[i].id),
-              );
-              // Recargamos al volver: si ajustaron desde el detalle el
-              // stock ya quedó actualizado en memoria, pero un refresh
-              // garantiza que el listado refleje cualquier cambio.
-              await controller.refresh();
-            },
-            onAdjust: () {
-              controller.startAdjustment(
-                list[i],
-                onReady: () => Get.toNamed(AppRoutes.inventoryAdjustment),
-              );
-            },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Buscar insumo o grupo…',
+                    prefixIcon: const Icon(Icons.search),
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppColors.cardBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                  ),
+                  onChanged: (v) => controller.search.value = v,
+                ),
+              ),
+            ],
           ),
         ),
-      );
-    });
-  }
-
-  IconData _emptyIcon(InventoryFilter f) {
-    switch (f) {
-      case InventoryFilter.outOfStock:
-        return Icons.celebration_outlined;
-      case InventoryFilter.lowStock:
-        return Icons.thumb_up_alt_outlined;
-      case InventoryFilter.inStock:
-        return Icons.inventory_2_outlined;
-      case InventoryFilter.all:
-        return Icons.inventory_2_outlined;
-    }
-  }
-
-  String _emptyTitle(InventoryFilter f) {
-    switch (f) {
-      case InventoryFilter.outOfStock:
-        return 'No hay productos agotados';
-      case InventoryFilter.lowStock:
-        return 'Stock saludable';
-      case InventoryFilter.inStock:
-        return 'Sin productos en stock';
-      case InventoryFilter.all:
-        return 'No hay productos';
-    }
-  }
-
-  String _emptyMessage(InventoryFilter f) {
-    switch (f) {
-      case InventoryFilter.outOfStock:
-        return 'Todo lo que trackeás tiene unidades disponibles. Buen trabajo.';
-      case InventoryFilter.lowStock:
-        return 'Ningún producto está cerca del umbral mínimo.';
-      case InventoryFilter.inStock:
-        return 'Cargá stock desde el ajuste para empezar a controlar inventario.';
-      case InventoryFilter.all:
-        return 'Cargá productos desde el módulo de Productos para verlos acá.';
-    }
+        SizedBox(
+          height: 36,
+          child: Obx(() {
+            final f = controller.filter.value;
+            return ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                AppFilterChip(
+                  label: 'Todos',
+                  selected: f == IngredientFilter.all,
+                  onTap: () => controller.filter.value = IngredientFilter.all,
+                ),
+                AppFilterChip(
+                  label: 'Stock bajo',
+                  icon: Icons.warning_amber_rounded,
+                  selected: f == IngredientFilter.low,
+                  onTap: () => controller.filter.value = IngredientFilter.low,
+                ),
+                AppFilterChip(
+                  label: 'Agotados',
+                  icon: Icons.remove_circle_outline,
+                  selected: f == IngredientFilter.out,
+                  onTap: () => controller.filter.value = IngredientFilter.out,
+                ),
+              ],
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Obx(() {
+            final s = controller.stock;
+            final list = controller.visibleIngredients;
+            final pendingIds = s.pendingMovements.map((m) => m.ingredientId).toSet();
+            if (s.ingredients.isEmpty) {
+              if (s.isRefreshing.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return AppEmptyState(
+                icon: Icons.inventory_2_outlined,
+                title: 'Empezá con tus insumos',
+                message: 'Cargá la materia prima que comprás (ej. "Arepa tipo A") y '
+                    'después, en cada producto, armá su receta. Al vender se '
+                    'descuenta sola.',
+                actionLabel: 'Crear primer insumo',
+                actionIcon: Icons.add,
+                onAction: () => showIngredientFormSheet(context),
+              );
+            }
+            if (list.isEmpty) {
+              return const AppEmptyState(
+                icon: Icons.thumb_up_alt_outlined,
+                title: 'Nada por acá',
+                message: 'Ningún insumo coincide con el filtro.',
+              );
+            }
+            return RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: controller.refreshAll,
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                itemCount: list.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _IngredientCard(
+                  ingredient: list[i],
+                  usages: s.usagesOf(list[i].id).length,
+                  pending: pendingIds.contains(list[i].id) || list[i].isPendingSync,
+                  onTap: () => Get.toNamed(AppRoutes.buildInventoryDetail(list[i].id)),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
   }
 }
 
-// ─────────────────────────────── Card ───────────────────────────────
-
-class _InventoryCard extends StatelessWidget {
-  final InventoryItem item;
+class _IngredientCard extends StatelessWidget {
+  final Ingredient ingredient;
+  final int usages;
+  final bool pending;
   final VoidCallback onTap;
-  final VoidCallback onAdjust;
 
-  const _InventoryCard({
-    required this.item,
+  const _IngredientCard({
+    required this.ingredient,
+    required this.usages,
+    required this.pending,
     required this.onTap,
-    required this.onAdjust,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = _stripeColor(item);
-    final statusLabel = _statusLabel(item);
+    final i = ingredient;
+    final color = i.isOut
+        ? AppColors.error
+        : i.isLow
+            ? AppColors.warning
+            : AppColors.success;
+    final status = i.currentStock < 0
+        ? 'Negativo'
+        : i.isOut
+            ? 'Agotado'
+            : i.isLow
+                ? 'Stock bajo'
+                : 'En stock';
     return Material(
       color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(14),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
           child: IntrinsicHeight(
             child: Row(
               children: [
@@ -289,81 +317,65 @@ class _InventoryCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                item.name,
+                                i.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.textPrimary,
-                                  letterSpacing: -0.2,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            if (pending)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 6),
+                                child: Tooltip(
+                                  message: 'Cambios sin sincronizar (se envían solos)',
+                                  child: Icon(Icons.cloud_upload_outlined,
+                                      size: 16, color: AppColors.textSecondary),
+                                ),
+                              ),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: color.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: color,
-                                ),
-                              ),
+                              child: Text(status,
+                                  style: TextStyle(
+                                      fontSize: 10, fontWeight: FontWeight.w700, color: color)),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          item.sku == null || item.sku!.isEmpty
-                              ? 'Sin SKU'
-                              : 'SKU ${item.sku}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
+                          [
+                            if (i.category != null && i.category!.isNotEmpty) i.category!,
+                            usages == 0
+                                ? 'Sin usar en recetas'
+                                : 'En $usages receta${usages == 1 ? '' : 's'}',
+                          ].join(' · '),
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            _StockMetric(
-                              label: 'Stock',
-                              value: _stockText(item),
-                              color: color,
-                            ),
-                            const SizedBox(width: 14),
-                            _StockMetric(
+                            _Metric(label: 'Stock', value: fmtQty(i.currentStock, i.unit), color: color),
+                            const SizedBox(width: 16),
+                            _Metric(
                               label: 'Mínimo',
-                              value: item.minStockAlert?.toString() ?? '—',
+                              value: i.minStock > 0 ? fmtQty(i.minStock, i.unit) : '—',
                               color: AppColors.textSecondary,
                             ),
                             const Spacer(),
-                            FilledButton.tonalIcon(
-                              onPressed: onAdjust,
-                              style: FilledButton.styleFrom(
-                                backgroundColor:
-                                    AppColors.primary.withValues(alpha: 0.1),
-                                foregroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                            if (i.avgCost > 0)
+                              _Metric(
+                                label: 'Costo / ${i.unit.short}',
+                                value: CurrencyFormatter.format(i.avgCost),
+                                color: AppColors.textSecondary,
+                                end: true,
                               ),
-                              icon: const Icon(Icons.tune, size: 16),
-                              label: const Text(
-                                'Ajustar',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ],
@@ -377,62 +389,355 @@ class _InventoryCard extends StatelessWidget {
       ),
     );
   }
-
-  Color _stripeColor(InventoryItem i) {
-    if (!i.trackInventory) return AppColors.textHint;
-    if (i.isOutOfStock) return AppColors.error;
-    if (i.isLowStock) return AppColors.warning;
-    return AppColors.success;
-  }
-
-  String _statusLabel(InventoryItem i) {
-    if (!i.trackInventory) return 'Sin tracking';
-    if (i.isOutOfStock) return 'Agotado';
-    if (i.isLowStock) return 'Stock bajo';
-    return 'En stock';
-  }
-
-  String _stockText(InventoryItem i) {
-    if (!i.trackInventory) return '—';
-    return (i.currentStock ?? 0).toString();
-  }
 }
 
-class _StockMetric extends StatelessWidget {
+class _Metric extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-
-  const _StockMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+  final bool end;
+  const _Metric({required this.label, required this.value, required this.color, this.end = false});
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
         const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: color,
-            height: 1.0,
-          ),
+        Text(value,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color, height: 1)),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────── Movimientos ───────────────────────────────
+
+class _MovementsTab extends StatelessWidget {
+  final InventoryController controller;
+  const _MovementsTab({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 36,
+          child: Obx(() {
+            final r = controller.movementReason.value;
+            return ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                AppFilterChip(
+                  label: 'Todos',
+                  selected: r == null,
+                  onTap: () => controller.movementReason.value = null,
+                ),
+                for (final reason in [
+                  MovementReason.sale,
+                  MovementReason.purchase,
+                  MovementReason.waste,
+                  MovementReason.count,
+                  MovementReason.adjustment,
+                ])
+                  AppFilterChip(
+                    label: reason.label,
+                    icon: reason.icon,
+                    selected: r == reason,
+                    onTap: () => controller.movementReason.value = reason,
+                  ),
+              ],
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Obx(() {
+            if (controller.loadingMovements.value && controller.movements.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final list = controller.visibleMovements;
+            if (list.isEmpty) {
+              return const AppEmptyState(
+                icon: Icons.history,
+                title: 'Sin movimientos',
+                message: 'Acá vas a ver cada venta, compra, merma y conteo, con quién lo hizo.',
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: controller.loadMovements,
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                itemCount: list.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) => MovementTile(
+                  movement: list[i],
+                  ingredient: controller.stock.byId(list[i].ingredientId),
+                  showIngredient: true,
+                ),
+              ),
+            );
+          }),
         ),
       ],
+    );
+  }
+}
+
+/// Fila de historial (se usa también en el detalle del insumo).
+class MovementTile extends StatelessWidget {
+  final IngredientMovement movement;
+  final Ingredient? ingredient;
+  final bool showIngredient;
+
+  const MovementTile({
+    super.key,
+    required this.movement,
+    required this.ingredient,
+    this.showIngredient = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final m = movement;
+    final unit = ingredient?.unit ?? IngredientUnit.unit;
+    final detail = [
+      if (showIngredient) ingredient?.name ?? 'Insumo',
+      if (m.reference != null && m.reference!.isNotEmpty) m.reference!,
+      if (m.userName != null) m.userName!,
+      if (m.notes != null && m.notes!.isNotEmpty) m.notes!,
+    ].join(' · ');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: m.reason.color.withValues(alpha: 0.12),
+            child: Icon(m.reason.icon, size: 18, color: m.reason.color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(m.reason.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (m.pendingSync) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.cloud_upload_outlined, size: 14, color: AppColors.textSecondary),
+                      const Text(' pendiente',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    ],
+                  ],
+                ),
+                if (detail.isNotEmpty)
+                  Text(detail,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text('${DateTimeFormatter.dateOnly(m.createdAt)} · ${DateTimeFormatter.time12(m.createdAt)}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                fmtDelta(m.delta, unit),
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: m.delta > 0
+                      ? AppColors.success
+                      : m.delta < 0
+                          ? AppColors.error
+                          : AppColors.textSecondary,
+                ),
+              ),
+              if (!m.pendingSync)
+                Text('Quedan ${fmtQty(m.stockAfter, unit)}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────── Costos ───────────────────────────────
+
+class _CostsTab extends StatelessWidget {
+  final InventoryController controller;
+  const _CostsTab({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final rows = controller.foodCostRows;
+      final without = controller.productsWithoutRecipe;
+      if (rows.isEmpty) {
+        return const AppEmptyState(
+          icon: Icons.pie_chart_outline,
+          title: 'Todavía sin recetas',
+          message: 'Abrí un producto (Productos → editar) y en "Receta e inventario" '
+              'agregá los insumos que lleva. Acá vas a ver cuánto te cuesta cada '
+              'plato y cuánto ganás.',
+        );
+      }
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'El "% de costo" es cuánto del precio se va en insumos. En comidas, '
+              'lo sano suele estar entre 25 % y 35 %.'
+              '${without > 0 ? '\n$without producto${without == 1 ? '' : 's'} todavía sin receta (no descuentan inventario).' : ''}',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ),
+          for (final r in rows) _CostRow(row: r),
+        ],
+      );
+    });
+  }
+}
+
+class _CostRow extends StatelessWidget {
+  final FoodCostRow row;
+  const _CostRow({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = row.price <= 0
+        ? AppColors.textSecondary
+        : row.pct <= 35
+            ? AppColors.success
+            : row.pct <= 45
+                ? AppColors.warning
+                : AppColors.error;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(row.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  'Precio ${CurrencyFormatter.format(row.price)} · Costo ${CurrencyFormatter.format(row.cost)}'
+                  '${row.missingCosts ? ' · faltan costos' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: row.missingCosts ? AppColors.warning : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(row.price > 0 ? '${row.pct.toStringAsFixed(0)} %' : '—',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+              Text('Ganás ${CurrencyFormatter.format(row.margin)}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────── Acciones ───────────────────────────────
+
+const _actionText = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
+
+class _ActionsBar extends StatelessWidget {
+  final InventoryController controller;
+  const _ActionsBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(IconData icon, String label, VoidCallback onTap, {bool primary = false}) {
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: primary
+              ? FilledButton.icon(
+                  onPressed: onTap,
+                  icon: Icon(icon, size: 18),
+                  label: Text(label, overflow: TextOverflow.ellipsis),
+                  style: FilledButton.styleFrom(
+                    textStyle: _actionText,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                )
+              : OutlinedButton.icon(
+                  onPressed: onTap,
+                  icon: Icon(icon, size: 18),
+                  label: Text(label, overflow: TextOverflow.ellipsis),
+                  style: OutlinedButton.styleFrom(
+                    textStyle: _actionText,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: const BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: Row(
+          children: [
+            action(Icons.local_shipping_outlined, 'Compra',
+                () => Get.toNamed(AppRoutes.inventoryOperation,
+                    arguments: {'mode': StockOperationMode.purchase}),
+                primary: true),
+            action(Icons.delete_sweep_outlined, 'Merma',
+                () => Get.toNamed(AppRoutes.inventoryOperation,
+                    arguments: {'mode': StockOperationMode.waste})),
+            action(Icons.fact_check_outlined, 'Conteo', () => Get.toNamed(AppRoutes.inventoryCount)),
+            action(Icons.add, 'Insumo', () => showIngredientFormSheet(context)),
+          ],
+        ),
+      ),
     );
   }
 }

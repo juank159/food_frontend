@@ -144,7 +144,9 @@ class AppRoutes {
   static const String inventory = '/inventory';
   static const String inventoryList = '/inventory/list';
   static const String inventoryDetail = '/inventory/:id';
-  static const String inventoryAdjustment = '/inventory/adjustment';
+  /// Compra / merma / ajuste — `arguments: {'mode': StockOperationMode, 'ingredientId'?}`.
+  static const String inventoryOperation = '/inventory/operation';
+  static const String inventoryCount = '/inventory/count';
 
   // ==================== RESERVATIONS ROUTES ====================
   static const String reservations = '/reservations';

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
+import 'browser/browser_online.dart';
 import 'realtime_service.dart';
 
 /// Servicio singleton que expone el estado de conectividad como stream reactivo.
@@ -24,6 +25,7 @@ class ConnectivityService extends GetxController {
 
   final RxBool isOnline = true.obs;
   StreamSubscription<InternetConnectionStatus>? _sub;
+  StreamSubscription<bool>? _webSub;
 
   @override
   void onInit() {
@@ -32,16 +34,25 @@ class ConnectivityService extends GetxController {
   }
 
   void _start() {
-    // En web dart:io no está disponible — asumimos siempre online.
-    // Dio se encarga de propagar errores de red cuando falla una petición.
+    // En web dart:io no está disponible: se usan los eventos `online` /
+    // `offline` del navegador. Bug real: antes se asumía "siempre online"
+    // y la cola offline (compras, ajustes de inventario hechos justo
+    // cuando se cayó la red) NUNCA se sincronizaba en la PWA.
     if (kIsWeb) {
-      isOnline.value = true;
+      isOnline.value = browserIsOnline();
+      _webSub = browserOnlineChanges().listen((online) {
+        final wasOffline = !isOnline.value;
+        isOnline.value = online;
+        if (wasOffline && online) _onReconnected();
+      });
       return;
     }
 
     final checker = InternetConnectionChecker();
 
-    // Verificar estado inicial de forma no bloqueante
+    // Verificar estado inicial de forma no bloqueante. (La cola pendiente
+    // de una sesión anterior se manda al iniciar sesión — ver
+    // `AuthController._startBackgroundServices`; acá todavía no hay token.)
     checker.hasConnection.then((connected) {
       isOnline.value = connected;
     });
@@ -74,6 +85,7 @@ class ConnectivityService extends GetxController {
   @override
   void onClose() {
     _sub?.cancel();
+    _webSub?.cancel();
     super.onClose();
   }
 }

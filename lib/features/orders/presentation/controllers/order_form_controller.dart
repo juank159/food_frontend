@@ -17,6 +17,8 @@ import '../../domain/usecases/create_order_usecase.dart';
 import '../models/sell_mode.dart';
 import 'orders_controller.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../../inventory/data/pending_inventory_overlay.dart';
+import '../../../inventory/services/inventory_stock_service.dart';
 
 /// Cart Item Model
 /// Modelo para items en el carrito
@@ -126,6 +128,9 @@ class OrderFormController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Stock de insumos al día para los avisos "Sin stock" / "Quedan N"
+    // (local-first: pinta con la caché, la red refresca atrás).
+    InventoryStockService.maybe?.refresh();
     // Sincronizar el estado con el modo por defecto (Mostrador). Sin esto,
     // `currentMode` arranca en counter pero `orderType` queda en su default
     // dineIn y `isQuickSale` en false → la pantalla EXIGE mesa aunque el
@@ -433,62 +438,74 @@ class OrderFormController extends GetxController {
     return null;
   }
 
-  /// Cuenta cuántas unidades del producto (opcionalmente filtrando por
-  /// variante puntual) ya están en el carrito. Lo usamos para validar stock
-  /// antes de agregar más unidades, sin contar dos veces el mismo line item.
-  ///
-  /// Si `variant` es `null`, se cuentan TODAS las líneas del producto
-  /// (incluyendo las que tienen variante), ya que el stock que trackeamos
-  /// hoy es a nivel `Product.currentStock` — `ProductVariant` no expone
-  /// stock propio. Si se pasa una `variant`, restringimos al match exacto
-  /// para que la UI pueda diferenciar variantes en el futuro.
-  int _quantityInCart(Product product, {ProductVariant? variant}) {
-    return cartItems.fold<int>(0, (sum, item) {
-      if (item.product.id != product.id) return sum;
-      if (variant != null && item.selectedVariant?.id != variant.id) {
-        return sum;
-      }
-      return sum + item.quantity;
-    });
+  /// Insumos que ya "reserva" el carrito (receta × cantidad de cada
+  /// línea), para calcular cuánto queda disponible en pantalla.
+  Map<String, double> _cartConsumption({int? excludeIndex}) {
+    final stock = InventoryStockService.maybe;
+    final total = <String, double>{};
+    if (stock == null) return total;
+    for (var i = 0; i < cartItems.length; i++) {
+      if (i == excludeIndex) continue;
+      final item = cartItems[i];
+      final unit = unitConsumption(
+        stock.recipes,
+        productId: item.product.id,
+        variantId: item.selectedVariant?.id,
+        modifiers: [
+          for (final m in item.selectedModifiers)
+            (modifierId: m.modifierId, quantity: m.quantity),
+        ],
+      );
+      unit.forEach((id, q) => total[id] = (total[id] ?? 0) + q * item.quantity);
+    }
+    return total;
   }
 
-  /// Indica si el producto tiene control de stock activo y stock disponible
-  /// (independiente del carrito). Lo expone público para que la grilla pueda
-  /// pintar "Agotado" sin replicar la lógica.
+  /// "Sin stock" según los insumos de su receta (no bloquea la venta —
+  /// regla del negocio: vender y avisar). Una variante marcada como no
+  /// disponible sí cuenta como no vendible.
   bool isProductOutOfStock(Product product, {ProductVariant? variant}) {
     if (variant != null && !variant.isAvailable) return true;
-    if (!product.trackInventory) return false;
-    final stock = product.currentStock;
-    if (stock == null) return false;
-    return stock <= 0;
+    final left = remainingStock(product, variant: variant);
+    return left != null && left <= 0;
   }
 
-  /// Devuelve cuántas unidades adicionales de `product` (con o sin
-  /// `variant`) podemos agregar al carrito antes de superar el stock.
-  /// `null` = sin límite (no trackeamos inventario o no hay dato de stock).
+  /// Cuántas unidades más alcanzan con el stock de insumos, descontando
+  /// lo que ya está en el carrito. `null` = el producto no tiene receta
+  /// (no se controla inventario).
   int? remainingStock(Product product, {ProductVariant? variant}) {
     if (variant != null && !variant.isAvailable) return 0;
-    if (!product.trackInventory) return null;
-    final stock = product.currentStock;
-    if (stock == null) return null;
-    final inCart = _quantityInCart(product, variant: variant);
-    final remaining = stock - inCart;
-    return remaining < 0 ? 0 : remaining;
+    return InventoryStockService.maybe?.portionsAvailable(
+      productId: product.id,
+      variantId: variant?.id,
+      reserved: _cartConsumption(),
+    );
   }
 
-  /// Verifica si podemos agregar `qty` unidades del producto al carrito sin
-  /// superar el stock. Se invoca desde `addToCart` y desde la grilla para
-  /// decidir si habilitar/deshabilitar el botón.
+  /// Si se puede agregar al carrito. El inventario NUNCA bloquea (vender
+  /// y avisar, ver `_warnIfShort`); solo una variante no disponible.
   bool canAddToCart(Product product, {int qty = 1, ProductVariant? variant}) {
     if (qty <= 0) return false;
-    // Variante explícitamente marcada como no disponible: bloquea sin importar
-    // el inventario del producto.
     if (variant != null && !variant.isAvailable) return false;
-    if (!product.trackInventory) return true;
-    final stock = product.currentStock;
-    if (stock == null) return true;
-    final inCart = _quantityInCart(product, variant: variant);
-    return (inCart + qty) <= stock;
+    return true;
+  }
+
+  /// Aviso (no bloqueante) cuando lo que hay en el carrito deja algún
+  /// insumo en negativo: se vende igual, pero el cajero se entera.
+  void _warnIfShort() {
+    final stock = InventoryStockService.maybe;
+    if (stock == null) return;
+    final shortages = stock.shortagesFor(_cartConsumption());
+    if (shortages.isEmpty) return;
+    final names = shortages.map((s) => s.ingredient.name).take(3).join(', ');
+    AppSnackbar.show(
+      'Inventario sin stock suficiente',
+      '$names — se vende igual. Revisá el inventario cuando puedas.',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: const Color(0xFFF57C00),
+      colorText: const Color(0xFFFFFFFF),
+      duration: const Duration(seconds: 3),
+    );
   }
 
   /// Add product to cart with optional variant and modifiers
@@ -502,13 +519,12 @@ class OrderFormController extends GetxController {
     List<String>? flavorNames,
     bool silent = false,
   }) {
-    // Validación de stock — si el producto trackea inventario, no podemos
-    // dejar que el carrito supere `currentStock` porque al confirmar la orden
-    // el backend rechazaría la línea (o, peor, vendería algo que no hay).
+    // Solo bloquea una variante no disponible. El inventario no bloquea:
+    // se vende y se avisa (ver `_warnIfShort`, más abajo).
     if (!canAddToCart(product, qty: quantity, variant: variant)) {
       AppSnackbar.show(
-        'Stock insuficiente',
-        product.name,
+        'No disponible',
+        '${product.name} · ${variant?.name ?? ''}',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Get.theme.colorScheme.error,
         colorText: Get.theme.colorScheme.onError,
@@ -516,6 +532,10 @@ class OrderFormController extends GetxController {
       );
       return;
     }
+    // Se evalúa después de agregar (microtask): así cuenta la línea nueva.
+    // También en el agregado rápido ("+" del catálogo, `silent`): solo
+    // avisa si de verdad falta inventario, así que no es ruido.
+    Future.microtask(_warnIfShort);
 
     final notes = specialInstructions?.trim();
     final hasNotes = notes != null && notes.isNotEmpty;
@@ -628,26 +648,9 @@ class OrderFormController extends GetxController {
       if (quantity <= 0) {
         removeFromCart(index);
       } else {
-        // Validamos stock contra el resto del carrito (excluyendo esta misma
-        // línea, que estamos por reescribir). Si el delta supera lo que
-        // queda, bloqueamos y avisamos.
+        // Inventario: no bloquea (vender y avisar).
         final item = cartItems[index];
-        if (item.product.trackInventory && item.product.currentStock != null) {
-          final otherInCart =
-              _quantityInCart(item.product, variant: item.selectedVariant) -
-              item.quantity;
-          if (otherInCart + quantity > item.product.currentStock!) {
-            AppSnackbar.show(
-              'Stock insuficiente',
-              item.product.name,
-              snackPosition: SnackPosition.TOP,
-              backgroundColor: Get.theme.colorScheme.error,
-              colorText: Get.theme.colorScheme.onError,
-              duration: const Duration(seconds: 3),
-            );
-            return;
-          }
-        }
+        if (quantity > item.quantity) Future.microtask(_warnIfShort);
         cartItems[index].quantity = quantity;
         cartItems.refresh();
       }

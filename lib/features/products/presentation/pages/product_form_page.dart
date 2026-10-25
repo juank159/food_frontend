@@ -13,6 +13,7 @@ import '../../domain/entities/product.dart';
 import '../controllers/product_form_controller.dart';
 import '../widgets/modifier_groups_management_widget.dart';
 import '../widgets/variant_list_widget.dart';
+import '../../../inventory/presentation/widgets/recipe_editor.dart';
 import '../../../../core/utils/app_dialog.dart';
 
 /// Formulario de creación/edición de producto. Cubre datos básicos,
@@ -514,56 +515,23 @@ class ProductFormPage extends GetView<ProductFormController> {
     );
   }
 
+  /// Receta: qué insumos descuenta cada unidad vendida (ej. "Arepa con
+  /// pollo" → 1 Arepa tipo A + 100 g de pollo). Reemplaza al viejo
+  /// "stock del producto": el inventario vive en los insumos.
   Widget _buildInventorySection() {
     return AppFormSection(
-      title: 'Inventario',
-      subtitle: 'Activá el control de stock si lleva inventario.',
+      title: 'Receta e inventario',
+      subtitle: 'Qué insumos gasta cada unidad. Al vender se descuentan solos.',
       icon: Icons.inventory_2_outlined,
       accent: AppColors.info,
       children: [
-        Obx(
-          () => _ToggleTile(
-            icon: Icons.inventory_2_outlined,
-            label: 'Rastrear inventario',
-            value: controller.trackInventory.value,
-            accent: AppColors.info,
-            onChanged: (v) => controller.trackInventory.value = v,
-          ),
+        RecipeEditor(
+          draft: controller.recipeDraft,
+          salePrice: NumberFormatHelper.parseFormattedInt(
+            controller.basePriceController.text,
+          )?.toDouble(),
+          resaleName: () => controller.nameController.text,
         ),
-        Obx(() {
-          if (!controller.trackInventory.value) {
-            return const SizedBox.shrink();
-          }
-          return Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: controller.currentStockController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: appInputDecoration(
-                    label: 'Stock actual',
-                    hint: '100',
-                    prefixIcon: Icons.inventory,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: controller.minStockAlertController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: appInputDecoration(
-                    label: 'Alerta de stock mínimo',
-                    hint: '10',
-                    prefixIcon: Icons.warning_amber_outlined,
-                    helperText: 'Avisaremos cuando el stock baje de este valor',
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
       ],
     );
   }

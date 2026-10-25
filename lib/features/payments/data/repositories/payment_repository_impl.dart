@@ -7,6 +7,7 @@ import '../../domain/entities/payment.dart';
 import '../../domain/repositories/payment_repository.dart';
 import '../datasources/payment_local_datasource.dart';
 import '../datasources/payment_remote_datasource.dart';
+import 'package:uuid/uuid.dart';
 
 /// Payment Repository Implementation
 /// Implementación concreta del repositorio de pagos
@@ -70,6 +71,8 @@ class PaymentRepositoryImpl implements PaymentRepository {
         if (tenantPaymentAccountId != null)
           'tenant_payment_account_id': tenantPaymentAccountId,
       };
+      // Idempotencia: un reintento de la cola no cobra dos veces.
+      dto['client_request_id'] = const Uuid().v4();
       await localDataSource.enqueuePayment(dto);
       return const Left(OfflineQueuedFailure());
     }
@@ -119,6 +122,8 @@ class PaymentRepositoryImpl implements PaymentRepository {
         if (tenantPaymentAccountId != null)
           'tenant_payment_account_id': tenantPaymentAccountId,
       };
+      // Idempotencia: un reintento de la cola no cobra dos veces.
+      dto['client_request_id'] = const Uuid().v4();
       await localDataSource.enqueuePayment(dto);
       return const Left(OfflineQueuedFailure());
     }
@@ -199,6 +204,8 @@ class PaymentRepositoryImpl implements PaymentRepository {
           'transaction_reference': transactionReference,
         if (notes != null) 'notes': notes,
       };
+      // Idempotencia: un reintento de la cola no cobra dos veces.
+      dto['client_request_id'] = const Uuid().v4();
       await localDataSource.enqueuePayment(dto);
       return const Left(OfflineQueuedFailure());
     }

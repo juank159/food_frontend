@@ -137,14 +137,10 @@ import '../../features/reports/data/repositories/reports_repository_impl.dart';
 import '../../features/reports/domain/repositories/reports_repository.dart';
 import '../../features/reports/domain/usecases/get_customer_report_usecase.dart';
 import '../../features/reports/domain/usecases/get_employee_report_usecase.dart';
-import '../../features/reports/domain/usecases/get_inventory_report_usecase.dart';
+import '../../features/inventory/data/inventory_repository.dart';
+import '../../features/inventory/services/inventory_stock_service.dart';
 import '../../features/reports/domain/usecases/get_product_sales_usecase.dart';
 import '../../features/reports/domain/usecases/get_sales_report_usecase.dart';
-import '../../features/inventory/data/datasources/inventory_remote_datasource.dart';
-import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
-import '../../features/inventory/domain/repositories/inventory_repository.dart';
-import '../../features/inventory/domain/usecases/adjust_stock_usecase.dart';
-import '../../features/inventory/domain/usecases/get_inventory_usecase.dart';
 import '../../features/reservations/data/datasources/reservation_remote_datasource.dart';
 import '../../features/reservations/data/repositories/reservation_repository_impl.dart';
 import '../../features/reservations/domain/repositories/reservation_repository.dart';
@@ -537,7 +533,6 @@ Future<void> init() async {
 
   // Use Cases
   sl.registerLazySingleton(() => GetSalesReportUseCase(sl()));
-  sl.registerLazySingleton(() => GetInventoryReportUseCase(sl()));
   sl.registerLazySingleton(() => GetEmployeeReportUseCase(sl()));
   sl.registerLazySingleton(() => GetCustomerReportUseCase(sl()));
   sl.registerLazySingleton(() => GetProductSalesUseCase(sl()));
@@ -550,28 +545,6 @@ Future<void> init() async {
   // Data Source
   sl.registerLazySingleton<ReportsRemoteDataSource>(
     () => ReportsRemoteDataSourceImpl(dio: sl()),
-  );
-
-  // ========================================
-  // Features - Inventory
-  // ========================================
-
-  // Use Cases
-  sl.registerLazySingleton(() => GetInventoryUseCase(sl()));
-  sl.registerLazySingleton(() => AdjustStockUseCase(sl()));
-
-  // Repository
-  sl.registerLazySingleton<InventoryRepository>(
-    () => InventoryRepositoryImpl(
-      remoteDataSource: sl(),
-      networkInfo: sl(),
-      localCache: sl(),
-    ),
-  );
-
-  // Data Source
-  sl.registerLazySingleton<InventoryRemoteDataSource>(
-    () => InventoryRemoteDataSourceImpl(dio: sl()),
   );
 
   // ========================================
@@ -619,6 +592,12 @@ Future<void> init() async {
   // Sync service (processes queue on reconnect) — permanent GetX controller
   final syncService = AppSyncService(queue: offlineQueue);
   Get.put<AppSyncService>(syncService, permanent: true);
+  // Bug real: GetX registra por TIPO, y quien dispara el sync
+  // (`ConnectivityService._onReconnected`, `AuthController`) lo busca como
+  // `SyncService` — con solo el registro de arriba esa búsqueda daba
+  // "no registrado" y la cola offline (órdenes, pagos, inventario) NUNCA
+  // se mandaba sola. Misma instancia, registrada también por la interfaz.
+  Get.put<SyncService>(syncService, permanent: true);
   sl.registerLazySingleton<AppSyncService>(() => syncService);
 
   // Connectivity service — permanent stream of online/offline state
@@ -629,6 +608,7 @@ Future<void> init() async {
   // (`AuthController._startBackgroundServices`); acá solo se registra
   // el singleton.
   Get.put<RealtimeService>(RealtimeService(), permanent: true);
+
 
   // ========================================
   // Local datasources (require LocalCacheService / OfflineQueueService)
@@ -883,4 +863,21 @@ Future<void> init() async {
   // Register sync handlers so the queue processor knows how to replay
   // offline orders and payments when internet reconnects.
   SyncHandlers.register();
+
+  // Inventario por insumos + recetas: fuente única del stock (venta e
+  // inventario leen de acá), local-first con la cola offline aplicada.
+  // Solo lee la caché al registrarse; la red se pide recién tras login
+  // (`AuthController._startBackgroundServices`) para no disparar 401.
+  sl.registerLazySingleton<InventoryRepository>(
+    () => InventoryRepository(
+      dio: sl(),
+      networkInfo: sl(),
+      cache: sl(),
+      queue: sl(),
+    ),
+  );
+  Get.put<InventoryStockService>(
+    InventoryStockService(repository: sl<InventoryRepository>()),
+    permanent: true,
+  );
 }

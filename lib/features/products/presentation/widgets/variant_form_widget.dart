@@ -12,12 +12,17 @@ class VariantFormWidget extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onToggleDefault;
 
+  /// Abre la receta adicional de la variante. `null` = la variante
+  /// todavía no se guardó (no tiene id), se habilita después de guardar.
+  final VoidCallback? onEditRecipe;
+
   const VariantFormWidget({
     super.key,
     required this.variant,
     required this.index,
     required this.onRemove,
     required this.onToggleDefault,
+    this.onEditRecipe,
   });
 
   @override
@@ -229,6 +234,18 @@ class VariantFormWidget extends StatelessWidget {
                 },
               ),
             ],
+          ),
+
+          // Receta adicional (inventario por insumos)
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onEditRecipe,
+            icon: const Icon(Icons.inventory_2_outlined, size: 18),
+            label: Text(
+              onEditRecipe == null
+                  ? 'Receta de la variante (guardá el producto primero)'
+                  : 'Receta adicional de esta variante',
+            ),
           ),
 
           // Price preview

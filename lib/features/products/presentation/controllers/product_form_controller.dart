@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
+import '../../../inventory/data/inventory_repository.dart';
+import '../../../inventory/domain/entities/recipe_line.dart';
+import '../../../inventory/presentation/widgets/recipe_editor.dart';
+import '../../../inventory/services/inventory_stock_service.dart';
 import '../../../../core/config/constants/modifier_enums.dart';
 import '../../../../core/utils/input_formatters.dart';
 import '../../domain/entities/modifier.dart';
@@ -166,6 +171,10 @@ class ProductFormController extends GetxController {
   final RxBool isAvailable = true.obs;
   final RxBool isFeatured = false.obs;
   final RxBool trackInventory = false.obs;
+
+  /// Receta del producto (insumos que descuenta al venderse). Se guarda
+  /// junto con el producto — ver `_saveRecipe`.
+  final RecipeDraft recipeDraft = RecipeDraft();
   /// `true` si el producto va a cocina/barra antes de entregarse. La
   /// mayoría de los productos sí (default true). Para botellas, snacks
   /// empacados y bebidas embotelladas se apaga — el item no aparece
@@ -216,6 +225,7 @@ class ProductFormController extends GetxController {
   @override
   void onClose() {
     _disposeControllers();
+    recipeDraft.dispose();
     for (var variant in variants) {
       variant.dispose();
     }
@@ -312,6 +322,10 @@ class ProductFormController extends GetxController {
     selectedCategoryId.value = product.categoryId;
     isAvailable.value = product.isAvailable;
     trackInventory.value = product.trackInventory;
+    recipeDraft.load(
+      InventoryStockService.maybe?.recipeOf(RecipeOwnerType.product, product.id) ??
+          const [],
+    );
     requiresPreparation.value = product.requiresPreparation;
     if (product.cost != null) {
       costController.text =
@@ -480,13 +494,8 @@ class ProductFormController extends GetxController {
       isFeatured: isFeatured.value,
       tags: tags.isEmpty ? null : tags,
       allergens: allergens.isEmpty ? null : allergens,
-      trackInventory: trackInventory.value,
-      currentStock: trackInventory.value
-          ? NumberFormatHelper.parseFormattedInt(currentStockController.text)
-          : null,
-      minStockAlert: trackInventory.value
-          ? NumberFormatHelper.parseFormattedInt(minStockAlertController.text)
-          : null,
+      // El stock ya no vive en el producto: lo descuentan los insumos de
+      // su receta (`recipeDraft`, guardada después en `_saveRecipe`).
     );
 
     result.fold(
@@ -506,6 +515,7 @@ class ProductFormController extends GetxController {
         if (variants.isNotEmpty) {
           await _createVariantsForProduct(product.id);
         }
+        await _saveRecipe(product.id);
 
         // Bug real reportado: crear quedaba en el mismo form (pasaba a
         // modo edición sin pop, pensado para agregar modifier groups
@@ -574,13 +584,8 @@ class ProductFormController extends GetxController {
       isFeatured: isFeatured.value,
       tags: tags.isEmpty ? null : tags,
       allergens: allergens.isEmpty ? null : allergens,
-      trackInventory: trackInventory.value,
-      currentStock: trackInventory.value
-          ? NumberFormatHelper.parseFormattedInt(currentStockController.text)
-          : null,
-      minStockAlert: trackInventory.value
-          ? NumberFormatHelper.parseFormattedInt(minStockAlertController.text)
-          : null,
+      // El stock ya no vive en el producto: lo descuentan los insumos de
+      // su receta (`recipeDraft`, guardada después en `_saveRecipe`).
     );
 
     result.fold(
@@ -598,6 +603,7 @@ class ProductFormController extends GetxController {
       (product) async {
         // Update/create/delete variants
         await _syncVariants(product.id);
+        await _saveRecipe(product.id);
 
         // Mantener el form abierto pero registrar el último estado
         // guardado. Al cerrar, `closeForm()` lo devuelve a la lista.
@@ -635,6 +641,23 @@ class ProductFormController extends GetxController {
   /// Fire-and-forget: el form no espera por el refresh; si tarda no
   /// bloquea el cierre. Si el controller NO está registrado (caso
   /// raro: form abierto sin haber pasado por la lista), no hace nada.
+  /// Guarda la receta si cambió. Funciona sin internet: si el producto
+  /// se acaba de crear offline (id `local_…`), la cola resuelve el id
+  /// real al sincronizar (`remapIdsDeep`).
+  Future<void> _saveRecipe(String productId) async {
+    if (!recipeDraft.hasChanges) return;
+    final r = await GetIt.instance<InventoryRepository>().setRecipe(
+      ownerType: RecipeOwnerType.product,
+      ownerId: productId,
+      lines: recipeDraft.valid,
+    );
+    InventoryStockService.maybe?.reloadLocal();
+    r.fold(
+      (f) => AppSnackbar.show('La receta no se guardó', f.message),
+      (_) => recipeDraft.markSaved(),
+    );
+  }
+
   void _refreshGlobalProductsCache() {
     if (Get.isRegistered<ProductsController>()) {
       Get.find<ProductsController>().refreshProducts();

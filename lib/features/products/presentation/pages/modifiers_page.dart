@@ -11,6 +11,8 @@ import '../../domain/entities/modifier.dart';
 import '../bindings/modifiers_binding.dart';
 import '../controllers/modifiers_controller.dart';
 import '../widgets/modifier_card.dart';
+import '../../../inventory/domain/entities/recipe_line.dart';
+import '../../../inventory/presentation/widgets/recipe_editor.dart';
 
 /// Modificadores — pantalla principal.
 ///
@@ -326,6 +328,33 @@ class _ModifiersPageState extends State<ModifiersPage> {
                 if (modifier.maxQuantity != null)
                   _detailRow('Cantidad máxima', '${modifier.maxQuantity}'),
                 const SizedBox(height: 24),
+                // Inventario: qué insumos gasta este extra (ej. "Queso
+                // adicional" → 40 g de queso) por cada unidad elegida.
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      showRecipeEditorSheet(
+                        this.context,
+                        ownerType: RecipeOwnerType.modifier,
+                        ownerId: modifier.id,
+                        title: modifier.name,
+                        subtitle: 'Se descuenta por cada vez que se elige este extra.',
+                        salePrice: modifier.price > 0 ? modifier.price : null,
+                      );
+                    },
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text('Receta (inventario)'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
