@@ -54,7 +54,8 @@ class InventoryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    stock.reloadLocal();
+    // refresh() ya relee la copia local (y no toca estado en pleno build:
+    // este controller se crea DURANTE el build de InventoryPage).
     stock.refresh();
     _loadProducts();
     ever<int>(tab, (t) {

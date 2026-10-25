@@ -744,11 +744,20 @@ class ProductSelectorWidget extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    CurrencyFormatter.format(product.basePrice),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                  // Con el stepper [− qty +] visible la fila no alcanzaba
+                  // en tarjetas angostas ("RenderFlex overflowed" y el "+"
+                  // cortado contra el borde): el precio se achica para caber.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        CurrencyFormatter.format(product.basePrice),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                   _buildAddControl(

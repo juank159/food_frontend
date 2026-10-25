@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import '../../../core/services/app_sync_service.dart';
 import '../../../core/services/connectivity_service.dart';
@@ -96,6 +97,16 @@ class InventoryStockService extends GetxService {
   /// Relee la caché + cola (sin red). Barato: llamarlo después de
   /// cualquier operación local.
   void reloadLocal() {
+    // Bug real (modo debug): un controller creado DENTRO de un build (ej.
+    // `GetView.controller` de InventoryPage) llamaba esto en su `onInit`,
+    // y actualizar las listas avisaba a otros `Obx` (el contador de
+    // insumos bajos del menú) en plena construcción → "setState() or
+    // markNeedsBuild() called during build". En ese caso se aplica justo
+    // después del cuadro actual.
+    if (_inBuildPhase) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => reloadLocal());
+      return;
+    }
     final InventoryOverlay o = repository.readLocal();
     ingredients.assignAll(o.ingredients);
     recipes.assignAll(o.recipes);
@@ -105,10 +116,14 @@ class InventoryStockService extends GetxService {
 
   /// Trae del servidor (si hay red) y relee. Coalesce llamadas
   /// simultáneas en una sola request.
-  Future<void> refresh() {
+  Future<void> refresh() async {
+    // Nunca cambiar estado en el mismo instante en que se llama: puede ser
+    // desde el `onInit` de un controller que se está creando en un build
+    // (ver `reloadLocal`). Se cede el turno y recién ahí se trabaja.
+    await Future<void>.delayed(Duration.zero);
     if (!_active) {
       reloadLocal();
-      return Future.value();
+      return;
     }
     // Si ya hay uno en curso, NO alcanza con sumarse a él: pudo haber
     // salido antes del cambio que motiva este pedido (bug real: al volver
@@ -121,6 +136,7 @@ class InventoryStockService extends GetxService {
       return _inFlight!;
     }
     return _inFlight = () async {
+      // (refresh() ya cedió el turno arriba)
       isRefreshing.value = true;
       try {
         do {
@@ -137,6 +153,16 @@ class InventoryStockService extends GetxService {
   }
 
   bool _again = false;
+
+  /// Flutter está construyendo widgets ahora mismo (fase de build).
+  bool get _inBuildPhase {
+    try {
+      return SchedulerBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks;
+    } catch (_) {
+      return false; // sin binding (tests puros de Dart)
+    }
+  }
 
   Ingredient? byId(String id) => ingredients.firstWhereOrNull((i) => i.id == id);
 
