@@ -78,6 +78,24 @@ class _IngredientFormSheetState extends State<_IngredientFormSheet> {
     return set.toList()..sort();
   }
 
+  /// En edición, al pasar a otra unidad de la MISMA familia (g → kg) se
+  /// convierten en pantalla el mínimo y el costo — igual que lo hace el
+  /// backend con el stock, las recetas y el historial.
+  void _selectUnit(IngredientUnit u) {
+    setState(() {
+      if (_isEdit && u.family == _unit.family && u != _unit) {
+        if (_minStock != null) _minStock = u.convertFrom(_minStock!, _unit);
+        final cost = NumberFormatHelper.parseFormattedInt(_cost.text);
+        if (cost != null) {
+          // costo por unidad: 1 kg cuesta 1000 veces lo que 1 g.
+          final converted = cost / u.convertFrom(1, _unit);
+          _cost.text = NumberFormatHelper.formatNumber(converted.round());
+        }
+      }
+      _unit = u;
+    });
+  }
+
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
@@ -193,7 +211,7 @@ class _IngredientFormSheetState extends State<_IngredientFormSheet> {
                   ChoiceChip(
                     label: Text(u.label),
                     selected: _unit == u,
-                    onSelected: (_) => setState(() => _unit = u),
+                    onSelected: (_) => _selectUnit(u),
                   ),
               ],
             ),
@@ -201,8 +219,13 @@ class _IngredientFormSheetState extends State<_IngredientFormSheet> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Ojo: el stock y las recetas NO se convierten solos. Cambiá la '
-                  'unidad solo si estaba mal cargada.',
+                  _unit.family == widget.editing!.unit.family
+                      ? 'El stock, el mínimo, los costos, las recetas y el historial '
+                          'se convierten solos a ${_unit.label.toLowerCase()}.'
+                      : 'De ${widget.editing!.unit.label.toLowerCase()} a '
+                          '${_unit.label.toLowerCase()} no hay equivalencia: solo se '
+                          'puede si el insumo todavía no tiene stock, recetas ni '
+                          'historial. Si no, creá un insumo nuevo.',
                   style: TextStyle(fontSize: 12, color: AppColors.warning),
                 ),
               ),

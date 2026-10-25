@@ -84,6 +84,18 @@ void main() {
       });
     });
 
+    test('createPayment de una venta offline (order_client_request_id) → POST /payments', () {
+      final r = resolvePaymentSyncRequest({
+        'type': 'createPayment',
+        'order_client_request_id': 'crid-1',
+        'payment_method': 'cash',
+        'amount': 6000,
+      });
+      expect(r, isNotNull);
+      expect(r!.path, '/payments');
+      expect(r.body['order_client_request_id'], 'crid-1');
+    });
+
     test('createPayment sin order_id (entrada corrupta) → null', () {
       expect(
         resolvePaymentSyncRequest({'type': 'createPayment', 'amount': 1000}),

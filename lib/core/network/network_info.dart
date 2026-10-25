@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:internet_connection_checker/internet_connection_checker.dart';
+import '../services/browser/browser_online.dart';
 
 /// Interfaz de chequeo de conectividad.
 abstract class NetworkInfo {
@@ -9,8 +10,11 @@ abstract class NetworkInfo {
 /// En web no existe dart:io — siempre asumimos conectividad y dejamos
 /// que Dio falle con su propio error si no hay red.
 class _NetworkInfoWeb implements NetworkInfo {
+  // Bug real: antes devolvía SIEMPRE true — en la PWA, sin red, una venta
+  // o un cobro fallaban con error en vez de quedar en la cola offline.
+  // `navigator.onLine` es el estado real del navegador.
   @override
-  Future<bool> get isConnected async => true;
+  Future<bool> get isConnected async => browserIsOnline();
 }
 
 /// Implementación real para mobile/desktop.

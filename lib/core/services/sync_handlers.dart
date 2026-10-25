@@ -35,8 +35,13 @@ PaymentSyncRequest? resolvePaymentSyncRequest(Map<String, dynamic> raw) {
   }
 
   if (type == 'createPayment') {
-    // `POST /payments` lleva el `order_id` en el body, no en el path.
-    if (payload['order_id'] is! String) return null;
+    // `POST /payments` lleva el `order_id` en el body, no en el path. Una
+    // venta hecha sin internet la referencia por `order_client_request_id`
+    // (el servidor la resuelve).
+    if (payload['order_id'] is! String &&
+        payload['order_client_request_id'] is! String) {
+      return null;
+    }
     return PaymentSyncRequest(path: '/payments', body: payload);
   }
 

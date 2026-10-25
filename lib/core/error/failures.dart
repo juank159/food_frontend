@@ -56,3 +56,16 @@ class OfflineQueuedFailure extends Failure {
   const OfflineQueuedFailure(
       [super.message = 'Sin conexión. El pago fue guardado para enviar cuando haya red.']);
 }
+
+/// Una ORDEN quedó en la cola sin internet. Lleva el `client_request_id`
+/// con que se va a crear en el servidor: un cobro hecho en ese momento
+/// (venta de mostrador) la referencia por ese id (`order_client_request_id`)
+/// porque todavía no tiene id real.
+class OrderQueuedOfflineFailure extends OfflineQueuedFailure {
+  final String clientRequestId;
+  const OrderQueuedOfflineFailure(this.clientRequestId)
+      : super('Sin conexión. La orden se guardó offline y se enviará al conectarse.');
+
+  @override
+  List<Object> get props => [message, clientRequestId];
+}

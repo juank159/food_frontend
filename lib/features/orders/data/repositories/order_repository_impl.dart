@@ -7,6 +7,7 @@ import '../../domain/entities/order.dart';
 import '../../domain/repositories/order_repository.dart';
 import '../datasources/order_local_datasource.dart';
 import '../datasources/order_remote_datasource.dart';
+import 'package:uuid/uuid.dart';
 
 /// Order Repository Implementation
 /// Implementación concreta del repositorio de órdenes
@@ -239,6 +240,10 @@ class OrderRepositoryImpl implements OrderRepository {
       'discount_amount': discountAmount,
       'delivery_fee': deliveryFee,
       'tip_amount': tipAmount,
+      // Idempotencia: el MISMO id viaja en el intento online y, si la red
+      // se cae a mitad del envío, en la copia encolada — así un reintento
+      // nunca duplica la venta (ni el descuento de insumos).
+      'client_request_id': const Uuid().v4(),
     };
 
     if (tableId != null) orderData['table_id'] = tableId;
@@ -270,15 +275,23 @@ class OrderRepositoryImpl implements OrderRepository {
         return const Left(UnauthorizedFailure());
       } on ValidationException catch (e) {
         return Left(ValidationFailure(e.message));
-      } on NetworkException catch (e) {
-        return Left(NetworkFailure(e.message));
+      } on NetworkException {
+        // La red se cayó justo al mandar (el chequeo previo dio "online"):
+        // la venta no se pierde, va a la cola. Si en realidad el servidor
+        // sí la recibió, el `client_request_id` evita el duplicado.
+        await localDataSource.enqueueCreateOrder(orderData);
+        return Left(
+          OrderQueuedOfflineFailure(orderData['client_request_id'] as String),
+        );
       } on ServerException catch (e) {
         return Left(ServerFailure(e.message));
       }
     } else {
       // Offline: enqueue for later sync
       await localDataSource.enqueueCreateOrder(orderData);
-      return const Left(OfflineQueuedFailure());
+      return Left(
+          OrderQueuedOfflineFailure(orderData['client_request_id'] as String),
+        );
     }
   }
 

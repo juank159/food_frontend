@@ -184,6 +184,11 @@ class OrderFormController extends GetxController {
   /// (en venta express no popeamos la pantalla, queremos quedarnos).
   final Rx<Order?> lastCreatedOrder = Rx<Order?>(null);
 
+  /// Venta que quedó en la cola SIN internet (todavía sin id real): su
+  /// `client_request_id` y total, para cobrarla igual (ver `SellPage._checkout`).
+  final Rxn<({String clientRequestId, double total})> lastQueuedOffline =
+      Rxn<({String clientRequestId, double total})>();
+
   /// Destino actual de la venta (mostrador / mesa / takeaway / delivery
   /// / cuenta abierta). Se cambia desde el pill superior de `SellPage`
   /// sin navegar a otra pantalla. Cualquier cambio sincroniza
@@ -856,6 +861,7 @@ class OrderFormController extends GetxController {
       );
       return;
     }
+    lastQueuedOffline.value = null;
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -975,6 +981,20 @@ class OrderFormController extends GetxController {
           message = 'Error del servidor. Intenta nuevamente.';
         }
         errorMessage.value = message;
+        if (foldFailure is OrderQueuedOfflineFailure) {
+          // Bug real: la venta quedaba en la cola pero el carrito seguía
+          // lleno — tocar "Cobrar" otra vez creaba una SEGUNDA venta.
+          lastQueuedOffline.value = (
+            clientRequestId:
+                (foldFailure as OrderQueuedOfflineFailure).clientRequestId,
+            total: total,
+          );
+          if (!isQuickSale.value) {
+            // Mesa / cuenta / para llevar: mismo cierre que con internet.
+            clearCart();
+            Get.back();
+          }
+        }
         AppSnackbar.show(
           isOfflineQueued ? 'Guardado offline' : 'Error',
           message,
@@ -1092,6 +1112,7 @@ class OrderFormController extends GetxController {
     paymentMethod.value = null;
     errorMessage.value = null;
     lastCreatedOrder.value = null;
+    lastQueuedOffline.value = null;
 
     // Si el tenant tiene la propina como obligatoria y aplica al tipo
     // por defecto (dineIn), re-aplicamos el porcentaje default para que

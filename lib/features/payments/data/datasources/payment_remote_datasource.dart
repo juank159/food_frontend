@@ -17,6 +17,8 @@ abstract class PaymentRemoteDataSource {
     String? transactionReference,
     String? notes,
     String? tenantPaymentAccountId,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   });
 
   /// Procesa el pago completo de una orden
@@ -27,6 +29,8 @@ abstract class PaymentRemoteDataSource {
     String? transactionReference,
     String? notes,
     String? tenantPaymentAccountId,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   });
 
   /// Procesa pagos divididos
@@ -45,6 +49,8 @@ abstract class PaymentRemoteDataSource {
     double? receivedAmount,
     String? transactionReference,
     String? notes,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   });
 
   /// Reembolsa un pago
@@ -135,6 +141,8 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     String? transactionReference,
     String? notes,
     String? tenantPaymentAccountId,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   }) async {
     try {
       final response = await dio.post(
@@ -149,6 +157,7 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
           if (notes != null) 'notes': notes,
           if (tenantPaymentAccountId != null)
             'tenant_payment_account_id': tenantPaymentAccountId,
+          if (clientRequestId != null) 'client_request_id': clientRequestId,
         },
       );
 
@@ -166,6 +175,8 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     String? transactionReference,
     String? notes,
     String? tenantPaymentAccountId,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   }) async {
     try {
       final response = await dio.post(
@@ -178,6 +189,7 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
           if (notes != null) 'notes': notes,
           if (tenantPaymentAccountId != null)
             'tenant_payment_account_id': tenantPaymentAccountId,
+          if (clientRequestId != null) 'client_request_id': clientRequestId,
         },
       );
 
@@ -216,6 +228,8 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     double? receivedAmount,
     String? transactionReference,
     String? notes,
+    /// Idempotencia (ver backend `client_request_id`).
+    String? clientRequestId,
   }) async {
     try {
       final response = await dio.post(
@@ -229,6 +243,7 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
           if (transactionReference != null)
             'transaction_reference': transactionReference,
           if (notes != null) 'notes': notes,
+          if (clientRequestId != null) 'client_request_id': clientRequestId,
         },
       );
       return _extractList(response)
@@ -369,7 +384,13 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
       case 500:
         return ServerException(msgFromBody ?? 'Error del servidor');
       default:
-        return NetworkException(error.message ?? 'Error de red');
+        // "Error de red" SOLO si no hubo respuesta (el repositorio encola
+        // esos cobros para reintentar). Un rechazo del servidor (403 plan
+        // vencido, 409, 422…) NO se reintenta: se muestra tal cual.
+        if (error.response == null) {
+          return NetworkException(error.message ?? 'Error de red');
+        }
+        return ServerException(prefixedMsg ?? 'Error del servidor');
     }
   }
 }

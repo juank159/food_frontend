@@ -22,6 +22,7 @@ import '../widgets/cart_widget.dart';
 import '../widgets/product_selector_widget.dart';
 import '../widgets/sell_mode_sheet.dart';
 import '../widgets/ticket_number_dialog.dart';
+import '../../../payments/data/repositories/payment_repository_impl.dart' show offlineOrderPrefix;
 
 /// Pantalla **única** de venta. Reemplaza `CreateOrderPage` +
 /// `QuickSalePage` + el flujo "abrir cuenta libre desde Cuentas".
@@ -609,11 +610,49 @@ class _BottomBar extends StatelessWidget {
     );
   }
 
+  Future<void> _collectOfflineSale(
+    BuildContext context,
+    ({String clientRequestId, double total}) queued,
+  ) async {
+    if (!await ensureOpenCash(context)) return;
+    if (!context.mounted) return;
+    final result = await showDialog(
+      context: context,
+      builder: (_) => ProcessPaymentDialog(
+        orderId: '$offlineOrderPrefix${queued.clientRequestId}',
+        orderTotal: queued.total,
+        controller: Get.find<PaymentController>(),
+      ),
+    );
+    if (!context.mounted) return;
+    AppSnackbar.show(
+      result != null ? 'Venta cobrada sin internet' : 'Venta guardada sin internet',
+      result != null
+          ? '${CurrencyFormatter.format(queued.total)} · se envía sola al volver la señal'
+          : 'Quedó pendiente de cobro · se envía sola al volver la señal',
+      backgroundColor: result != null ? AppColors.success : null,
+      colorText: Colors.white,
+    );
+    controller.resetForm();
+  }
+
   Future<void> _checkout(BuildContext context, SellMode mode) async {
     await controller.submitOrder();
     if (!context.mounted) return;
     final order = controller.lastCreatedOrder.value;
-    if (order == null) return; // submitOrder ya mostró el error.
+    if (order == null) {
+      // Venta de mostrador hecha SIN internet: la orden quedó en la cola
+      // sin id real todavía, pero el cliente paga ahora. Se cobra igual: el
+      // pago queda en la cola referenciando la orden por su
+      // `client_request_id` (`offline:<id>`) y el servidor la resuelve al
+      // sincronizar (orden primero, pago después). Bug real: antes el
+      // carrito quedaba lleno y el pago nunca se registraba.
+      final queued = controller.lastQueuedOffline.value;
+      if (queued != null && mode.autoPayAfterSubmit) {
+        await _collectOfflineSale(context, queued);
+      }
+      return; // Si no, submitOrder ya mostró el error.
+    }
 
     // La comanda de cocina se imprime dentro de `submitOrder` (cubre TODOS
     // los modos, incluida cuenta libre/mesa donde acá `order` sería null).
