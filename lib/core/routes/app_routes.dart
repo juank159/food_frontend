@@ -29,6 +29,7 @@ class AppRoutes {
   static const String businessInfo = '/settings/business-info';
   static const String promoBanner = '/settings/promo-banner';
   static const String brebSettings = '/settings/breb';
+  static const String branches = '/settings/branches';
   static const String locationRadius = '/settings/location-radius';
   static const String operationModeSettings = '/settings/operation-mode';
   static const String counterTicketsBoard = '/counter-tickets/board';

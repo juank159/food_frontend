@@ -179,7 +179,11 @@ class ProfitScreen extends StatelessWidget {
           _row('Gastos', c.expensesTotal.value,
               sign: '−', color: AppColors.error),
           _row('Nómina pagada', c.payrollTotal.value,
-              sign: '−', color: AppColors.error),
+              sign: '−',
+              color: AppColors.error,
+              hint: c.payrollIncluded.value
+                  ? null
+                  : 'Solo en "Todas las sedes" (es del negocio)'),
           const Divider(height: 18),
           _row(
             c.isProfit ? 'Ganancia neta' : 'Pérdida neta',

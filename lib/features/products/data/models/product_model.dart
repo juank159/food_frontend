@@ -43,6 +43,10 @@ class ProductModel {
   final List<ModifierGroupModel> modifierGroups;
   final List<ProductVariantModel> variants;
 
+  /// Ajuste de la sede del dispositivo (`branch_override` del backend).
+  final double? branchPrice;
+  final bool? branchAvailable;
+
   ProductModel({
     required this.id,
     required this.name,
@@ -70,6 +74,8 @@ class ProductModel {
     this.deletedAt,
     this.modifierGroups = const [],
     this.variants = const [],
+    this.branchPrice,
+    this.branchAvailable,
   });
 
   /// From JSON with robust error handling
@@ -158,6 +164,10 @@ class ProductModel {
         deletedAt: json['deleted_at'] as String?,
         modifierGroups: parsedModifierGroups,
         variants: parsedVariants,
+        branchPrice: _parseNullableDouble(
+            (json['branch_override'] as Map?)?['price']),
+        branchAvailable:
+            (json['branch_override'] as Map?)?['is_available'] as bool?,
       );
     } catch (e, stackTrace) {
       throw FormatException('Error parsing ProductModel from JSON: $e\nJSON: $json\nStackTrace: $stackTrace');
@@ -231,6 +241,12 @@ class ProductModel {
       'created_at': createdAt,
       'updated_at': updatedAt,
       'deleted_at': deletedAt,
+      // Para la caché local: el ajuste de la sede sobrevive sin red.
+      if (branchPrice != null || branchAvailable != null)
+        'branch_override': {
+          'price': branchPrice,
+          'is_available': branchAvailable,
+        },
     };
   }
 
@@ -261,6 +277,8 @@ class ProductModel {
       updatedAt: DateTime.parse(updatedAt),
       modifierGroups: modifierGroups.map((g) => g.toEntity()).toList(),
       variants: variants.map((v) => v.toEntity()).toList(),
+      branchPrice: branchPrice,
+      branchAvailable: branchAvailable,
     );
   }
 
@@ -293,6 +311,8 @@ class ProductModel {
       deletedAt: null,
       modifierGroups: product.modifierGroups.map((g) => ModifierGroupModel.fromEntity(g)).toList(),
       variants: product.variants.map((v) => ProductVariantModel.fromEntity(v)).toList(),
+      branchPrice: product.branchPrice,
+      branchAvailable: product.branchAvailable,
     );
   }
 }

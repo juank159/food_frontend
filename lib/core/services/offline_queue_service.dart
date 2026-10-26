@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'branch/branch_service.dart';
+
 /// Tipo de operación en la cola offline.
 enum QueueOperationType {
   createOrder,
@@ -155,6 +157,10 @@ class QueueEntry {
   int retryCount;
   String? lastError;
 
+  /// Sede del dispositivo cuando se hizo la operación. Se sincroniza con
+  /// ESA sede aunque el dispositivo cambie de sede antes de tener red.
+  final String? branchId;
+
   QueueEntry({
     required this.id,
     required this.type,
@@ -162,7 +168,18 @@ class QueueEntry {
     required this.createdAt,
     this.retryCount = 0,
     this.lastError,
+    this.branchId,
   });
+
+  QueueEntry copyWith({Map<String, dynamic>? payload, String? branchId}) => QueueEntry(
+        id: id,
+        type: type,
+        payload: payload ?? this.payload,
+        createdAt: createdAt,
+        retryCount: retryCount,
+        lastError: lastError,
+        branchId: branchId ?? this.branchId,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -171,6 +188,7 @@ class QueueEntry {
         'createdAt': createdAt.toIso8601String(),
         'retryCount': retryCount,
         'lastError': lastError,
+        if (branchId != null) 'branchId': branchId,
       };
 
   factory QueueEntry.fromJson(Map<String, dynamic> json) => QueueEntry(
@@ -183,6 +201,7 @@ class QueueEntry {
         createdAt: DateTime.parse(json['createdAt'] as String),
         retryCount: (json['retryCount'] as num?)?.toInt() ?? 0,
         lastError: json['lastError'] as String?,
+        branchId: json['branchId'] as String?,
       );
 }
 
@@ -250,20 +269,17 @@ class OfflineQueueService {
     final idMap = _loadIdMap();
     if (idMap.isEmpty) return entry;
     final remapped = remapIdsDeep(entry.payload, idMap);
-    return QueueEntry(
-      id: entry.id,
-      type: entry.type,
-      payload: Map<String, dynamic>.from(remapped as Map),
-      createdAt: entry.createdAt,
-      retryCount: entry.retryCount,
-      lastError: entry.lastError,
-    );
+    return entry.copyWith(payload: Map<String, dynamic>.from(remapped as Map));
   }
 
   /// Agrega una operación a la cola.
   Future<void> enqueue(QueueEntry entry) async {
     final entries = _loadEntries();
-    entries.add(entry.toJson());
+    // La operación se sincroniza con la sede donde se hizo.
+    final stamped = entry.branchId != null
+        ? entry
+        : entry.copyWith(branchId: BranchService.headerBranchId());
+    entries.add(stamped.toJson());
     await _box.put(_queueKey, jsonEncode(entries));
   }
 

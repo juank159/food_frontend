@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/services/branch/branch_service.dart';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -78,7 +79,27 @@ class PrintingOrchestrator {
   static _TenantInfo? _tenantCache;
   static DateTime? _tenantCachedAt;
 
+  /// Datos del encabezado del ticket. Con varias sedes, dirección y
+  /// teléfono son los de la sede del dispositivo (si los tiene cargados)
+  /// y el nombre lleva la sede: el cliente ve DÓNDE compró.
   static Future<_TenantInfo> _getTenantInfo() async {
+    final info = await _getTenantInfoRaw();
+    final branches = BranchService.maybe;
+    final branch = branches?.current.value;
+    if (branches == null || branch == null || !branches.isMulti) return info;
+    String? pick(String? own, String? fallback) =>
+        own != null && own.trim().isNotEmpty ? own.trim() : fallback;
+    return _TenantInfo(
+      businessName: '${info.businessName} - ${branch.name}',
+      address: pick(branch.address, info.address),
+      phone: pick(branch.phone, info.phone),
+      taxId: info.taxId,
+      logoUrl: info.logoUrl,
+      kitchenTicketGroups: info.kitchenTicketGroups,
+    );
+  }
+
+  static Future<_TenantInfo> _getTenantInfoRaw() async {
     final now = DateTime.now();
     if (_tenantCache != null &&
         _tenantCachedAt != null &&

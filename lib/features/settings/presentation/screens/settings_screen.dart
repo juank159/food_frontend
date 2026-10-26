@@ -77,6 +77,16 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       _SettingsTile(
+                        icon: Icons.store_mall_directory_outlined,
+                        title: 'Sedes',
+                        subtitle:
+                            'Varias sucursales con su propia caja, mesas, inventario '
+                            'y precios (plan Professional)',
+                        accent: const Color(0xFF8B5CF6),
+                        onTap: () => Get.toNamed(AppRoutes.branches),
+                      ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
                         icon: Icons.storefront_outlined,
                         title: 'Configuración del negocio',
                         subtitle: 'Impuestos, propinas y horarios',

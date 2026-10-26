@@ -17,6 +17,9 @@ class ProfitController extends GetxController {
   final RxDouble expensesTotal = 0.0.obs;
   final RxMap<String, double> expensesByCategory = <String, double>{}.obs;
   final RxDouble payrollTotal = 0.0.obs;
+  /// `false` = reporte de UNA sede: la nómina es del negocio y solo entra
+  /// en la vista de todas las sedes.
+  final RxBool payrollIncluded = true.obs;
   final RxDouble netProfit = 0.0.obs;
   final RxDouble grossMarginPct = 0.0.obs;
   final RxDouble netMarginPct = 0.0.obs;
@@ -62,6 +65,7 @@ class ProfitController extends GetxController {
       grossProfit.value = moneyToDouble(obj['gross_profit']);
       expensesTotal.value = moneyToDouble(obj['expenses_total']);
       payrollTotal.value = moneyToDouble(obj['payroll_total']);
+      payrollIncluded.value = obj['payroll_included'] as bool? ?? true;
       netProfit.value = moneyToDouble(obj['net_profit']);
       grossMarginPct.value = moneyToDouble(obj['gross_margin_pct']);
       netMarginPct.value = moneyToDouble(obj['net_margin_pct']);

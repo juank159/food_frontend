@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Color;
 import 'package:get/get.dart';
 
 import '../utils/app_snackbar.dart';
+import 'branch/branch_service.dart';
 import 'connectivity_service.dart';
 import 'offline_queue_service.dart';
 
@@ -74,7 +77,11 @@ class AppSyncService extends GetxController implements SyncService {
       final remapped = _queue.remapEntry(entry);
 
       try {
-        final ok = await handler(remapped);
+        // Con la sede donde se hizo la operación (ver `QueueEntry.branchId`).
+        final ok = await runZoned(
+          () => handler(remapped),
+          zoneValues: {BranchService.zoneKey: remapped.branchId},
+        );
         if (ok) {
           await _queue.remove(entry.id);
           synced++;

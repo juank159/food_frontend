@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import '../../../../core/services/connectivity_service.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/utils/date_period.dart';
@@ -80,10 +81,25 @@ class HomeController extends GetxController {
     return '${_occupiedTables.value}/${_totalTables.value}';
   }
 
+  Worker? _onlineWorker;
+
   @override
   void onInit() {
     super.onInit();
     loadDashboardStats();
+    // Si el inicio se abrió sin internet (p. ej. al cambiar de sede sin
+    // red), los números quedaban en cero hasta refrescar a mano.
+    if (Get.isRegistered<ConnectivityService>()) {
+      _onlineWorker = ever<bool>(Get.find<ConnectivityService>().isOnline, (online) {
+        if (online) loadDashboardStats();
+      });
+    }
+  }
+
+  @override
+  void onClose() {
+    _onlineWorker?.dispose();
+    super.onClose();
   }
 
   /// Cambia el índice de la navegación inferior.

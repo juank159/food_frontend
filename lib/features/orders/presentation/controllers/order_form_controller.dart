@@ -44,7 +44,7 @@ class CartItem {
     List<SelectedModifier>? selectedModifiers,
     List<String>? flavorIds,
     List<String>? flavorNames,
-  }) : unitPrice = unitPrice ?? product.basePrice,
+  }) : unitPrice = unitPrice ?? product.effectivePrice,
        selectedModifiers = selectedModifiers ?? [],
        flavorIds = flavorIds ?? [],
        flavorNames = flavorNames ?? [];
@@ -52,7 +52,7 @@ class CartItem {
   /// Calcula el precio base considerando variante
   double get effectiveBasePrice {
     if (selectedVariant != null) {
-      return selectedVariant!.calculateFinalPrice(product.basePrice);
+      return selectedVariant!.calculateFinalPrice(product.effectivePrice);
     }
     return unitPrice;
   }

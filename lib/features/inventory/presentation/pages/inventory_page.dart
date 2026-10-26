@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/branch/branch_service.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/formatters/datetime_formatter.dart';
@@ -734,6 +735,10 @@ class _ActionsBar extends StatelessWidget {
                 () => Get.toNamed(AppRoutes.inventoryOperation,
                     arguments: {'mode': StockOperationMode.waste})),
             action(Icons.fact_check_outlined, 'Conteo', () => Get.toNamed(AppRoutes.inventoryCount)),
+            if (BranchService.maybe?.isMulti ?? false)
+              action(Icons.swap_horiz, 'Traslado',
+                  () => Get.toNamed(AppRoutes.inventoryOperation,
+                      arguments: {'mode': StockOperationMode.transfer})),
             action(Icons.add, 'Insumo', () => showIngredientFormSheet(context)),
           ],
         ),

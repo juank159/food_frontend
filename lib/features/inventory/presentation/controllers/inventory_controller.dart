@@ -132,13 +132,13 @@ class InventoryController extends GetxController {
       final base = stock.recipeOf(RecipeOwnerType.product, p.id);
       if (p.variants.isEmpty) {
         if (base.isEmpty) continue;
-        rows.add(_row(p, p.name, p.basePrice, base));
+        rows.add(_row(p, p.name, p.effectivePrice, base));
         continue;
       }
       for (final v in p.variants) {
         final lines = [...base, ...stock.recipeOf(RecipeOwnerType.variant, v.id)];
         if (lines.isEmpty) continue;
-        rows.add(_row(p, '${p.name} · ${v.name}', p.basePrice + v.priceModifier, lines,
+        rows.add(_row(p, '${p.name} · ${v.name}', p.effectivePrice + v.priceModifier, lines,
             variantId: v.id));
       }
     }

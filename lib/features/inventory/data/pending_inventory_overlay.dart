@@ -13,6 +13,7 @@ class InventoryPaths {
   static const waste = '/inventory/waste';
   static const adjustments = '/inventory/adjustments';
   static const counts = '/inventory/counts';
+  static const transfers = '/inventory/transfers';
 }
 
 double _num(dynamic v) {
@@ -114,6 +115,9 @@ InventoryOverlay applyPendingInventory({
   required List<Ingredient> ingredients,
   required List<RecipeLine> recipes,
   required Iterable<QueueEntry> queue,
+  /// Sede del dispositivo: el stock que se muestra es el de esta sede, así
+  /// que lo encolado en OTRA sede (antes de cambiar) no lo toca.
+  String? branchId,
 }) {
   final byId = {for (final i in ingredients) i.id: i};
   final order = [for (final i in ingredients) i.id];
@@ -220,6 +224,29 @@ InventoryOverlay applyPendingInventory({
   // 2ª pasada: movimientos de stock.
   for (final e in entries) {
     final p = e.payload;
+    // Traslados: cuentan según si esta sede es origen o destino.
+    if (e.type == QueueOperationType.genericMutation &&
+        p['path'] == InventoryPaths.transfers &&
+        p['body'] is Map) {
+      final body = p['body'] as Map;
+      final from = body['from_branch_id'] as String?;
+      final to = body['to_branch_id'] as String?;
+      final lines = body['lines'];
+      if (lines is List && branchId != null && (from == branchId || to == branchId)) {
+        for (final l in lines.whereType<Map>()) {
+          final id = l['ingredient_id'] as String;
+          final q = _num(l['quantity']);
+          final d = from == branchId ? -q : q;
+          addDelta(id, d);
+          addPending(id, d, MovementReason.transfer, e,
+              reference: from == branchId ? 'Traslado (sale)' : 'Traslado (entra)',
+              notes: body['notes'] as String?);
+        }
+      }
+      continue;
+    }
+    // Lo encolado en otra sede no mueve el stock de esta.
+    if (branchId != null && e.branchId != null && e.branchId != branchId) continue;
     if (e.type == QueueOperationType.createOrder) {
       final items = p['items'];
       if (items is List) {

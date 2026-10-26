@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../services/branch/branch_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
@@ -734,6 +735,20 @@ Future<void> init() async {
                 options.headers[ApiConstants.tenantHeader] = tenantId;
               }
             }
+
+            // Sede del dispositivo (o la de la operación offline que se
+            // está sincronizando). Sin sede el backend usa la principal.
+            if (!options.headers.containsKey(ApiConstants.branchHeader)) {
+              final branchId = BranchService.headerBranchId();
+              if (branchId != null) {
+                options.headers[ApiConstants.branchHeader] = branchId;
+              }
+            }
+            // Admin/gerente en "todas las sedes": solo para LEER.
+            if (options.method.toUpperCase() == 'GET' &&
+                BranchService.maybe?.viewAll.value == true) {
+              options.headers[ApiConstants.branchScopeHeader] = 'all';
+            }
           }
 
           return handler.next(options);
@@ -854,6 +869,9 @@ Future<void> init() async {
   // Shared Preferences (for macOS fallback)
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => sharedPreferences);
+
+  // Sede del dispositivo (multi-sucursal) — ver `BranchService`.
+  Get.put<BranchService>(BranchService(prefs: sharedPreferences), permanent: true);
 
   // Internet Connection Checker (skip on web — dart:io not supported there)
   if (!kIsWeb) {

@@ -202,7 +202,7 @@ class VariantSelectorWidgetState extends State<VariantSelectorWidget> {
   // ─────────────────────────── Card ───────────────────────────
 
   Widget _buildVariantCard(ProductVariant variant, bool isSelected) {
-    final finalPrice = variant.calculateFinalPrice(widget.product.basePrice);
+    final finalPrice = variant.calculateFinalPrice(widget.product.effectivePrice);
     final isDisabled = !variant.isAvailable;
 
     // Colores explícitos — NUNCA dependemos de theme.colorScheme acá porque
@@ -376,7 +376,7 @@ class VariantSelectorWidgetState extends State<VariantSelectorWidget> {
 
   Widget _buildPriceDisplay() {
     final finalPrice =
-        _selectedVariant!.calculateFinalPrice(widget.product.basePrice);
+        _selectedVariant!.calculateFinalPrice(widget.product.effectivePrice);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

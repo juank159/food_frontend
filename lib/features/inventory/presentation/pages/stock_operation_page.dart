@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/branch/branch_service.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
@@ -18,7 +19,9 @@ enum StockOperationMode {
       Icons.local_shipping_outlined),
   waste('Registrar merma', 'Lo que se dañó, se quemó o venció: resta stock.',
       Icons.delete_sweep_outlined),
-  adjust('Ajustar stock', 'Corrección manual con una nota de por qué.', Icons.tune);
+  adjust('Ajustar stock', 'Corrección manual con una nota de por qué.', Icons.tune),
+  transfer('Trasladar a otra sede', 'Sale del stock de esta sede y entra al de la otra.',
+      Icons.swap_horiz);
 
   final String title;
   final String subtitle;
@@ -56,6 +59,7 @@ class _StockOperationPageState extends State<StockOperationPage> {
   final _notes = TextEditingController();
   bool _subtract = false; // ajuste: sumar o restar
   bool _saving = false;
+  BranchInfo? _toBranch; // traslado: sede destino
 
   @override
   void initState() {
@@ -94,6 +98,11 @@ class _StockOperationPageState extends State<StockOperationPage> {
       AppSnackbar.show('Falta la cantidad', 'Agregá al menos un insumo con su cantidad.');
       return;
     }
+    final fromBranch = BranchService.maybe?.current.value;
+    if (_mode == StockOperationMode.transfer && (fromBranch == null || _toBranch == null)) {
+      AppSnackbar.show('Falta la sede', 'Elegí a qué sede va la mercancía.');
+      return;
+    }
     if (_mode == StockOperationMode.adjust && _notes.text.trim().isEmpty) {
       AppSnackbar.show('Falta el motivo', 'Contá por qué ajustás (ej. "se contó mal ayer").');
       return;
@@ -127,6 +136,14 @@ class _StockOperationPageState extends State<StockOperationPage> {
           delta: _subtract ? -valid.first.quantity! : valid.first.quantity!,
           notes: _notes.text,
         ),
+      StockOperationMode.transfer => await _repo.transfer(
+          fromBranchId: fromBranch!.id,
+          toBranchId: _toBranch!.id,
+          notes: _notes.text,
+          lines: [
+            for (final l in valid) (ingredientId: l.ingredient.id, quantity: l.quantity!),
+          ],
+        ),
     };
     _stock.reloadLocal();
     if (!mounted) return;
@@ -135,11 +152,12 @@ class _StockOperationPageState extends State<StockOperationPage> {
       (f) => AppSnackbar.show('No se pudo registrar', f.message),
       (r) {
         AppSnackbar.show(
-          _mode == StockOperationMode.purchase
-              ? 'Compra registrada'
-              : _mode == StockOperationMode.waste
-                  ? 'Merma registrada'
-                  : 'Ajuste registrado',
+          switch (_mode) {
+            StockOperationMode.purchase => 'Compra registrada',
+            StockOperationMode.waste => 'Merma registrada',
+            StockOperationMode.adjust => 'Ajuste registrado',
+            StockOperationMode.transfer => 'Traslado a ${_toBranch?.name ?? 'otra sede'}',
+          },
           r.synced ? 'Stock actualizado' : 'Guardado sin internet · se sincroniza solo',
         );
         Get.back();
@@ -171,6 +189,10 @@ class _StockOperationPageState extends State<StockOperationPage> {
                       controller: _invoice,
                       decoration: _dec('N.º de factura (opcional)', Icons.receipt_long_outlined),
                     ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_mode == StockOperationMode.transfer) ...[
+                    _transferBranches(),
                     const SizedBox(height: 16),
                   ],
                   if (isAdjust && _lines.isNotEmpty)
@@ -248,7 +270,9 @@ class _StockOperationPageState extends State<StockOperationPage> {
     final q = l.quantity ?? 0;
     final after = _mode == StockOperationMode.purchase
         ? ing.currentStock + q
-        : _mode == StockOperationMode.waste || _subtract
+        : _mode == StockOperationMode.waste ||
+                _mode == StockOperationMode.transfer ||
+                _subtract
             ? ing.currentStock - q
             : ing.currentStock + q;
     final unitCost = l.totalPaid != null && q > 0 ? l.totalPaid! / q : null;
@@ -336,6 +360,40 @@ class _StockOperationPageState extends State<StockOperationPage> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _transferBranches() {
+    final service = BranchService.maybe;
+    final from = service?.current.value;
+    final targets = (service?.mine ?? const <BranchInfo>[])
+        .where((b) => b.id != from?.id)
+        .toList();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Sale de: ${from?.name ?? '—'} (este dispositivo)',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: _toBranch?.id,
+            decoration: _dec('Va para', Icons.storefront_outlined),
+            items: [
+              for (final b in targets) DropdownMenuItem(value: b.id, child: Text(b.name)),
+            ],
+            onChanged: (id) => setState(
+              () => _toBranch = targets.firstWhereOrNull((b) => b.id == id),
+            ),
+          ),
         ],
       ),
     );

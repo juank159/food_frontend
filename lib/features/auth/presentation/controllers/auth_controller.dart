@@ -1,5 +1,6 @@
 //lib/features/auth/presentation/controllers/auth_controller.dart
 import 'package:dio/dio.dart';
+import '../../../../core/services/branch/branch_service.dart';
 import 'package:get/get.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/app_routes.dart';
@@ -111,6 +112,10 @@ class AuthController extends GetxController {
   ///   - `TrialExpiryReminderService`: recuerda cada 2h que el trial
   ///     está por vencer (1 día o menos). Solo admin.
   void _startBackgroundServices(User user) {
+    // Sede del dispositivo: primero lo guardado (sin red, inmediato) para
+    // que las primeras peticiones ya lleven `x-branch-id`.
+    BranchService.maybe?.restore(user.tenantId);
+    _refreshBranches(user);
     try {
       Get.find<PendingReviewWatcher>().startForRole(user.roleCode);
     } catch (_) {
@@ -137,6 +142,15 @@ class AuthController extends GetxController {
     // manda acá, ya con token y solo si hay red de verdad (un intento
     // fallido gasta uno de los 5 reintentos de cada operación).
     _syncPendingQueue();
+  }
+
+  /// Trae las sedes del usuario y, ya con la sede definitiva, registra el
+  /// token push (los avisos de pedidos QR son por sede).
+  Future<void> _refreshBranches(User user) async {
+    final branches = BranchService.maybe;
+    if (branches == null) return;
+    await branches.refresh(sl<Dio>(), roleCode: user.roleCode);
+    PushNotificationService.registerToken(sl<Dio>()).ignore();
   }
 
   Future<void> _syncPendingQueue() async {

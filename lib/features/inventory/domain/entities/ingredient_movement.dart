@@ -10,7 +10,8 @@ enum MovementReason {
   waste('waste', 'Merma', Icons.delete_sweep_outlined, AppColors.error),
   adjustment('adjustment', 'Ajuste', Icons.tune, AppColors.warning),
   count('count', 'Conteo', Icons.fact_check_outlined, AppColors.primary),
-  initial('initial', 'Stock inicial', Icons.flag_outlined, AppColors.textSecondary);
+  initial('initial', 'Stock inicial', Icons.flag_outlined, AppColors.textSecondary),
+  transfer('transfer', 'Traslado', Icons.swap_horiz, AppColors.secondary);
 
   final String code;
   final String label;

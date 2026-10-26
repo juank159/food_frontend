@@ -209,6 +209,10 @@ class ApiConstants {
   static const String authorizationHeader = 'Authorization';
   static const String contentTypeHeader = 'Content-Type';
   static const String tenantHeader = 'x-tenant-id';
+  /// Sede del dispositivo (multi-sucursal). Ver `BranchService`.
+  static const String branchHeader = 'x-branch-id';
+  /// `all` = admin/gerente viendo todas las sedes (solo lectura).
+  static const String branchScopeHeader = 'x-branch-scope';
   static const String tenantSubdomainHeader = 'x-tenant-subdomain';
 
   // Timeouts

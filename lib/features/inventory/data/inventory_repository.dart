@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import '../../../core/services/branch/branch_service.dart';
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/error/failures.dart';
@@ -63,6 +64,7 @@ class InventoryRepository {
       // reproducir la cola (si no, un ajuste a un insumo creado offline
       // se "perdería" de la vista apenas el alta sincroniza).
       queue: queue.getAll().map(queue.remapEntry),
+      branchId: BranchService.maybe?.current.value?.id,
     );
   }
 
@@ -312,6 +314,24 @@ class InventoryRepository {
       'lines': [
         for (final l in lines)
           {'ingredient_id': l.ingredientId, 'counted': l.counted, 'expected': l.expected},
+      ],
+    });
+  }
+
+  /// Traslado entre sedes (admin/gerente). Funciona sin internet: queda
+  /// en la cola y el backend lo aplica una sola vez (`client_request_id`).
+  Future<Either<Failure, InventoryWriteResult>> transfer({
+    required String fromBranchId,
+    required String toBranchId,
+    required List<({String ingredientId, double quantity})> lines,
+    String? notes,
+  }) {
+    return _stockOperation(InventoryPaths.transfers, {
+      'from_branch_id': fromBranchId,
+      'to_branch_id': toBranchId,
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      'lines': [
+        for (final l in lines) {'ingredient_id': l.ingredientId, 'quantity': l.quantity},
       ],
     });
   }

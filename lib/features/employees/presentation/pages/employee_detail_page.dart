@@ -8,6 +8,7 @@ import '../../../../core/utils/role_labels.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/employee.dart';
 import '../controllers/employee_detail_controller.dart';
+import '../widgets/employee_branches_card.dart';
 
 /// Employee Detail Page — pantalla de detalle de empleado.
 ///
@@ -105,6 +106,7 @@ class EmployeeDetailPage extends GetView<EmployeeDetailController> {
                 const SizedBox(height: 16),
                 _buildPersonalSection(emp),
                 const SizedBox(height: 16),
+                EmployeeBranchesCard(userId: emp.id),
                 _buildActionsSection(emp),
               ],
             ),

@@ -341,7 +341,7 @@ class ProductSelectorWidget extends StatelessWidget {
       final remaining = orderController.remainingStock(product);
       // El inventario NO bloquea la venta (vender y avisar): sin stock se
       // muestra el aviso pero la card sigue tocable.
-      final isAvailable = product.isAvailable;
+      final isAvailable = product.availableHere;
 
       return HoverCard(
         // Tap en la card = abrir el detalle (cantidad + NOTAS para cocina +
@@ -527,7 +527,7 @@ class ProductSelectorWidget extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        CurrencyFormatter.format(product.basePrice),
+                        CurrencyFormatter.format(product.effectivePrice),
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,
@@ -752,7 +752,7 @@ class ProductSelectorWidget extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        CurrencyFormatter.format(product.basePrice),
+                        CurrencyFormatter.format(product.effectivePrice),
                         style: theme.textTheme.titleLarge?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,
@@ -1304,7 +1304,7 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
   }
 
   double _calcTotal() {
-    double base = widget.product.basePrice;
+    double base = widget.product.effectivePrice;
     if (_selectedVariant != null) {
       base = _selectedVariant!.calculateFinalPrice(base);
     }
@@ -1397,7 +1397,7 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        CurrencyFormatter.format(product.basePrice),
+                        CurrencyFormatter.format(product.effectivePrice),
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,
@@ -1883,8 +1883,8 @@ class _ProductDetailsSheetState extends State<_ProductDetailsSheet> {
           final variantName = entry.variant?.name ?? '';
           final flavorsText = entry.flavorNames.join(', ');
           final unitPrice =
-              entry.variant?.calculateFinalPrice(widget.product.basePrice) ??
-              widget.product.basePrice;
+              entry.variant?.calculateFinalPrice(widget.product.effectivePrice) ??
+              widget.product.effectivePrice;
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(

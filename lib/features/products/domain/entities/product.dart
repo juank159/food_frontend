@@ -37,6 +37,20 @@ class Product extends Equatable {
   final List<ModifierGroup> modifierGroups;
   final List<ProductVariant> variants;
 
+  /// Precio propio en la sede del dispositivo (`null` = el del catálogo).
+  /// [basePrice]/[isAvailable] son SIEMPRE los del catálogo (lo que se
+  /// edita en Productos); para vender usar [effectivePrice]/[availableHere].
+  final double? branchPrice;
+
+  /// `false` = apagado en la sede del dispositivo (`null` = como el catálogo).
+  final bool? branchAvailable;
+
+  /// Precio base con el que se vende en ESTA sede.
+  double get effectivePrice => branchPrice ?? basePrice;
+
+  /// ¿Se ofrece en ESTA sede?
+  bool get availableHere => isAvailable && branchAvailable != false;
+
   const Product({
     required this.id,
     required this.name,
@@ -62,6 +76,8 @@ class Product extends Equatable {
     required this.updatedAt,
     this.modifierGroups = const [],
     this.variants = const [],
+    this.branchPrice,
+    this.branchAvailable,
   });
 
   Product copyWith({
@@ -113,6 +129,8 @@ class Product extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       modifierGroups: modifierGroups ?? this.modifierGroups,
       variants: variants ?? this.variants,
+      branchPrice: branchPrice,
+      branchAvailable: branchAvailable,
     );
   }
 
@@ -204,5 +222,7 @@ class Product extends Equatable {
         updatedAt,
         modifierGroups,
         variants,
+        branchPrice,
+        branchAvailable,
       ];
 }

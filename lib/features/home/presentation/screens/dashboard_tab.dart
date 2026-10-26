@@ -8,6 +8,7 @@ import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
+import '../../../../core/widgets/branch/branch_bar.dart';
 import '../../../../core/utils/safe_get.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
@@ -56,6 +57,7 @@ class DashboardTab extends GetView<HomeController> {
               children: [
                 _buildHeader(authController,
                     isAdminOrManager: access.isAdminOrManager),
+                BranchBar(canViewAll: access.isAdminOrManager),
                 const _CashSessionStatusBanner(),
                 const SizedBox(height: 18),
                 _buildPrimaryActions(),

@@ -8,6 +8,9 @@ import '../../../../core/widgets/app_gradient_header.dart';
 import '../../../../core/widgets/app_primary_action_bar.dart';
 import '../../domain/entities/product.dart';
 import '../controllers/product_detail_controller.dart';
+import '../widgets/product_branch_settings_section.dart';
+import '../../../../core/utils/ui_access.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 /// Detalle de producto — pantalla read-only con FAB "Editar".
 ///
@@ -69,6 +72,13 @@ class ProductDetailPage extends GetView<ProductDetailController> {
                       ],
                       _PricingSection(product: product),
                       const SizedBox(height: 14),
+                      if (UiAccess.from(Get.find<AuthController>().currentUserRx)
+                          .isAdminOrManager)
+                        ProductBranchSettingsSection(
+                          productId: product.id,
+                          basePrice: product.basePrice,
+                          catalogAvailable: product.isAvailable,
+                        ),
                       if (product.trackInventory) ...[
                         _InventorySection(product: product),
                         const SizedBox(height: 14),

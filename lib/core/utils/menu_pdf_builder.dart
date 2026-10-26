@@ -218,7 +218,7 @@ class MenuPdfBuilder {
         final hasVariants = product.availableVariants.isNotEmpty;
         final priceLabel = hasVariants
             ? 'desde ${_fmt(product.minPrice)}'
-            : _fmt(product.basePrice);
+            : _fmt(product.effectivePrice);
 
         content.add(
           pw.Padding(
@@ -297,7 +297,7 @@ class MenuPdfBuilder {
                         if (hasVariants) ...[
                           pw.SizedBox(height: 3),
                           ...product.availableVariants.take(3).map((v) {
-                            final vPrice = product.basePrice + v.priceModifier;
+                            final vPrice = product.effectivePrice + v.priceModifier;
                             return pw.Row(
                               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                               children: [

@@ -2385,7 +2385,7 @@ class _AddProductToOrderSheetState extends State<_AddProductToOrderSheet> {
                     ),
                     title: Text(p.name,
                         style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(CurrencyFormatter.format(p.basePrice),
+                    subtitle: Text(CurrencyFormatter.format(p.effectivePrice),
                         style: const TextStyle(
                             color: AppColors.textSecondary, fontSize: 12)),
                     trailing: const Icon(Icons.chevron_right, size: 18),
@@ -2445,8 +2445,8 @@ class _ProductPickerDetailState extends State<_ProductPickerDetail> {
   }
 
   double get _basePrice => _variant != null
-      ? widget.product.basePrice + _variant!.priceModifier
-      : widget.product.basePrice;
+      ? widget.product.effectivePrice + _variant!.priceModifier
+      : widget.product.effectivePrice;
 
   double get _adjustAmount {
     if (!_adjustOpen) return 0;
@@ -2548,7 +2548,7 @@ class _ProductPickerDetailState extends State<_ProductPickerDetail> {
                         final sel = _variant?.id == v.id;
                         return ChoiceChip(
                           label: Text(
-                            '${v.name} · ${CurrencyFormatter.format(widget.product.basePrice + v.priceModifier)}',
+                            '${v.name} · ${CurrencyFormatter.format(widget.product.effectivePrice + v.priceModifier)}',
                           ),
                           selected: sel,
                           onSelected: (_) => setState(() => _variant = v),
