@@ -1,0 +1,59 @@
+# Builds NATIVAS del POS (Windows y Android).
+#
+# Dokploy solo actualiza Flutter Web en cada push. Las apps instaladas en
+# los dispositivos (Windows/Android) NO se actualizan solas: hay que
+# descargarlas de acá y reinstalarlas. Ver CLAUDE.md.
+#
+# Uso: GitHub → Actions → "Builds nativas" → Run workflow. Al terminar,
+# los instaladores quedan en "Artifacts" del run (30 días).
+name: Builds nativas
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.8
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Empaquetar
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath menu_plat-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu_plat-windows
+          path: menu_plat-windows.zip
+          retention-days: 30
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.8
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu_plat-android
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
