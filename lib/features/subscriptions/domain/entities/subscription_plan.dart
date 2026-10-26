@@ -8,7 +8,12 @@ class SubscriptionPlan extends Equatable {
   final String code;
   final String name;
   final String description;
+  /// Precio mensual (= `price_monthly`). Semestral y anual son el valor
+  /// TOTAL del período, con descuento (ver [priceFor]).
   final double price;
+  final double priceSemiannual;
+  final double priceYearly;
+  final String currency;
   final String billingCycle;
   final int trialDays;
   final bool isActive;
@@ -21,6 +26,9 @@ class SubscriptionPlan extends Equatable {
     required this.name,
     required this.description,
     required this.price,
+    this.priceSemiannual = 0,
+    this.priceYearly = 0,
+    this.currency = 'COP',
     required this.billingCycle,
     required this.trialDays,
     required this.isActive,
@@ -48,6 +56,33 @@ class SubscriptionPlan extends Equatable {
     return getLimit(limitName) == -1;
   }
 
+  /// Meses que cubre cada ciclo de cobro.
+  static int monthsOf(String cycle) => switch (cycle) {
+        'semiannual' => 6,
+        'yearly' => 12,
+        _ => 1,
+      };
+
+  /// Valor total a pagar por el ciclo (mensual, semestral o anual).
+  double priceFor(String cycle) => switch (cycle) {
+        'semiannual' => priceSemiannual > 0 ? priceSemiannual : price * 6,
+        'yearly' => priceYearly > 0 ? priceYearly : price * 12,
+        _ => price,
+      };
+
+  /// Lo que sale por mes pagando ese ciclo.
+  double monthlyEquivalent(String cycle) => priceFor(cycle) / monthsOf(cycle);
+
+  /// Ahorro total frente a pagar mes a mes durante el mismo período.
+  double savingsFor(String cycle) =>
+      price * monthsOf(cycle) - priceFor(cycle);
+
+  static String cycleLabel(String cycle) => switch (cycle) {
+        'semiannual' => 'Semestral',
+        'yearly' => 'Anual',
+        _ => 'Mensual',
+      };
+
   /// Get formatted price
   String get formattedPrice {
     if (price == 0) return 'Gratis';
@@ -59,6 +94,8 @@ class SubscriptionPlan extends Equatable {
     switch (billingCycle.toLowerCase()) {
       case 'monthly':
         return 'al mes';
+      case 'semiannual':
+        return 'por 6 meses';
       case 'yearly':
         return 'al año';
       case 'quarterly':
@@ -97,6 +134,9 @@ class SubscriptionPlan extends Equatable {
         name,
         description,
         price,
+        priceSemiannual,
+        priceYearly,
+        currency,
         billingCycle,
         trialDays,
         isActive,

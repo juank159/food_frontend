@@ -15,6 +15,8 @@ class SubscriptionUsageModel extends Equatable {
   final int trialDaysRemaining;
   final DateTime? trialEndsAt;
   final DateTime? currentPeriodEnd;
+  final DateTime? gracePeriodEndsAt;
+  final String billingCycle;
   final DateTime? startedAt;
 
   const SubscriptionUsageModel({
@@ -29,6 +31,8 @@ class SubscriptionUsageModel extends Equatable {
     required this.trialDaysRemaining,
     this.trialEndsAt,
     this.currentPeriodEnd,
+    this.gracePeriodEndsAt,
+    this.billingCycle = 'monthly',
     this.startedAt,
   });
 
@@ -50,6 +54,10 @@ class SubscriptionUsageModel extends Equatable {
         currentPeriodEnd: json['current_period_end'] != null
             ? DateTime.parse(json['current_period_end'] as String)
             : null,
+        gracePeriodEndsAt: json['grace_period_ends_at'] != null
+            ? DateTime.parse(json['grace_period_ends_at'] as String)
+            : null,
+        billingCycle: json['billing_cycle'] as String? ?? 'monthly',
         startedAt: json['started_at'] != null
             ? DateTime.parse(json['started_at'] as String)
             : null,
@@ -74,6 +82,8 @@ class SubscriptionUsageModel extends Equatable {
       'trial_days_remaining': trialDaysRemaining,
       'trial_ends_at': trialEndsAt?.toIso8601String(),
       'current_period_end': currentPeriodEnd?.toIso8601String(),
+      'grace_period_ends_at': gracePeriodEndsAt?.toIso8601String(),
+      'billing_cycle': billingCycle,
       'started_at': startedAt?.toIso8601String(),
     };
   }
@@ -91,6 +101,8 @@ class SubscriptionUsageModel extends Equatable {
       trialDaysRemaining: trialDaysRemaining,
       trialEndsAt: trialEndsAt,
       currentPeriodEnd: currentPeriodEnd,
+      gracePeriodEndsAt: gracePeriodEndsAt,
+      billingCycle: billingCycle,
       startedAt: startedAt,
     );
   }
@@ -108,6 +120,8 @@ class SubscriptionUsageModel extends Equatable {
         trialDaysRemaining,
         trialEndsAt,
         currentPeriodEnd,
+        gracePeriodEndsAt,
+        billingCycle,
         startedAt,
       ];
 }

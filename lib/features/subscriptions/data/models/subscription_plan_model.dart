@@ -12,6 +12,9 @@ class SubscriptionPlanModel extends Equatable {
   final String description;
   @JsonKey(fromJson: JsonParsers.parseDouble)
   final double price;
+  final double priceSemiannual;
+  final double priceYearly;
+  final String currency;
   final String billingCycle;
   final int trialDays;
   final bool isActive;
@@ -24,6 +27,9 @@ class SubscriptionPlanModel extends Equatable {
     required this.name,
     required this.description,
     required this.price,
+    this.priceSemiannual = 0,
+    this.priceYearly = 0,
+    this.currency = 'COP',
     required this.billingCycle,
     required this.trialDays,
     required this.isActive,
@@ -39,9 +45,16 @@ class SubscriptionPlanModel extends Equatable {
         code: json['code'] as String,
         name: json['name'] as String,
         description: json['description'] as String? ?? '',
-        price: _parseDouble(json['price']),
+        // El backend manda `price_monthly`/`price_semiannual`/`price_yearly`
+        // (decimales como string). Antes se leía `price`, que no existe, y
+        // todos los planes salían "Gratis".
+        price: _parseDouble(json['price_monthly'] ?? json['price']),
+        priceSemiannual: _parseDouble(json['price_semiannual']),
+        priceYearly: _parseDouble(json['price_yearly']),
+        currency: json['currency'] as String? ?? 'COP',
         billingCycle: json['billing_cycle'] as String? ?? 'monthly',
-        trialDays: _parseInt(json['trial_days']),
+        trialDays:
+            _parseInt(json['trial_period_days'] ?? json['trial_days']),
         isActive: json['is_active'] as bool? ?? true,
         features: json['features'] as Map<String, dynamic>? ?? {},
         limits: json['limits'] as Map<String, dynamic>? ?? {},
@@ -60,9 +73,12 @@ class SubscriptionPlanModel extends Equatable {
       'code': code,
       'name': name,
       'description': description,
-      'price': price,
+      'price_monthly': price,
+      'price_semiannual': priceSemiannual,
+      'price_yearly': priceYearly,
+      'currency': currency,
       'billing_cycle': billingCycle,
-      'trial_days': trialDays,
+      'trial_period_days': trialDays,
       'is_active': isActive,
       'features': features,
       'limits': limits,
@@ -77,6 +93,9 @@ class SubscriptionPlanModel extends Equatable {
       name: name,
       description: description,
       price: price,
+      priceSemiannual: priceSemiannual,
+      priceYearly: priceYearly,
+      currency: currency,
       billingCycle: billingCycle,
       trialDays: trialDays,
       isActive: isActive,
@@ -93,6 +112,9 @@ class SubscriptionPlanModel extends Equatable {
       name: plan.name,
       description: plan.description,
       price: plan.price,
+      priceSemiannual: plan.priceSemiannual,
+      priceYearly: plan.priceYearly,
+      currency: plan.currency,
       billingCycle: plan.billingCycle,
       trialDays: plan.trialDays,
       isActive: plan.isActive,
@@ -126,6 +148,9 @@ class SubscriptionPlanModel extends Equatable {
         name,
         description,
         price,
+        priceSemiannual,
+        priceYearly,
+        currency,
         billingCycle,
         trialDays,
         isActive,

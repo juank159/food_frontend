@@ -716,12 +716,17 @@ Future<void> init() async {
         onRequest: (options, handler) async {
           final path = options.path;
 
-          // Don't add auth token to login/register endpoints
+          // Don't add auth token to login/register endpoints. De
+          // `/tenants` solo son públicos crear negocio (POST /tenants) y
+          // buscar por subdominio. Antes `contains('/tenants')` dejaba sin
+          // token a `/tenants/me` y `/platform/tenants`: respondían 401 y
+          // solo andaban gracias al refresh + reintento.
           final isAuthEndpoint =
               path.contains('/auth/login') ||
               path.contains('/auth/register') ||
               path.contains('/auth/refresh') ||
-              path.contains('/tenants');
+              (path.endsWith('/tenants') && options.method == 'POST') ||
+              path.contains('/tenants/subdomain/');
 
           if (!isAuthEndpoint) {
             final token = await sl<AuthLocalDataSource>().getAccessToken();

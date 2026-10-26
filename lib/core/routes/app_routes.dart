@@ -164,6 +164,8 @@ class AppRoutes {
   // ==================== SUBSCRIPTION ROUTES ====================
   static const String subscription = '/subscription';
   static const String subscriptionPlans = '/subscription/plans';
+  /// Panel del dueño de la plataforma (aprobar pagos de los negocios).
+  static const String platformAdmin = '/platform-admin';
 
   // ==================== HELPER METHODS ====================
 

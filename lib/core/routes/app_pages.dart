@@ -90,6 +90,7 @@ import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/splash/presentation/bindings/splash_binding.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/subscriptions/presentation/bindings/subscription_binding.dart';
+import '../../features/subscriptions/presentation/pages/platform_admin_page.dart';
 import '../../features/subscriptions/presentation/pages/subscription_page.dart';
 import '../../features/reports/presentation/bindings/customer_report_binding.dart';
 import '../../features/reports/presentation/bindings/employee_report_binding.dart';
@@ -925,6 +926,13 @@ class AppPages {
       name: AppRoutes.subscriptionPlans,
       page: () => const SubscriptionPage(),
       binding: SubscriptionBinding(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: AppRoutes.platformAdmin,
+      page: () => const PlatformAdminPage(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 300),

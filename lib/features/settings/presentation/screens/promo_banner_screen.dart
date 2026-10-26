@@ -42,7 +42,6 @@ class _PromoBannerScreenState extends State<PromoBannerScreen> {
   String? _linkedProductName;
   // Lista cargada del catálogo para el picker: [{id, name, category_name}]
   List<Map<String, dynamic>> _allProducts = [];
-  bool _loadingProducts = false;
 
   Map<String, dynamic> _existingSettings = {};
 

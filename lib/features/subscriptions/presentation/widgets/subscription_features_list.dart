@@ -81,8 +81,17 @@ class SubscriptionFeaturesList extends GetView<SubscriptionController> {
 
   String _getFeatureLabel(String key) {
     const labels = {
+      // Funciones actuales (ver SubscriptionPlansSeeder en el backend).
+      'orders_pos': 'Ventas, mesas, cuentas y cobros',
+      'qr_self_order': 'Menú QR con autopedido',
+      'offline_mode': 'Funciona sin internet',
+      'breb_reconciliation': 'Cobros Bre-B confirmados automáticamente',
+      'inventory_recipes': 'Inventario con recetas y costos',
+      'suppliers_purchases': 'Proveedores, compras y cuentas por pagar',
+      'finance_reports': 'Gastos, nómina y estado de resultados',
+      'email_support': 'Soporte por correo',
       // Core Features
-      'multi_location': 'Múltiples Ubicaciones',
+      'multi_location': 'Varias sedes (hasta 5)',
       'custom_domain': 'Dominio Personalizado',
       'api_access': 'Acceso a API',
       'white_label': 'Marca Blanca',
@@ -104,7 +113,6 @@ class SubscriptionFeaturesList extends GetView<SubscriptionController> {
       'marketing_tools': 'Herramientas de Marketing',
 
       // Support
-      'email_support': 'Soporte por Email',
       'priority_support': 'Soporte Prioritario',
       'phone_support': 'Soporte Telefónico',
       'dedicated_account_manager': 'Gerente de Cuenta Dedicado',

@@ -226,11 +226,25 @@ class _UsageCard extends StatelessWidget {
           Icon(Icons.storefront, color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              unlimited
-                  ? '$active sede${active == 1 ? '' : 's'} activa${active == 1 ? '' : 's'}'
-                  : '$active de $limit sedes activas en tu plan',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  unlimited
+                      ? '$active sede${active == 1 ? '' : 's'} activa${active == 1 ? '' : 's'}'
+                      : '$active de $limit sedes activas en tu plan',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (!unlimited && active > limit!)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Tenés más sedes activas que las de tu plan. Desactivá las que no uses '
+                      'o mejorá el plan para seguir usándolas.',
+                      style: TextStyle(color: AppColors.error, fontSize: 12),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

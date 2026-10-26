@@ -26,19 +26,27 @@ class TrialBanner extends GetView<SubscriptionController> {
         );
       }
 
-      // Plan pago (Basic/Professional) que dejó de estar al día: el
-      // último cobro falló (en período de gracia) o la suscripción está
-      // cancelada/expirada. Mismo bloqueo operativo — mismo aviso.
+      // Plan pago sin gracia: expirado/cancelado o mora con gracia vencida.
       if (usage.paidPlanLapsed) {
-        final isPastDue = usage.subscriptionStatus.toLowerCase() == 'past_due';
+        return const _BlockedBanner(
+          title: 'Tu plan venció',
+          subtitle: 'No podés crear pedidos, cobrar, registrar gastos ni '
+              'nómina hasta renovarlo. Solicitá la renovación abajo y la '
+              'activamos apenas recibamos el pago.',
+        );
+      }
+
+      // Pago vencido pero dentro de los días de gracia: sigue operando.
+      if (usage.inGracePeriod) {
+        final until = usage.gracePeriodEndsAt!.toLocal();
+        final d = until.difference(DateTime.now()).inDays;
         return _BlockedBanner(
-          title: isPastDue ? 'Tu plan está vencido' : 'Tu suscripción terminó',
-          subtitle: isPastDue
-              ? 'El último cobro no se pudo procesar. No podés crear '
-                  'pedidos, cobrar, registrar gastos ni nómina hasta '
-                  'regularizar el pago.'
-              : 'No podés crear pedidos, cobrar, registrar gastos ni '
-                  'nómina hasta renovar tu plan.',
+          title: 'Tu plan venció — renovalo pronto',
+          subtitle: 'Seguís operando normal hasta el '
+              '${until.day}/${until.month}/${until.year}'
+              '${d >= 1 ? ' ($d ${d == 1 ? 'día' : 'días'})' : ''}. '
+              'Después se bloquean pedidos, cobros, gastos y nómina.',
+          warning: true,
         );
       }
 
@@ -104,21 +112,27 @@ class TrialBanner extends GetView<SubscriptionController> {
 class _BlockedBanner extends StatelessWidget {
   final String title;
   final String subtitle;
+  final bool warning;
 
-  const _BlockedBanner({required this.title, required this.subtitle});
+  const _BlockedBanner({
+    required this.title,
+    required this.subtitle,
+    this.warning = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final color = warning ? AppColors.warning : AppColors.error;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.1),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_clock, color: AppColors.error, size: 28),
+          Icon(warning ? Icons.schedule : Icons.lock_clock, color: color, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -145,7 +159,7 @@ class _BlockedBanner extends StatelessWidget {
           ),
           IconButton(
             onPressed: NavigationService.toSubscriptionPlans,
-            icon: const Icon(Icons.arrow_forward, color: AppColors.error),
+            icon: Icon(Icons.arrow_forward, color: color),
           ),
         ],
       ),

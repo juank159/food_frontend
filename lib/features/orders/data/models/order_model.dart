@@ -37,6 +37,10 @@ class OrderModel {
   /// y solo como último recurso a `tableElementId`.
   @JsonKey(name: 'table_label')
   final String? tableLabel;
+
+  /// Sede del pedido (multi-sucursal): el ticket impreso lleva sus datos.
+  @JsonKey(name: 'branch_id')
+  final String? branchId;
   @JsonKey(name: 'tab_session_id')
   final String? tabSessionId;
   @JsonKey(name: 'customer_id')
@@ -109,6 +113,7 @@ class OrderModel {
     this.tableElementId,
     this.tableName,
     this.tableLabel,
+    this.branchId,
     this.tabSessionId,
     this.customerId,
     this.customerName,
@@ -317,6 +322,7 @@ class OrderModel {
       tableElementId: json['table_element_id'] as String?,
       tableName: (json['table_name'] as String?) ?? table?['name'] as String?,
       tableLabel: json['table_label'] as String?,
+      branchId: json['branch_id'] as String?,
       tabSessionId: json['tab_session_id'] as String?,
       customerId: json['customer_id'] as String?,
       customerName: (json['customer_name'] as String?) ??

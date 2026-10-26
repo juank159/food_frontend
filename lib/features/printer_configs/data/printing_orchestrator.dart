@@ -82,10 +82,15 @@ class PrintingOrchestrator {
   /// Datos del encabezado del ticket. Con varias sedes, dirección y
   /// teléfono son los de la sede del dispositivo (si los tiene cargados)
   /// y el nombre lleva la sede: el cliente ve DÓNDE compró.
-  static Future<_TenantInfo> _getTenantInfo() async {
+  static Future<_TenantInfo> _getTenantInfo({String? branchId}) async {
     final info = await _getTenantInfoRaw();
     final branches = BranchService.maybe;
-    final branch = branches?.current.value;
+    // [branchId]: la sede del documento (p. ej. la caja que se cierra);
+    // si no se conoce, la del dispositivo.
+    final branch = (branchId != null
+            ? branches?.mine.firstWhereOrNull((b) => b.id == branchId)
+            : null) ??
+        branches?.current.value;
     if (branches == null || branch == null || !branches.isMulti) return info;
     String? pick(String? own, String? fallback) =>
         own != null && own.trim().isNotEmpty ? own.trim() : fallback;
@@ -553,10 +558,9 @@ class PrintingOrchestrator {
     String sessionId,
   ) async {
     final data = await _fetchCashSessionReportJson(sessionId);
-    final session = CashSessionModel.fromJson(
-      (data['session'] as Map).cast<String, dynamic>(),
-    );
-    final tenant = await _getTenantInfo();
+    final rawSession = (data['session'] as Map).cast<String, dynamic>();
+    final session = CashSessionModel.fromJson(rawSession);
+    final tenant = await _getTenantInfo(branchId: rawSession['branch_id'] as String?);
 
     final byMethod = (data['by_method'] as Map?)?.cast<String, dynamic>() ?? {};
     final brebByLlave =
@@ -881,7 +885,7 @@ class PrintingOrchestrator {
     OrderModel order,
     PrintJobKind kind,
   ) async {
-    final tenant = await _getTenantInfo();
+    final tenant = await _getTenantInfo(branchId: order.branchId);
     // El logo solo se imprime en el RECIBO (la comanda de cocina es
     // funcional, sin branding — ahorra papel y tiempo de impresión).
     final logoBytes = kind == PrintJobKind.receipt
@@ -1103,7 +1107,10 @@ class PrintingOrchestrator {
       return PrintResult.success;
     }
 
-    final tenant = await _getTenantInfo();
+    // Sede de la cuenta = la de sus pedidos.
+    final tenant = await _getTenantInfo(
+      branchId: orders.map((o) => o.branchId).whereType<String>().firstOrNull,
+    );
     final logoBytes = await _getLogoBytes(tenant.logoUrl);
 
     // Bug real corregido: esto hardcodeaba `orderType: 'dine_in'` y

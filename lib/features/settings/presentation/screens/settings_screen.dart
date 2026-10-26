@@ -1,11 +1,14 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/routes/navigation_service.dart';
 import '../../../../core/utils/ui_access.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../subscriptions/data/datasources/plan_billing_api.dart';
 
 /// Hub central de configuración. Reemplaza el placeholder de `/settings`.
 ///
@@ -185,6 +188,10 @@ class SettingsScreen extends StatelessWidget {
                         onTap: NavigationService.toSubscription,
                       ),
                     ],
+
+                    // Dueño de la PLATAFORMA (aprueba pagos de los negocios):
+                    // el backend decide quién es, acá solo se pregunta.
+                    const _PlatformAdminEntry(),
                   ],
                 );
               }),
@@ -232,6 +239,40 @@ class SettingsScreen extends StatelessWidget {
 
 /// Tile de configuración. Reusa el lenguaje visual del `_QuickActionTile`
 /// del dashboard (avatar tintado + título + subtítulo + chevron).
+class _PlatformAdminEntry extends StatefulWidget {
+  const _PlatformAdminEntry();
+
+  @override
+  State<_PlatformAdminEntry> createState() => _PlatformAdminEntryState();
+}
+
+class _PlatformAdminEntryState extends State<_PlatformAdminEntry> {
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    PlanBillingApi(sl<Dio>()).isPlatformAdmin().then((v) {
+      if (mounted && v) setState(() => _isAdmin = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isAdmin) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: _SettingsTile(
+        icon: Icons.admin_panel_settings_outlined,
+        title: 'Plataforma',
+        subtitle: 'Solicitudes de plan y pagos de los negocios',
+        accent: const Color(0xFF8E44AD),
+        onTap: () => Get.toNamed(AppRoutes.platformAdmin),
+      ),
+    );
+  }
+}
+
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;

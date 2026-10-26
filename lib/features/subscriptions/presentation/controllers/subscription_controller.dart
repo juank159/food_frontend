@@ -4,11 +4,11 @@ import '../../domain/entities/subscription.dart';
 import '../../domain/entities/subscription_plan.dart';
 import '../../domain/entities/subscription_usage.dart';
 import '../../domain/usecases/cancel_subscription_usecase.dart';
-import '../../domain/usecases/change_plan_usecase.dart';
 import '../../domain/usecases/get_current_subscription_usecase.dart';
 import '../../domain/usecases/get_plans_usecase.dart';
 import '../../domain/usecases/get_usage_usecase.dart';
 import '../../../../core/utils/app_snackbar.dart';
+import '../../data/datasources/plan_billing_api.dart';
 
 /// Subscription Controller
 /// Manages all subscription-related state and business logic
@@ -16,15 +16,15 @@ class SubscriptionController extends GetxController {
   final GetPlansUseCase getPlansUseCase;
   final GetCurrentSubscriptionUseCase getCurrentSubscriptionUseCase;
   final GetUsageUseCase getUsageUseCase;
-  final ChangePlanUseCase changePlanUseCase;
   final CancelSubscriptionUseCase cancelSubscriptionUseCase;
+  final PlanBillingApi billingApi;
 
   SubscriptionController({
     required this.getPlansUseCase,
     required this.getCurrentSubscriptionUseCase,
     required this.getUsageUseCase,
-    required this.changePlanUseCase,
     required this.cancelSubscriptionUseCase,
+    required this.billingApi,
   });
 
   // Observable states
@@ -36,6 +36,16 @@ class SubscriptionController extends GetxController {
   final RxBool isLoadingSubscription = false.obs;
   final RxBool isLoadingUsage = false.obs;
   final RxBool isChangingPlan = false.obs;
+
+  /// Ciclo elegido en el selector de planes: monthly | semiannual | yearly.
+  final RxString selectedCycle = 'monthly'.obs;
+
+  /// Solicitud de plan pendiente de aprobación (o `null`).
+  final Rx<Map<String, dynamic>?> pendingRequest =
+      Rx<Map<String, dynamic>?>(null);
+
+  /// El usuario administra la plataforma (aprueba pagos de los negocios).
+  final RxBool isPlatformAdmin = false.obs;
   final RxBool isCancelling = false.obs;
 
   final RxString errorMessage = ''.obs;
@@ -52,7 +62,21 @@ class SubscriptionController extends GetxController {
       loadPlans(),
       loadCurrentSubscription(),
       loadUsage(),
+      loadPendingRequest(),
+      _loadPlatformAdmin(),
     ]);
+  }
+
+  Future<void> loadPendingRequest() async {
+    try {
+      pendingRequest.value = await billingApi.pendingRequest();
+    } catch (_) {
+      // Sin red o sin permiso (no es el dueño): simplemente no se muestra.
+    }
+  }
+
+  Future<void> _loadPlatformAdmin() async {
+    isPlatformAdmin.value = await billingApi.isPlatformAdmin();
   }
 
   /// Load all available plans
@@ -109,50 +133,51 @@ class SubscriptionController extends GetxController {
     );
   }
 
-  /// Change subscription plan
-  Future<void> changePlan(
-    String planCode, {
-    String? billingCycle,
-  }) async {
+  /// Solicita un plan pago. No cambia nada todavía: la plataforma lo
+  /// activa cuando recibe el pago.
+  Future<bool> requestPlan(String planCode, String billingCycle,
+      {String? notes}) async {
     isChangingPlan.value = true;
-    errorMessage.value = '';
-
-    final result = await changePlanUseCase(
-      ChangePlanParams(
+    try {
+      pendingRequest.value = await billingApi.requestPlan(
         planCode: planCode,
         billingCycle: billingCycle,
-      ),
-    );
+        notes: notes,
+      );
+      return true;
+    } catch (e) {
+      AppSnackbar.show(
+        'No se pudo enviar la solicitud',
+        PlanBillingApi.messageOf(e),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        icon: const Icon(Icons.error_outline, color: Colors.red),
+        duration: const Duration(seconds: 4),
+      );
+      return false;
+    } finally {
+      isChangingPlan.value = false;
+    }
+  }
 
-    result.fold(
-      (failure) {
-        errorMessage.value = failure.message;
-        isChangingPlan.value = false;
-        AppSnackbar.show(
-          'Error',
-          failure.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade100,
-          colorText: Colors.red.shade900,
-          icon: const Icon(Icons.error_outline, color: Colors.red),
-          duration: const Duration(seconds: 4),
-        );
-      },
-      (subscription) {
-        currentSubscription.value = subscription;
-        isChangingPlan.value = false;
-        AppSnackbar.show(
-          'Éxito',
-          'Plan cambiado exitosamente',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green.shade100,
-          colorText: Colors.green.shade900,
-          icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-          duration: const Duration(seconds: 3),
-        );
-        loadUsage(); // Refresh usage data
-      },
-    );
+  Future<void> cancelPendingRequest() async {
+    isChangingPlan.value = true;
+    try {
+      await billingApi.cancelRequest();
+      pendingRequest.value = null;
+    } catch (e) {
+      AppSnackbar.show(
+        'Error',
+        PlanBillingApi.messageOf(e),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade900,
+        icon: const Icon(Icons.error_outline, color: Colors.red),
+      );
+    } finally {
+      isChangingPlan.value = false;
+    }
   }
 
   /// Cancel subscription

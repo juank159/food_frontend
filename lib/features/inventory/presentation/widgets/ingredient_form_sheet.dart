@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/branch/branch_service.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/config/theme/app_colors.dart';
@@ -243,7 +244,10 @@ class _IngredientFormSheetState extends State<_IngredientFormSheet> {
               key: ValueKey('min_${_unit.code}'),
               baseUnit: _unit,
               initialBaseValue: _minStock,
-              label: 'Avisar cuando queden menos de…',
+              // Con varias sedes, editar el mínimo cambia el de ESTA sede.
+              label: (BranchService.maybe?.isMulti ?? false) && widget.editing != null
+                  ? 'Avisar en esta sede cuando queden menos de…'
+                  : 'Avisar cuando queden menos de…',
               onChanged: (v) => _minStock = v,
             ),
             const SizedBox(height: 12),

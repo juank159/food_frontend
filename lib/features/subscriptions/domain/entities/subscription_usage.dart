@@ -14,6 +14,9 @@ class SubscriptionUsage extends Equatable {
   final int trialDaysRemaining;
   final DateTime? trialEndsAt;
   final DateTime? currentPeriodEnd;
+  /// Hasta cuándo puede seguir operando con el pago vencido (`past_due`).
+  final DateTime? gracePeriodEndsAt;
+  final String billingCycle;
   final DateTime? startedAt;
 
   const SubscriptionUsage({
@@ -28,6 +31,8 @@ class SubscriptionUsage extends Equatable {
     required this.trialDaysRemaining,
     this.trialEndsAt,
     this.currentPeriodEnd,
+    this.gracePeriodEndsAt,
+    this.billingCycle = 'monthly',
     this.startedAt,
   });
 
@@ -60,14 +65,24 @@ class SubscriptionUsage extends Equatable {
         subscriptionStatus.toLowerCase() == 'active';
   }
 
-  /// Un plan PAGO (Basic/Professional) que dejó de estar al día: el
-  /// último cobro falló (`past_due`) o la suscripción está
-  /// cancelada/expirada. Mismo bloqueo operativo que
-  /// `trialExpiredOnFreePlan`, pero para cuentas que sí pagaban.
+  /// Plan pago vencido pero todavía dentro de los días de gracia: sigue
+  /// operando normal, solo hay que avisarle que pague.
+  bool get inGracePeriod {
+    if (isTrial || planCode.toLowerCase() == 'free') return false;
+    if (subscriptionStatus.toLowerCase() != 'past_due') return false;
+    return gracePeriodEndsAt != null &&
+        gracePeriodEndsAt!.isAfter(DateTime.now());
+  }
+
+  /// Un plan PAGO (Basic/Professional) que dejó de estar al día y ya no
+  /// tiene gracia: expirado, cancelado o en mora con la gracia vencida.
+  /// Mismo bloqueo operativo que `trialExpiredOnFreePlan`, pero para
+  /// cuentas que sí pagaban. Espeja `TenantInterceptor.assertCanCreate`.
   bool get paidPlanLapsed {
     if (isTrial) return false;
     if (planCode.toLowerCase() == 'free') return false;
-    return subscriptionStatus.toLowerCase() != 'active';
+    if (subscriptionStatus.toLowerCase() == 'active') return false;
+    return !inGracePeriod;
   }
 
   /// Cualquier razón por la que el backend está bloqueando crear
@@ -115,6 +130,8 @@ class SubscriptionUsage extends Equatable {
         trialDaysRemaining,
         trialEndsAt,
         currentPeriodEnd,
+        gracePeriodEndsAt,
+        billingCycle,
         startedAt,
       ];
 }

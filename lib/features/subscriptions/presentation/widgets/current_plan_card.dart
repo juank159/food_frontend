@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../../core/config/formatters/currency_formatter.dart';
 import '../../../../core/config/theme/app_colors.dart';
 import '../../../../core/routes/navigation_service.dart';
+import '../../domain/entities/subscription_plan.dart';
 import '../controllers/subscription_controller.dart';
 
 class CurrentPlanCard extends GetView<SubscriptionController> {
@@ -13,6 +15,30 @@ class CurrentPlanCard extends GetView<SubscriptionController> {
       final subscription = controller.currentSubscription.value;
       if (subscription == null) {
         return const SizedBox.shrink();
+      }
+
+      final usage = controller.usage.value;
+      final cycle = usage?.billingCycle ?? 'monthly';
+      final status = subscription.status.toLowerCase();
+      final isPaid =
+          subscription.plan != null && !subscription.plan!.isFree;
+      // Qué fecha importa según el estado (el cobro es manual: no hay
+      // "renovación automática", hay "vigente hasta").
+      String? dateLine;
+      int? warnDays;
+      if (subscription.isTrial && subscription.trialEndsAt != null) {
+        dateLine = 'Prueba hasta ${_formatDate(subscription.trialEndsAt!)}';
+      } else if (isPaid && status == 'active') {
+        dateLine =
+            'Vigente hasta ${_formatDate(subscription.currentPeriodEnd)}';
+        final d = subscription.daysRemainingInPeriod;
+        if (d <= 7) warnDays = d;
+      } else if (isPaid && status == 'past_due') {
+        final grace = usage?.gracePeriodEndsAt;
+        dateLine = 'Venció el ${_formatDate(subscription.currentPeriodEnd)}'
+            '${grace != null ? ' · podés operar hasta el ${_formatDate(grace)}' : ''}';
+      } else if (isPaid && status == 'expired') {
+        dateLine = 'Venció el ${_formatDate(subscription.currentPeriodEnd)}';
       }
 
       return Container(
@@ -80,34 +106,39 @@ class CurrentPlanCard extends GetView<SubscriptionController> {
               ],
             ),
             const SizedBox(height: 16),
-            if (subscription.plan != null) ...[
+            if (subscription.plan != null && !subscription.plan!.isFree) ...[
               Text(
-                subscription.plan!.priceDescription,
+                '${CurrencyFormatter.format(subscription.plan!.priceFor(cycle))} '
+                '· ${SubscriptionPlan.cycleLabel(cycle).toLowerCase()}',
                 style: TextStyle(
                   fontSize: 16,
                   color: AppColors.textOnPrimary.withValues(alpha: 0.9),
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: AppColors.textOnPrimary.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Renovación: ${_formatDate(subscription.currentPeriodEnd)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textOnPrimary.withValues(alpha: 0.9),
+            if (dateLine != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 16,
+                    color: AppColors.textOnPrimary.withValues(alpha: 0.8),
                   ),
-                ),
-              ],
-            ),
-            if (subscription.daysRemainingInPeriod <= 7) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      dateLine,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textOnPrimary.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (warnDays != null) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -118,7 +149,9 @@ class CurrentPlanCard extends GetView<SubscriptionController> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Faltan ${subscription.daysRemainingInPeriod} días',
+                    warnDays <= 0
+                        ? 'Vence hoy'
+                        : 'Faltan $warnDays ${warnDays == 1 ? 'día' : 'días'}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -142,22 +175,6 @@ class CurrentPlanCard extends GetView<SubscriptionController> {
                     child: const Text('Ver Planes'),
                   ),
                 ),
-                if (subscription.canCancel) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _showCancelDialog(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                        side: BorderSide(
-                          color: AppColors.textOnPrimary.withValues(alpha: 0.5),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                ],
               ],
             ),
           ],
@@ -167,34 +184,7 @@ class CurrentPlanCard extends GetView<SubscriptionController> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
-  void _showCancelDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar Suscripción'),
-        content: const Text(
-          '¿Estás seguro de que deseas cancelar tu suscripción?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              controller.cancelSubscription(immediately: false);
-            },
-            child: const Text(
-              'Sí',
-              style: TextStyle(color: AppColors.error),
-            ),
-          ),
-        ],
-      ),
-    );
+    final d = date.toLocal();
+    return '${d.day}/${d.month}/${d.year}';
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/config/responsive_config.dart';
 import '../../../../core/config/theme/app_colors.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/app_error_state.dart';
 import '../../../../core/widgets/app_gradient_header.dart';
 import '../controllers/subscription_controller.dart';
@@ -41,9 +42,16 @@ class SubscriptionPage extends GetView<SubscriptionController> {
       final planName = controller.currentPlanName;
       final isTrial = controller.isOnTrial;
       final hasActive = controller.hasActiveSubscription;
+      final usage = controller.usage.value;
+      final overdue = usage?.inGracePeriod == true;
+      final lapsed = usage?.operationsBlocked == true;
       String statusLabel;
       if (isTrial) {
         statusLabel = 'En período de prueba';
+      } else if (overdue) {
+        statusLabel = 'Pago vencido — en días de gracia';
+      } else if (lapsed) {
+        statusLabel = 'Plan vencido';
       } else if (hasActive) {
         statusLabel = 'Suscripción activa';
       } else {
@@ -93,9 +101,11 @@ class SubscriptionPage extends GetView<SubscriptionController> {
           icon: Icons.workspace_premium,
           label: 'Plan actual',
           value: planName,
-          hint: hasActive
-              ? 'Activa hasta el próximo ciclo'
-              : 'Elegí un plan para activar tu cuenta',
+          hint: overdue || lapsed
+              ? 'Solicitá la renovación más abajo'
+              : hasActive
+                  ? 'Activa hasta el próximo ciclo'
+                  : 'Elegí un plan para activar tu cuenta',
         ),
       );
     });
@@ -124,10 +134,10 @@ class SubscriptionPage extends GetView<SubscriptionController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (controller.isOnTrial) ...[
-                const TrialBanner(),
-                SizedBox(height: responsive.spacing),
-              ],
+              // El banner decide solo qué mostrar (prueba, gracia, vencido)
+              // y se oculta si no hay nada que avisar.
+              const TrialBanner(),
+              SizedBox(height: responsive.spacing),
               const CurrentPlanCard(),
               SizedBox(height: responsive.spacing),
               if (controller.usage.value != null) ...[
@@ -142,7 +152,8 @@ class SubscriptionPage extends GetView<SubscriptionController> {
                 _buildSectionTitle('Planes disponibles'),
                 const SizedBox(height: 4),
                 Text(
-                  'Elegí el plan que mejor se adapte a tu negocio.',
+                  'Elegí el plan y el período. Lo solicitás acá y lo '
+                  'activamos apenas recibamos el pago.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
@@ -151,6 +162,14 @@ class SubscriptionPage extends GetView<SubscriptionController> {
                 ),
                 SizedBox(height: responsive.spacing),
                 const PlanComparisonCard(),
+              ],
+              if (controller.isPlatformAdmin.value) ...[
+                SizedBox(height: responsive.spacing),
+                OutlinedButton.icon(
+                  onPressed: () => Get.toNamed(AppRoutes.platformAdmin),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('Administrar planes de los negocios'),
+                ),
               ],
             ],
           ),
