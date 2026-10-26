@@ -29,6 +29,7 @@ Esto es lo más fácil de romper sin darse cuenta porque son dos implementacione
 Si el dispositivo del POS corre una **build nativa instalada** (no el navegador), un `git push` **no la actualiza**. Hay que:
 1. Confirmar con el usuario qué build corre el dispositivo (Windows/Android/macOS/Linux) — no asumir.
 2. Recompilar esa build (`flutter build windows|apk|macos|linux`) y reinstalarla/redistribuirla a mano.
+   Windows y Android también salen del workflow `.github/workflows/native-builds.yml` (GitHub → Actions → "Builds nativas" → Run workflow, o push de un tag `v*`): el zip de Windows y el APK quedan en los Artifacts del run.
 
 Esto importa sobre todo para cambios en el camino `network` de impresión (arriba), que es nativo por definición.
 
