@@ -62,6 +62,10 @@ import '../../features/menu_schedules/presentation/bindings/menu_schedules_bindi
 import '../../features/settings/presentation/screens/business_info_screen.dart';
 import '../../features/settings/presentation/screens/promo_banner_screen.dart';
 import '../../features/settings/presentation/screens/branches_screen.dart';
+import '../../features/suppliers/presentation/purchase_detail_page.dart';
+import '../../features/suppliers/presentation/purchase_form_page.dart';
+import '../../features/suppliers/presentation/supplier_detail_page.dart';
+import '../../features/suppliers/presentation/suppliers_hub_page.dart';
 import '../../features/settings/presentation/screens/breb_settings_screen.dart';
 import '../../features/settings/presentation/screens/location_radius_screen.dart';
 import '../../features/settings/presentation/screens/operation_mode_settings_screen.dart';
@@ -292,6 +296,30 @@ class AppPages {
     GetPage(
       name: AppRoutes.promoBanner,
       page: () => const PromoBannerScreen(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.suppliers,
+      page: () => const SuppliersHubPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.supplierDetail,
+      page: () => const SupplierDetailPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.purchaseNew,
+      page: () => const PurchaseFormPage(),
+      middlewares: [AuthGuard()],
+      transition: Transition.cupertino,
+    ),
+    GetPage(
+      name: AppRoutes.purchaseDetail,
+      page: () => const PurchaseDetailPage(),
       middlewares: [AuthGuard()],
       transition: Transition.cupertino,
     ),

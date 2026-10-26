@@ -68,10 +68,20 @@ class _Header extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 ),
               )
-            : IconButton(
-                tooltip: 'Actualizar',
-                onPressed: controller.refreshAll,
-                icon: const Icon(Icons.refresh, color: Colors.white),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Proveedores y compras',
+                    onPressed: () => Get.toNamed(AppRoutes.suppliers),
+                    icon: const Icon(Icons.local_shipping_outlined, color: Colors.white),
+                  ),
+                  IconButton(
+                    tooltip: 'Actualizar',
+                    onPressed: controller.refreshAll,
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                  ),
+                ],
               ),
         chips: [
           AppKpiChip(
@@ -727,9 +737,9 @@ class _ActionsBar extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Compra con proveedor, factura y cuentas por pagar.
             action(Icons.local_shipping_outlined, 'Compra',
-                () => Get.toNamed(AppRoutes.inventoryOperation,
-                    arguments: {'mode': StockOperationMode.purchase}),
+                () => Get.toNamed(AppRoutes.purchaseNew),
                 primary: true),
             action(Icons.delete_sweep_outlined, 'Merma',
                 () => Get.toNamed(AppRoutes.inventoryOperation,

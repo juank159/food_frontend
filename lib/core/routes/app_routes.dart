@@ -30,6 +30,11 @@ class AppRoutes {
   static const String promoBanner = '/settings/promo-banner';
   static const String brebSettings = '/settings/breb';
   static const String branches = '/settings/branches';
+  // Proveedores y compras
+  static const String suppliers = '/suppliers';
+  static const String supplierDetail = '/suppliers/:id';
+  static const String purchaseNew = '/purchase-new';
+  static const String purchaseDetail = '/purchases/:id';
   static const String locationRadius = '/settings/location-radius';
   static const String operationModeSettings = '/settings/operation-mode';
   static const String counterTicketsBoard = '/counter-tickets/board';

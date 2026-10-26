@@ -14,6 +14,8 @@ class InventoryPaths {
   static const adjustments = '/inventory/adjustments';
   static const counts = '/inventory/counts';
   static const transfers = '/inventory/transfers';
+  /// Compras como documento (módulo de proveedores).
+  static const purchaseDocs = '/purchases';
 }
 
 double _num(dynamic v) {
@@ -118,6 +120,9 @@ InventoryOverlay applyPendingInventory({
   /// Sede del dispositivo: el stock que se muestra es el de esta sede, así
   /// que lo encolado en OTRA sede (antes de cambiar) no lo toca.
   String? branchId,
+  /// Líneas de una compra (`línea → insumo`) para aplicar la recepción de
+  /// una orden hecha sin internet. Sale de la copia local de compras.
+  Map<String, String> Function(String purchaseId)? purchaseLineIngredients,
 }) {
   final byId = {for (final i in ingredients) i.id: i};
   final order = [for (final i in ingredients) i.id];
@@ -266,6 +271,31 @@ InventoryOverlay applyPendingInventory({
     if (method != 'POST') continue;
     final lines = body['lines'];
     final notes = body['notes'] as String?;
+    // Compra (documento) recibida: suma stock. Una orden no mueve nada.
+    if (path == InventoryPaths.purchaseDocs) {
+      if (body['status'] == 'ordered' || lines is! List) continue;
+      for (final l in lines.whereType<Map>()) {
+        final q = _num(l['quantity']);
+        final id = l['ingredient_id'] as String;
+        addDelta(id, q);
+        addPending(id, q, MovementReason.purchase, e,
+            reference: body['invoice_number'] as String?, notes: notes);
+      }
+      continue;
+    }
+    final receive = RegExp(r'^/purchases/([^/]+)/receive$').firstMatch(path);
+    if (receive != null) {
+      final map = purchaseLineIngredients?.call(receive.group(1)!) ?? const {};
+      if (lines is! List) continue;
+      for (final l in lines.whereType<Map>()) {
+        final id = map[l['line_id']];
+        if (id == null) continue;
+        final q = _num(l['quantity_received']);
+        addDelta(id, q);
+        addPending(id, q, MovementReason.purchase, e, notes: 'Orden recibida');
+      }
+      continue;
+    }
     switch (path) {
       case InventoryPaths.purchases:
         if (lines is! List) break;

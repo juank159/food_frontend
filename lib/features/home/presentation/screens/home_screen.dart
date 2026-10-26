@@ -278,6 +278,13 @@ class HomeScreen extends GetView<HomeController> {
                 onTap: () => NavigationService.toInventory(),
               );
             }),
+          if (access.canSeeInventory)
+            _buildMenuItem(
+              icon: FontAwesomeIcons.truckField,
+              title: 'Proveedores y compras',
+              subtitle: 'Compras, órdenes, cuentas por pagar y compras sugeridas',
+              onTap: () => Get.toNamed(AppRoutes.suppliers),
+            ),
           if (access.canSeeChecklist)
             _buildMenuItem(
               icon: FontAwesomeIcons.listCheck,

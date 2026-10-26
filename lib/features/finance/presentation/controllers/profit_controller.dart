@@ -20,6 +20,9 @@ class ProfitController extends GetxController {
   /// `false` = reporte de UNA sede: la nómina es del negocio y solo entra
   /// en la vista de todas las sedes.
   final RxBool payrollIncluded = true.obs;
+  /// Compras de insumos recibidas en el período (informativo: no resta,
+  /// el costo ya entra en "Costo de productos vendidos").
+  final RxDouble inventoryPurchases = 0.0.obs;
   final RxDouble netProfit = 0.0.obs;
   final RxDouble grossMarginPct = 0.0.obs;
   final RxDouble netMarginPct = 0.0.obs;
@@ -66,6 +69,7 @@ class ProfitController extends GetxController {
       expensesTotal.value = moneyToDouble(obj['expenses_total']);
       payrollTotal.value = moneyToDouble(obj['payroll_total']);
       payrollIncluded.value = obj['payroll_included'] as bool? ?? true;
+      inventoryPurchases.value = moneyToDouble(obj['inventory_purchases']);
       netProfit.value = moneyToDouble(obj['net_profit']);
       grossMarginPct.value = moneyToDouble(obj['gross_margin_pct']);
       netMarginPct.value = moneyToDouble(obj['net_margin_pct']);

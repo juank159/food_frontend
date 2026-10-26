@@ -65,6 +65,17 @@ class InventoryRepository {
       // se "perdería" de la vista apenas el alta sincroniza).
       queue: queue.getAll().map(queue.remapEntry),
       branchId: BranchService.maybe?.current.value?.id,
+      purchaseLineIngredients: (purchaseId) {
+        for (final p in cache.getList('purchases_list') ?? const <Map<String, dynamic>>[]) {
+          if (p['id'] != purchaseId) continue;
+          return {
+            for (final l in (p['lines'] as List? ?? const []).whereType<Map>())
+              if (l['id'] is String && l['ingredient_id'] is String)
+                l['id'] as String: l['ingredient_id'] as String,
+          };
+        }
+        return const {};
+      },
     );
   }
 

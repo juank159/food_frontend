@@ -191,6 +191,11 @@ class ProfitScreen extends StatelessWidget {
             bold: true,
             color: c.isProfit ? AppColors.success : AppColors.error,
           ),
+          if (c.inventoryPurchases.value > 0) ...[
+            const Divider(height: 18),
+            _row('Compras de insumos (informativo)', c.inventoryPurchases.value,
+                hint: 'No resta: su costo ya va en "Costo de productos vendidos"'),
+          ],
         ],
       ),
     );

@@ -395,7 +395,12 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                   labelText: 'Categoría',
                   border: OutlineInputBorder(),
                 ),
+                // "Pago a proveedor" lo crea el módulo de proveedores (no
+                // es gasto del P&L); a mano no se elige.
                 items: kExpenseCategoryLabels.entries
+                    .where((e) =>
+                        e.key != 'inventory_purchase' ||
+                        _category == 'inventory_purchase')
                     .map((e) => DropdownMenuItem(
                           value: e.key,
                           child: Text(e.value),

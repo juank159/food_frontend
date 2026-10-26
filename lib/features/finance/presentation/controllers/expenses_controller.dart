@@ -100,6 +100,7 @@ const Map<String, String> kExpenseCategoryLabels = {
   'rent': 'Arriendo',
   'utilities': 'Servicios',
   'supplies': 'Insumos',
+  'inventory_purchase': 'Pago a proveedor',
   'equipment': 'Equipos',
   'maintenance': 'Mantenimiento',
   'marketing': 'Marketing',

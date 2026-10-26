@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../features/suppliers/data/suppliers_repository.dart';
 import '../services/branch/branch_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -897,5 +898,10 @@ Future<void> init() async {
   Get.put<InventoryStockService>(
     InventoryStockService(repository: sl<InventoryRepository>()),
     permanent: true,
+  );
+
+  // Proveedores y compras (local-first, ver `SuppliersRepository`).
+  sl.registerLazySingleton<SuppliersRepository>(
+    () => SuppliersRepository(dio: sl(), networkInfo: sl(), cache: sl(), queue: sl()),
   );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../suppliers/presentation/price_history_section.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import '../../../../core/config/formatters/currency_formatter.dart';
@@ -227,7 +228,12 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
                         runSpacing: 8,
                         children: [
                           FilledButton.icon(
-                            onPressed: () => _operation(StockOperationMode.purchase),
+                            // Compra con proveedor y factura (módulo de proveedores).
+                            onPressed: () => Get.toNamed(AppRoutes.purchaseNew, arguments: {
+                              'lines': [
+                                {'ingredientId': ing.id},
+                              ],
+                            }),
                             icon: const Icon(Icons.local_shipping_outlined, size: 18),
                             label: const Text('Compra'),
                             style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -253,6 +259,7 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
                           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
+                      PriceHistorySection(ingredientId: ing.id, unit: ing.unit),
                       const SizedBox(height: 20),
                       const Text('Se usa en',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
