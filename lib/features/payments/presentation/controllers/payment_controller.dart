@@ -12,6 +12,7 @@ import '../../../orders/domain/entities/order.dart' as order_entity;
 import '../../../orders/presentation/controllers/order_detail_controller.dart';
 import '../../../orders/presentation/controllers/orders_controller.dart';
 import '../../../printer_configs/data/printing_orchestrator.dart';
+import '../../../tab_sessions/presentation/controllers/tab_session_detail_controller.dart';
 import '../../domain/entities/payment.dart';
 import '../../domain/usecases/create_payment_usecase.dart';
 import '../../domain/usecases/get_payments_by_order_usecase.dart';
@@ -466,10 +467,20 @@ class PaymentController extends GetxController {
           subtitle: updated.displayTableLabel,
         );
       });
-    } else if (tryPrintReceipt) {
-      // OrdersController no está montado (ej. usuario entró directo al
-      // detalle). Hacemos fetch propio para verificar si quedó pagada.
-      _fetchAndTryPrint(orderId);
+    } else {
+      // OrdersController no está montado (ej. se entró al detalle desde
+      // una cuenta abierta): antes el detalle quedaba con el saldo viejo.
+      if (Get.isRegistered<OrderDetailController>()) {
+        final detail = Get.find<OrderDetailController>();
+        if (detail.currentOrder?.id == orderId) detail.refresh();
+      }
+      // Fetch propio para verificar si quedó pagada e imprimir.
+      if (tryPrintReceipt) _fetchAndTryPrint(orderId);
+    }
+    // Si el ticket es de una cuenta abierta y su detalle está en pantalla,
+    // también se refresca (saldo de la cuenta, ticket "Pagado").
+    if (Get.isRegistered<TabSessionDetailController>()) {
+      Get.find<TabSessionDetailController>().load();
     }
   }
 

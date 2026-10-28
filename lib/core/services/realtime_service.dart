@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:get/get.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -5,6 +7,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config/constants/api_constants.dart';
 import '../di/injection_container.dart';
 import '../../features/auth/data/datasources/auth_local_datasource.dart';
+import '../../features/orders/presentation/controllers/order_detail_controller.dart';
 import '../../features/orders/presentation/controllers/orders_controller.dart';
 import '../../features/products/presentation/controllers/products_controller.dart';
 import '../../features/tab_sessions/presentation/controllers/open_tabs_controller.dart';
@@ -95,6 +98,23 @@ class RealtimeService extends GetxController {
   /// momento), no hay nada que refrescar — la próxima vez que se abra
   /// esa pantalla va a pedir datos frescos de cualquier forma (local-
   /// first: `load()`/`loadOrders()`/`loadProducts()`).
+  Timer? _detailDebounce;
+
+  /// Refresca los detalles abiertos (orden y cuenta). Con debounce: un
+  /// cobro emite varios avisos seguidos (orders + tab_sessions) y no hace
+  /// falta un GET por cada uno.
+  void _refreshOpenDetails() {
+    _detailDebounce?.cancel();
+    _detailDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (Get.isRegistered<OrderDetailController>()) {
+        Get.find<OrderDetailController>().refresh();
+      }
+      if (Get.isRegistered<TabSessionDetailController>()) {
+        Get.find<TabSessionDetailController>().load();
+      }
+    });
+  }
+
   void _handleChange(dynamic data) {
     try {
       final map = data as Map;
@@ -105,6 +125,10 @@ class RealtimeService extends GetxController {
           if (Get.isRegistered<OrdersController>()) {
             Get.find<OrdersController>().loadOrders();
           }
+          // También el DETALLE abierto (orden o cuenta): un cobro Bre-B que
+          // el banco confirma con el diálogo ya cerrado, o un cambio hecho
+          // en otro dispositivo, antes solo actualizaba el listado.
+          _refreshOpenDetails();
           break;
         case 'tab_sessions':
           if (Get.isRegistered<OpenTabsController>()) {

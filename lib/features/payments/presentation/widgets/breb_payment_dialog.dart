@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -46,6 +48,17 @@ class BrebPaymentDialog extends StatefulWidget {
 }
 
 class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
+  /// Segundos que se muestra "¡Pago confirmado!" antes de cerrarse solo.
+  static const _autoCloseSeconds = 6;
+
+  /// La ruta de ESTE diálogo — para cerrar también lo que esté abierto
+  /// encima (QR ampliado, "Buscar pago") sin cerrar nada de más abajo.
+  ModalRoute<dynamic>? _route;
+  Worker? _stateWorker;
+  Timer? _autoCloseTimer;
+  final RxInt _closeIn = 0.obs;
+  bool _closed = false;
+
   void _createCharge() {
     widget.controller.createCharge(
       orderId: widget.orderId,
@@ -58,6 +71,55 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _createCharge());
+    // El cierre automático se arranca UNA vez cuando el estado pasa a
+    // pagado. Antes se agendaba dentro de `build`: cada redibujo sumaba
+    // otro `Navigator.pop` y podía cerrar de más (el QR ampliado, el
+    // diálogo de cobro o hasta la pantalla de detalle).
+    _stateWorker = ever<BrebPaymentState>(widget.controller.state, (s) {
+      if (s == BrebPaymentState.paid) _startAutoClose();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route ??= ModalRoute.of(context);
+  }
+
+  @override
+  void dispose() {
+    _stateWorker?.dispose();
+    _autoCloseTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoClose() {
+    if (_autoCloseTimer != null || _closed) return;
+    // Lo que esté abierto encima (QR ampliado, "Buscar pago") se cierra ya,
+    // para que el cajero vea "¡Pago confirmado!" durante la cuenta atrás.
+    final route = _route;
+    if (mounted && route != null && route.isActive && !route.isCurrent) {
+      Navigator.of(context).popUntil((r) => r == route);
+    }
+    HapticFeedback.mediumImpact();
+    _closeIn.value = _autoCloseSeconds;
+    _autoCloseTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      _closeIn.value = _closeIn.value - 1;
+      if (_closeIn.value <= 0) _closeAsPaid();
+    });
+  }
+
+  /// Cierra lo que haya encima y este diálogo, devolviendo `true` para que
+  /// quien lo abrió refresque la orden / la cuenta.
+  void _closeAsPaid() {
+    _autoCloseTimer?.cancel();
+    if (_closed || !mounted) return;
+    final route = _route;
+    if (route == null || !route.isActive) return;
+    _closed = true;
+    final nav = Navigator.of(context);
+    nav.popUntil((r) => r == route);
+    nav.pop(true);
   }
 
   @override
@@ -66,7 +128,14 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
     final mq = MediaQuery.of(context);
     final isSmall = mq.size.height < 700;
 
-    return Dialog(
+    // Atrás (Android/gesto) pasa por la misma lógica que la X: con el pago
+    // confirmado cierra como pagado; si no, cancela el cobro.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancel();
+      },
+      child: Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: EdgeInsets.symmetric(
         horizontal: isSmall ? 12 : 24,
@@ -150,6 +219,7 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -297,11 +367,6 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
   }
 
   Widget _buildSuccess(BuildContext context, ThemeData theme) {
-    // Auto-cierre tras 1.5 s para no bloquear al cajero
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (context.mounted) Navigator.pop(context, true);
-    });
-
     final payer = widget.controller.payerName.value;
 
     return Padding(
@@ -346,6 +411,17 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: _closeAsPaid,
+              child: Obx(() => Text(
+                    _closeIn.value > 0 ? 'Listo (${_closeIn.value})' : 'Listo',
+                  )),
             ),
           ),
         ],
@@ -447,6 +523,12 @@ class _BrebPaymentDialogState extends State<BrebPaymentDialog> {
       widget.controller.requestedAmount.value - widget.controller.chargeAmount.value > 9.009;
 
   void _cancel() {
+    // Con el pago ya confirmado, la X es "cerrar" — nunca "cancelar":
+    // devolver `false` acá dejaba la pantalla sin refrescar.
+    if (widget.controller.state.value == BrebPaymentState.paid) {
+      _closeAsPaid();
+      return;
+    }
     widget.controller.cancel();
     Navigator.pop(context, false);
   }

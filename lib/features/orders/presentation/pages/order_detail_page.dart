@@ -43,7 +43,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     // que `loadOrder` nunca se disparaba y la pantalla mostraba
     // "No se encontró la orden" sin haber hecho el GET al backend.
     final orderId = Get.parameters['id'] ?? '';
-    if (orderId.isNotEmpty && !controller.hasOrder) {
+    // También si el controller tiene OTRA orden cargada (quedó de un
+    // detalle anterior): antes se mostraba esa en vez de la pedida.
+    if (orderId.isNotEmpty && controller.currentOrder?.id != orderId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         controller.loadOrder(orderId).then((_) => _maybeAutoOpenPay());
       });

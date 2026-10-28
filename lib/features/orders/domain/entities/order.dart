@@ -242,7 +242,10 @@ class Order extends Equatable {
   bool get isAssigned => assignedTo != null;
 
   /// Obtiene el número total de items
-  int get totalItems => items.fold(0, (sum, item) => sum + item.quantity);
+  /// Unidades de producto. Las líneas de descuento (precio negativo) no
+  /// cuentan — antes "3 almojábanas + descuento" decía "4 items".
+  int get totalItems => items.fold(
+      0, (sum, item) => item.unitPrice < 0 ? sum : sum + item.quantity);
 
   /// Obtiene la cantidad de productos diferentes
   int get uniqueItems => items.length;

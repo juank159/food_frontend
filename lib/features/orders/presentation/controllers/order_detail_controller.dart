@@ -396,8 +396,10 @@ class OrderDetailController extends GetxController {
   /// de la lista para el chip "X de Y entregados" y el progress bar.
   ({int delivered, int total}) get deliveryProgress {
     if (!hasOrder) return (delivered: 0, total: 0);
-    final total = currentOrder!.items.length;
-    final delivered = currentOrder!.items.where((i) => i.isDelivered).length;
+    // Un descuento no se entrega: no cuenta en el avance de entregas.
+    final products = currentOrder!.items.where((i) => i.unitPrice >= 0);
+    final total = products.length;
+    final delivered = products.where((i) => i.isDelivered).length;
     return (delivered: delivered, total: total);
   }
 

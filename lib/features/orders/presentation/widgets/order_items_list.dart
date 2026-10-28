@@ -217,6 +217,9 @@ class OrderItemsList extends StatelessWidget {
     final canForward = !isDiscount && _canInteract && nextStatus != null;
     final canUndoDelivery =
         !isDiscount && _canInteract && item.isDelivered && perms.canDeliver;
+    // Un descuento queda "entregado" (no se prepara), pero no debe verse
+    // tachado como un plato ya servido — parecería anulado.
+    final showDelivered = item.isDelivered && !isDiscount;
 
     // Layout pasivo del item — el ÚNICO punto tappable es el círculo
     // grande (52x52) a la derecha. Tocar el nombre o el precio no
@@ -228,12 +231,12 @@ class OrderItemsList extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: item.isDelivered
+        color: showDelivered
             ? AppColors.success.withValues(alpha: 0.07)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: item.isDelivered
+          color: showDelivered
               ? AppColors.success.withValues(alpha: 0.22)
               : Colors.transparent,
         ),
@@ -251,10 +254,10 @@ class OrderItemsList extends StatelessWidget {
                   item.productName,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    decoration: item.isDelivered
+                    decoration: showDelivered
                         ? TextDecoration.lineThrough
                         : null,
-                    color: item.isDelivered
+                    color: showDelivered
                         ? theme.colorScheme.onSurfaceVariant
                         : null,
                   ),
